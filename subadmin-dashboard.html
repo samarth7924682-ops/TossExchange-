@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - SubAdmin Dashboard</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* 🌟 COMMON SUBADMIN HEADER 🌟 */
+        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
+        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; }
+        .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
+        .sa-badge span { color: var(--accent); font-size: 12px;}
+
+        .container { padding: 10px; max-width: 800px; margin: 0 auto; }
+
+        /* Navigation Flex Grid */
+        .nav-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; justify-content: space-between;}
+        .nav-btn { flex: 1 1 30%; background: white; color: var(--primary); text-align: center; padding: 12px 5px; text-decoration: none; font-weight: 900; font-size: 11px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 3px solid var(--accent); box-sizing: border-box;}
+        .nav-btn:active { transform: scale(0.95); }
+
+        .card { background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 3px solid var(--primary); }
+        h3 { margin-top: 0; font-size: 14px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
+        
+        .slim-strip { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border: 1px solid #e2e8f0; margin-bottom: 8px; border-radius: 4px; font-size: 12px; flex-wrap: wrap; gap: 8px;}
+        .btn-green { background: var(--green); color: white; padding: 6px 12px; border: none; cursor: pointer; border-radius: 4px; font-weight: 900; font-size: 11px;}
+        .btn-red { background: var(--red); color: white; padding: 6px 12px; border: none; cursor: pointer; border-radius: 4px; font-weight: 900; font-size: 11px;}
+        .upload-box { background: #e0f2fe; padding: 8px; border-radius: 4px; width: 100%; border: 1px dashed #0284c7; margin-top: 5px; }
+
+        /* Floating WhatsApp Button for Master Contact */
+        .whatsapp-float-btn {
+            position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 50px; height: 50px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none; display: none; 
+        }
+
+        /* 🔴🟢 BLINKING DOTS & PROOF UI CSS 🔴🟢 */
+        @keyframes blink-dot { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
+        .dot-green { display: inline-block; width: 12px; height: 12px; background-color: var(--green); border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(46,125,50,0.6); }
+        .dot-red { display: inline-block; width: 12px; height: 12px; background-color: var(--red); border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(211,47,47,0.6); }
+        .proof-link { display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+        /* Popup Modal Styles */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); text-align: center; border-top: 5px solid #d32f2f; }
+        .close-btn { color: #aaa; float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
+        .modal-title { font-size: 18px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
+        .modal-body { font-size: 14px; color: #333; margin-bottom: 20px; word-wrap: break-word; }
+        .btn-close-modal { background-color: #333; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        /* Image Viewer Modal Specific Style */
+        .image-modal-content { padding: 10px; max-width: 95%; background: #222; border: none; position: relative; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
+        .img-close-btn { position: absolute; top: -15px; right: -5px; font-size: 24px; color: white; background: #d32f2f; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; z-index: 2001; }
+    </style>
+</head>
+<body>
+
+    <!-- 🌟 COMMON HEADER 🌟 -->
+    <div class="sa-header">
+        <div class="sa-header-top">
+            <div class="sa-logo">TOSSEXCHANGE</div>
+            <div style="font-size: 12px; font-weight: bold; color: #cbd5e1;">👤 <span id="sa-name">...</span></div>
+        </div>
+        <div class="sa-stats-bar">
+            <div class="sa-badge">BAL: <span id="sa-bal">0.00</span></div>
+            <div class="sa-badge">DOWNLINE: <span id="sa-downline">0.00</span></div>
+            <div class="sa-badge" style="border-color:var(--red);">PnL: <span id="sa-pnl" style="color:var(--red);">0.00</span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <!-- Navigation Layout -->
+        <div class="nav-grid">
+            <a href="subadmin-users.html" class="nav-btn">👤 USERS</a>
+            <a href="subadmin-banking.html" class="nav-btn">🏦 UPI/QR</a>
+            <a href="subadmin-settings.html" class="nav-btn">🤖 BOT</a>
+            
+            <a href="subadmin-market.html" class="nav-btn" style="border-bottom-color: var(--green);">🏏 MARKET</a>
+            <a href="coinmaster.html" class="nav-btn" style="border-bottom-color: #f57c00;">👑 MASTER COINS</a>
+            <a href="subadmin-change-pass.html" class="nav-btn" style="border-bottom-color: #f97316;">🔑 PASSWORD</a>
+            
+            <div class="nav-btn" onclick="logoutWithPassword()" style="flex: 1 1 100%; border-bottom-color: var(--red); cursor: pointer; color: var(--red);">🚪 LOGOUT</div>
+        </div>
+
+        <div class="card">
+            <h3>⏳ Pending Requests</h3>
+            <div id="pending-list"><p style="color: #666; font-size: 11px;">Loading requests...</p></div>
+        </div>
+
+        <!-- 📜 Real-time Activity Logs (User Txns) -->
+        <div class="card" style="border-left-color: #64748b;">
+            <h3>📜 User Activity Logs</h3>
+            <div id="local-logs-list"><p style="color: #666; font-size: 11px;">Loading recent activity...</p></div>
+        </div>
+
+    </div>
+
+    <a href="#" id="wa-master-btn" class="whatsapp-float-btn">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WA" style="width: 30px; height: 30px;">
+    </a>
+
+    <!-- Reason Modal -->
+    <div id="reasonModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="modal-title">Reason for Rejection</div>
+            <div class="modal-body" id="modal-reason-text"></div>
+            <button class="btn-close-modal" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- 📸 Image Viewer Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content image-modal-content">
+            <span class="img-close-btn" onclick="closeImageModal()">&times;</span>
+            <img id="modal-image-preview" src="" style="width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px;">
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const IMGBB_KEY = "d31576e535f3516a79211d96d1b21ffa";
+        
+        // 🛡️ SECURITY MIDDLEWARE
+        const subAdminSession = localStorage.getItem('adminSession');
+        let subAdmin = null;
+
+        if(!subAdminSession) {
+            window.location.replace("subadmin-login.html");
+        } else {
+            subAdmin = JSON.parse(subAdminSession);
+            if(subAdmin.role !== 'subadmin') {
+                localStorage.removeItem('adminSession');
+                window.location.replace("subadmin-login.html");
+            }
+        }
+        
+        let currentSaBal = 0;
+        let totalDownlineBal = 0;
+        let netMasterCoins = 0;
+        let bonusPercent = 0;
+
+        // Modal Handlers
+        function showRejectReason(reason) {
+            document.getElementById('modal-reason-text').innerText = reason || "No reason provided.";
+            document.getElementById('reasonModal').style.display = "flex";
+        }
+        function closeModal() { document.getElementById('reasonModal').style.display = "none"; }
+        function showImageModal(url) {
+            document.getElementById('modal-image-preview').src = url;
+            document.getElementById('imageModal').style.display = "flex";
+        }
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = "none";
+            document.getElementById('modal-image-preview').src = "";
+        }
+        
+        window.onclick = function(e) { 
+            if (e.target == document.getElementById('reasonModal')) closeModal();
+            if (e.target == document.getElementById('imageModal')) closeImageModal();
+        }
+
+        async function logoutWithPassword() {
+            const pass = prompt("🔒 Please enter your password to Logout:");
+            if (!pass) return; 
+            try {
+                const doc = await db.collection("admins").doc(subAdmin.id).get();
+                if (doc.exists && doc.data().password === pass) {
+                    localStorage.removeItem('adminSession');
+                    window.location.replace("subadmin-login.html");
+                } else {
+                    alert("❌ Incorrect Password! Logout failed.");
+                }
+            } catch(e) {
+                alert("Error verifying password. Check your connection.");
+            }
+        }
+
+        db.collection("system_settings").doc("global").onSnapshot(doc => {
+            if(doc.exists && doc.data().masterWhatsApp) {
+                const waBtn = document.getElementById('wa-master-btn');
+                waBtn.href = `https://wa.me/${doc.data().masterWhatsApp}?text=Hello%20Master,%20I%20am%20Subadmin:%20${subAdmin.username}`;
+                waBtn.target = "_blank";
+                waBtn.style.display = "flex";
+            }
+        });
+
+        document.getElementById('sa-name').innerText = subAdmin.username;
+        
+        db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
+            if(doc.exists) {
+                if(doc.data().locked === true) {
+                    alert("🚨 Your SubAdmin Account has been LOCKED by Master Admin!");
+                    localStorage.removeItem('adminSession');
+                    window.location.replace("subadmin-login.html");
+                    return;
+                }
+                currentSaBal = doc.data().balance || 0;
+                bonusPercent = parseFloat(doc.data().depositBonusPercent || 0);
+                document.getElementById('sa-bal').innerText = Math.floor(currentSaBal);
+                calcPnL();
+            }
+        });
+        
+        db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
+            totalDownlineBal = 0;
+            snap.forEach(doc => { totalDownlineBal += (doc.data().balance || 0); });
+            document.getElementById('sa-downline').innerText = Math.floor(totalDownlineBal);
+        });
+
+        function calcPnL() {
+            let pnl = netMasterCoins - currentSaBal; 
+            let pnlEl = document.getElementById('sa-pnl');
+            pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
+            pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+        }
+
+        db.collection("transactions").where("userId", "==", subAdmin.id).onSnapshot(snap => {
+            netMasterCoins = 0; 
+            snap.forEach(doc => {
+                let tx = doc.data();
+                if(tx.remark && tx.remark.includes('Master') && tx.status === 'approved') {
+                    if (tx.type === 'deposit') netMasterCoins += parseFloat(tx.amount || 0);
+                    if (tx.type === 'withdraw') netMasterCoins -= parseFloat(tx.amount || 0);
+                }
+            });
+            calcPnL(); 
+        });
+
+        // ===============================================
+        // 📜 REAL-TIME USER ACTIVITY LOGS (UI FIX FOR BONUS)
+        // ===============================================
+        db.collection("transactions").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
+            let logs = [];
+            snap.forEach(doc => {
+                let tx = doc.data();
+                tx.id = doc.id; 
+                // Hide system master logs
+                if(tx.status !== 'pending' && (!tx.remark || !tx.remark.includes('Master'))) {
+                    logs.push(tx);
+                }
+            });
+            
+            // 🔥 REMOVE standalone BONUS entries from UI list. 
+            // We will attach them to Deposit rows instead.
+            logs = logs.filter(tx => tx.type !== 'bonus');
+
+            logs.sort((a,b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            logs = logs.slice(0, 15); 
+            
+            const list = document.getElementById('local-logs-list');
+            list.innerHTML = "";
+            if(logs.length === 0) { list.innerHTML = "<p style='color:#777; font-size:11px;'>No recent activity.</p>"; return; }
+            
+            logs.forEach(tx => {
+                let isManual = (tx.remark && tx.remark.toLowerCase().includes('manual')) || 
+                               (tx.type === 'deposit' && !tx.proof) || 
+                               (tx.type === 'withdraw' && !tx.upi && !tx.adminProof);
+
+                let statusColor = '';
+                let statusText = '';
+                let sign = (tx.type === 'deposit') ? '+' : '-';
+
+                if (tx.status === 'rejected') {
+                    statusColor = '#f59e0b';
+                    statusText = 'REJECTED'; 
+                } else if (tx.type === 'deposit') {
+                    statusColor = 'var(--green)';
+                    statusText = isManual ? 'MANUAL DEPOSIT' : 'DEPOSIT';
+                } else if (tx.type === 'withdraw') {
+                    statusColor = 'var(--red)';
+                    statusText = isManual ? 'MANUAL WITHDRAWAL' : 'WITHDRAWAL';
+                }
+
+                // 🔥 Attach Bonus info visually inside Deposit Amount
+                let amountHtml = `${sign}${tx.amount}`;
+                if (tx.type === 'deposit' && tx.bonusAmount) {
+                    amountHtml += `<div style="font-size:9.5px; color:var(--green); font-weight:bold; margin-top:2px;">+${tx.bonusAmount} Bonus</div>`;
+                }
+
+                let dotElement = `<span style="width:12px; margin-left:10px;"></span>`; 
+                if (tx.proof) {
+                    let dotColor = (tx.status === 'rejected') ? 'dot-red' : 'dot-green';
+                    dotElement = `<span onclick="showImageModal('${tx.proof}')" title="View Proof" class="proof-link"><span class="${dotColor}"></span></span>`;
+                } else if (tx.adminProof) {
+                    dotElement = `<span onclick="showImageModal('${tx.adminProof}')" title="View Proof" class="proof-link"><span class="dot-red"></span></span>`;
+                }
+
+                let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+                
+                let rejectInfo = "";
+                if(tx.status === 'rejected') {
+                    let r = tx.rejectReason ? tx.rejectReason.replace(/'/g, "\\'") : "No reason provided.";
+                    rejectInfo = `
+                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                            <span onclick="showRejectReason('${r}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">View Reason</span>
+                            &nbsp;|&nbsp;
+                            <span onclick="reApproveTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #2e7d32; text-decoration: underline; cursor: pointer;">Re-Approve ✅</span>
+                        </div>
+                    `;
+                } else if (tx.status === 'approved') {
+                    rejectInfo = `
+                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                            <span onclick="reRejectTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">Re-Reject ❌</span>
+                        </div>
+                    `;
+                }
+
+                list.innerHTML += `
+                    <div class="slim-strip" style="border-left-color: ${statusColor}; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; flex-direction: row;">
+                        <div style="flex: 1.2; text-align: left; display: flex; flex-direction: column; overflow:hidden;">
+                            <div style="font-size:12px; font-weight:bold; color:#333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                👤 ${tx.username}
+                            </div>
+                            <div style="font-size:9.5px; color:#888; margin-top: 2px;">
+                                ${dateStr}
+                            </div>
+                            ${rejectInfo}
+                        </div>
+                        <div style="flex: 1; text-align: center; font-size: 11px; font-weight: 900; color: ${statusColor};">
+                            ${statusText}
+                        </div>
+                        <div style="flex: 1; text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
+                            <div style="display: flex; align-items: center;">
+                                <span style="font-weight:900; color:${statusColor}; font-size:13.5px;">
+                                    ${amountHtml}
+                                </span>
+                                ${dotElement}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+         // ⏳ Load Pending Requests
+        async function loadPendingRequests() {
+            const list = document.getElementById('pending-list');
+            try {
+                const snap = await db.collection("transactions").where("status", "==", "pending").get();
+                list.innerHTML = ""; 
+                let hasRequests = false;
+
+                for (let i = 0; i < snap.docs.length; i++) {
+                    const txDoc = snap.docs[i];
+                    const tx = txDoc.data();
+                    const uId = String(tx.userId); 
+                    
+                    const userSnap = await db.collection("users").doc(uId).get();
+                    if(userSnap.exists && userSnap.data().linkedSubAdminId === subAdmin.id) {
+                        hasRequests = true;
+                        
+                        let extraInfo = "";
+                        let actionButtons = "";
+
+                        if(tx.type === 'deposit') {
+                            extraInfo = `<div style="font-size:11px; color:#555; margin-top:4px;">UTR: ${tx.utr}</div>
+                                         <span onclick="showImageModal('${tx.proof}')" style="font-size:11px; color:#1e88e5; font-weight:bold; cursor:pointer;">📄 View Proof</span>`;
+                            actionButtons = `
+                                <button class="btn-green" onclick="updateTx('${txDoc.id}', '${tx.username}', '${uId}', ${tx.amount}, 'approved', 'deposit')">Approve</button>
+                                <button class="btn-red" onclick="rejectTxWithReason('${txDoc.id}', '${tx.username}', '${uId}', ${tx.amount}, 'deposit')">Reject</button>
+                            `;
+                        } else if(tx.type === 'withdraw') {
+                            extraInfo = `
+                                <div style="font-size:12px; color:#c62828; font-weight:bold; margin-top:4px;">💳 Pay UPI: ${tx.upi || 'Not Provided'}</div>
+                                <div class="upload-box">
+                                    <label style="font-size:10px; font-weight:bold; color:#1e88e5;">Upload Payment Proof:</label>
+                                    <input type="file" id="proof-${txDoc.id}" accept="image/*" style="width:100%; font-size:11px; margin-top:2px;">
+                                </div>
+                            `;
+                            actionButtons = `
+                                <button class="btn-green" onclick="approveWithdraw('${txDoc.id}', '${tx.username}', '${uId}', ${tx.amount}, event)">Upload & Approve</button>
+                                <button class="btn-red" onclick="rejectTxWithReason('${txDoc.id}', '${tx.username}', '${uId}', ${tx.amount}, 'withdraw')">Reject</button>
+                            `;
+                        }
+
+                        list.innerHTML += `
+                            <div class="slim-strip">
+                                <div style="flex:1; min-width: 150px;">
+                                    <b style="color:var(--primary); font-size:14px;">${tx.username}</b> 
+                                    <span style="color:#666; font-weight:bold; font-size:11px;">(${tx.type.toUpperCase()}: 🪙 ${tx.amount})</span>
+                                    ${extraInfo}
+                                </div>
+                                <div style="display:flex; gap:5px; align-items:center;">
+                                    ${actionButtons}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                if(!hasRequests) list.innerHTML = "<p style='color:#777; font-size:11px;'>No pending requests right now.</p>";
+            } catch (error) { list.innerHTML = "<p style='color:red;'>Error Loading Data.</p>"; }
+        }
+
+        async function rejectTxWithReason(txId, uName, userId, amount, type) {
+            let reason = prompt(`Reason for rejecting this ${type}? (Required)`);
+            if (!reason || reason.trim() === "") {
+                alert("❌ Reject reason is mandatory!");
+                return;
+            }
+            updateTx(txId, uName, userId, amount, 'rejected', type, reason.trim());
+        }
+
+        // ✅ RE-APPROVE FUNCTION (Avoids duplicate bonuses)
+        async function reApproveTx(txId, uName, userId, amount, type) {
+            if(!confirm(`Are you sure you want to RE-APPROVE this rejected ${type.toUpperCase()}?`)) return;
+
+            // 🔍 Check if bonus already exists for this deposit to avoid duplicates
+            let existingBonusDocId = null;
+            let bonusAmount = 0;
+            
+            if(type === 'deposit') {
+                try {
+                    const bonusSnap = await db.collection("transactions").where("parentDepositId", "==", txId).get();
+                    bonusSnap.forEach(bDoc => {
+                        existingBonusDocId = bDoc.id;
+                        bonusAmount = bDoc.data().amount; 
+                    });
+                } catch(e) {}
+                
+                // If no existing bonus found, calculate it normally
+                if(!existingBonusDocId && bonusPercent > 0) {
+                    bonusAmount = parseFloat((amount * (bonusPercent / 100)).toFixed(2));
+                }
+            }
+
+            let totalDeduct = amount + bonusAmount;
+
+            if(type === 'deposit' && currentSaBal < totalDeduct) {
+                alert("❌ Insufficient Balance! (Deposit + Bonus needs 🪙 " + totalDeduct + ")"); return;
+            }
+
+            const batch = db.batch();
+            
+            let depUpdateData = { 
+                status: 'approved',
+                rejectReason: firebase.firestore.FieldValue.delete(),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            // Embed bonusAmount in deposit doc for UI display
+            if (type === 'deposit' && bonusAmount > 0) {
+                depUpdateData.bonusAmount = bonusAmount; 
+            }
+            batch.update(db.collection("transactions").doc(txId), depUpdateData);
+
+            if(type === 'deposit') {
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(totalDeduct) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-totalDeduct) });
+
+                if(existingBonusDocId) {
+                    // Update existing bonus status
+                    batch.update(db.collection("transactions").doc(existingBonusDocId), {
+                        status: 'approved',
+                        rejectReason: firebase.firestore.FieldValue.delete(),
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else if(bonusAmount > 0) {
+                    // Create new bonus only if it didn't exist before
+                    batch.set(db.collection("transactions").doc(), {
+                        userId: userId, username: uName, linkedSubAdminId: subAdmin.id,
+                        type: 'bonus', amount: bonusAmount, status: 'approved',
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        remark: `Deposit Bonus (${bonusPercent}%)`,
+                        parentDepositId: txId 
+                    });
+                }
+            } else if (type === 'withdraw') {
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-amount) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(amount) });
+            }
+
+            try {
+                await batch.commit(); 
+                loadPendingRequests(); 
+                alert("✅ Successfully Re-Approved!");
+            } catch(e) { 
+                alert("Error in re-approving."); 
+            }
+        }
+
+        // ❌ RE-REJECT FUNCTION (Reverses Deposit + Bonus together)
+        async function reRejectTx(txId, uName, userId, amount, type) {
+            let reason = prompt(`Reason for rejecting this previously approved ${type.toUpperCase()}? (Required)`);
+            if (!reason || reason.trim() === "") {
+                alert("❌ Reject reason is mandatory!");
+                return;
+            }
+
+            if(!confirm(`Are you sure you want to RE-REJECT this ${type.toUpperCase()}? Balances will be deducted/reversed.`)) return;
+
+            const batch = db.batch();
+            
+            batch.update(db.collection("transactions").doc(txId), { 
+                status: 'rejected',
+                rejectReason: reason.trim(),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            if (type === 'deposit') {
+                let totalDeduction = amount;
+
+                // 🔍 Fetch and Reject linked Bonus automatically
+                try {
+                    const bonusSnap = await db.collection("transactions").where("parentDepositId", "==", txId).get();
+                    bonusSnap.forEach(bDoc => {
+                        if(bDoc.data().status === 'approved') {
+                            totalDeduction += bDoc.data().amount;
+                            batch.update(db.collection("transactions").doc(bDoc.id), {
+                                status: 'rejected',
+                                rejectReason: 'Parent deposit was Re-Rejected',
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+                    });
+                } catch(e) {}
+
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-totalDeduction) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(totalDeduction) });
+
+            } else if (type === 'withdraw') {
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(amount) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-amount) });
+            }
+
+            try {
+                await batch.commit(); 
+                alert("✅ Successfully Re-Rejected!");
+            } catch(e) { 
+                alert("Error in re-rejecting."); 
+            }
+        }
+
+        // ✅ NORMAL APPROVE/REJECT FUNCTION
+        async function updateTx(txId, uName, userId, amount, status, type, rejectReason = "") {
+            let bonusAmount = 0;
+            if(status === 'approved' && type === 'deposit' && bonusPercent > 0) {
+                bonusAmount = parseFloat((amount * (bonusPercent / 100)).toFixed(2));
+            }
+            let totalDeduct = amount + bonusAmount;
+
+            if(status === 'approved' && type === 'deposit' && currentSaBal < totalDeduct) {
+                alert("❌ Insufficient Balance! (Deposit + Bonus needs 🪙 " + totalDeduct + ")"); return;
+            }
+            
+            if(status === 'approved') {
+                if(!confirm(`Are you sure you want to approve this ${type.toUpperCase()}?` + (bonusAmount > 0 ? `\n\n🎁 Extra Bonus (${bonusPercent}%): 🪙 ${bonusAmount}` : ''))) return;
+            }
+
+            const batch = db.batch();
+            
+            let updateData = { 
+                status: status,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            if (status === 'rejected' && rejectReason !== "") {
+                updateData.rejectReason = rejectReason;
+            }
+            // Embed bonus info directly into deposit document for easy rendering
+            if (status === 'approved' && type === 'deposit' && bonusAmount > 0) {
+                updateData.bonusAmount = bonusAmount;
+            }
+            batch.update(db.collection("transactions").doc(txId), updateData);
+
+            if(status === 'approved' && type === 'deposit') {
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(totalDeduct) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-totalDeduct) });
+
+                if(bonusAmount > 0) {
+                    batch.set(db.collection("transactions").doc(), {
+                        userId: userId, username: uName, linkedSubAdminId: subAdmin.id,
+                        type: 'bonus', amount: bonusAmount, status: 'approved',
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        remark: `Deposit Bonus (${bonusPercent}%)`,
+                        parentDepositId: txId 
+                    });
+                }
+            }
+            if(status === 'rejected' && type === 'withdraw') {
+                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(amount) });
+            }
+
+            try {
+                await batch.commit(); 
+                loadPendingRequests(); 
+                if(window.showMsg) window.showMsg("Success!"); else alert("Success!"); 
+            } catch(e) { 
+                alert("Error!"); 
+            }
+        }
+
+        // ✅ UPLOAD AND APPROVE WITHDRAWAL
+        async function approveWithdraw(txId, uName, userId, amount, event) {
+            const fileInput = document.getElementById(`proof-${txId}`);
+            if(!fileInput.files || fileInput.files.length === 0) {
+                alert("❌ Payment proof upload karna zaroori hai!"); return;
+            }
+            if(!confirm("Are you sure you have transferred the money and want to approve?")) return;
+
+            const btn = event.target;
+            btn.innerText = "⏳"; btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: formData });
+                const jsonRes = await res.json();
+                const proofUrl = jsonRes.data.url;
+
+                const batch = db.batch();
+                batch.update(db.collection("transactions").doc(txId), { 
+                    status: 'approved', 
+                    adminProof: proofUrl,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(amount) });
+
+                await batch.commit();
+                loadPendingRequests(); 
+                alert(" Withdrawal Approved!"); 
+            } catch(e) {
+                alert("Upload failed. Check internet."); btn.innerText = "Upload & Approve"; btn.disabled = false;
+            }
+        }
+
+        if(subAdmin && subAdmin.id) loadPendingRequests();
+    </script>
+</body>
+</html>

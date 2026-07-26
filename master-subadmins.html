@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Manage SubAdmins - Master</title>
+    <style>
+        :root { --primary: #1a365d; --green: #2e7d32; --red: #c62828; --bg: #f4f7f6; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 15px; font-size: 13px; }
+
+        /* 🌟 PLAIN TOP NAV 🌟 */
+        .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #ddd; }
+        .nav-title { color: var(--primary); font-weight: 900; font-size: 18px; text-transform: uppercase; }
+        .nav-links a { color: var(--primary); text-decoration: none; font-size: 12px; font-weight: bold; padding: 6px 14px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.1s; }
+        .nav-links a:active { transform: scale(0.95); display: inline-block; }
+
+        /* Compact Card */
+        .card { background: white; border-radius: 4px; padding: 10px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+        h3 { margin: 0 0 8px 0; color: var(--primary); font-size: 13px; display: flex; justify-content: space-between;}
+
+        /* Tiny Inputs */
+        input { width: 100%; padding: 6px 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; font-size: 12px;}
+        .btn-small { padding: 6px 10px; border: none; border-radius: 3px; font-size: 11px; cursor: pointer; font-weight: bold; color: white; margin-right: 3px; text-transform: uppercase; transition: 0.2s;}
+        .btn-small:active { transform: scale(0.95); }
+
+        /* 🌟 SUPER THIN LIST STYLE 🌟 */
+        .sa-card { background: white; padding: 6px 8px; border-radius: 4px; border: 1px solid #d1d5db; margin-bottom: 5px; }
+        .u-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .u-name { font-weight: 900; font-size: 13px; color: #111; }
+        .u-bal-exp { font-size: 10px; color: #555; text-align: right; line-height: 1.2;}
+        .u-bal-exp strong { color: var(--green); font-size: 12px;}
+
+        /* 🌟 THIN FULL-NAME BUTTONS (NO BACKGROUND COLORS) 🌟 */
+        .u-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .btn-thin { background: transparent; border: 1px solid #888; color: #222; font-weight: 800; font-size: 10px; padding: 3px 6px; border-radius: 3px; cursor: pointer; text-transform: uppercase; transition: 0.2s;}
+        .btn-thin:active { background: #e2e8f0; transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <div class="top-nav">
+        <div class="nav-title"> Manage SubAdmins</div>
+        <div class="nav-links">
+            <a href="master-dashboard.html">Dash</a>
+        </div>
+    </div>
+
+    <!-- Compact Create SubAdmin with Default Password -->
+    <div class="card" style="max-width: 100%;">
+        <h3><span>➕ Add SubAdmin</span> <span style="font-size:11px; color:var(--green);" id="master-bal">Wallet: 0</span></h3>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="new-user" placeholder="Username">
+            <!-- 🌟 DEFAULT PASSWORD SET HERE (editable) 🌟 -->
+            <input type="text" id="new-pass" placeholder="Password" value="Subadmin@1234">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" id="new-bal" placeholder="Opening Balance">
+            <button class="btn-small" style="background:var(--green); width:100%; padding: 7px;" onclick="createNewSubAdmin()">CREATE</button>
+        </div>
+    </div>
+
+    <input type="text" id="search-bar" placeholder="🔍 Search SubAdmin by Name..." onkeyup="filterSubAdmins()" style="margin-bottom:10px; border: 1px solid #888;">
+
+    <div id="sa-list">
+        <p style="text-align: center; color: #888;">Loading subadmins...</p>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 🛡️ Security Check
+        const session = JSON.parse(localStorage.getItem('adminSession'));
+        if(!session || (session.role !== 'master' && session.id !== 'master_demo_id')) {
+            window.location.href = "master-login.html";
+        }
+
+        let currentMasterBalance = 0;
+
+        // Fetch Master Balance
+        db.collection("admins").doc(session.id).onSnapshot(doc => {
+            if(doc.exists) {
+                currentMasterBalance = doc.data().balance || 0;
+                document.getElementById('master-bal').innerText = `Wallet: 🪙 ${Math.floor(currentMasterBalance)}`;
+            }
+        });
+
+        // 🌟 LOAD SUBADMINS LIST 🌟
+        function loadSubAdmins() {
+            db.collection("admins").where("role", "==", "subadmin").onSnapshot(snap => {
+                const list = document.getElementById('sa-list');
+
+                if(snap.empty) {
+                    list.innerHTML = "<p style='text-align:center; color:#888; font-size:12px;'>No subadmins found.</p>";
+                    return;
+                }
+
+                let html = '';
+                snap.forEach(doc => {
+                    const sa = doc.data();
+                    const saId = doc.id;
+                    const isLocked = sa.locked || false;
+                    const lockBtnText = isLocked ? 'Unlock' : 'Lock';
+                    const nameIcon = isLocked ? '🚫' : '👤';
+
+                    html += `
+                        <div class="sa-card" data-username="${sa.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
+                            <div class="u-info">
+                                <span class="u-name">${nameIcon} ${sa.username}</span>
+                                <div class="u-bal-exp">
+                                    <strong>🪙 ${Math.floor(sa.balance || 0)}</strong>
+                                </div>
+                            </div>
+                            <div class="u-actions">
+                                <button class="btn-thin" onclick="fundDeposit('${saId}', '${sa.username}')">Deposit</button>
+                                <button class="btn-thin" onclick="fundWithdraw('${saId}', '${sa.username}', ${sa.balance || 0})">Withdraw</button>
+                                <button class="btn-thin" onclick="viewStatement('${saId}', '${sa.username}')">Statement</button>
+                                <button class="btn-thin" onclick="toggleLock('${saId}', ${isLocked}, '${sa.username}')">${lockBtnText}</button>
+                                <button class="btn-thin" onclick="resetSubAdminPassword('${saId}', '${sa.username}')">Password</button>
+                                <button class="btn-thin" onclick="deleteSubAdmin('${saId}', '${sa.username}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                list.innerHTML = html;
+            });
+        }
+
+        // Create SubAdmin (Username + Opening Balance + editable pre-filled password, duplicate check)
+        async function createNewSubAdmin() {
+            const username = document.getElementById('new-user').value.trim();
+            const password = document.getElementById('new-pass').value.trim() || "Subadmin@1234";
+            const balance = Math.floor(parseFloat(document.getElementById('new-bal').value) || 0);
+
+            if(!username) { alert("Username is required!"); return; }
+
+            try {
+                const check = await db.collection("admins").where("username", "==", username).get();
+                if(!check.empty) { alert("⚠️ Username already exists! Please choose a different username."); return; }
+
+                await db.collection("admins").add({
+                    username, password, role: 'subadmin', balance, locked: false
+                });
+
+                alert(` SubAdmin Created!\nUsername: ${username}\nPassword: ${password}`);
+                document.getElementById('new-user').value = '';
+                document.getElementById('new-pass').value = 'Subadmin@1234';
+                document.getElementById('new-bal').value = '';
+            } catch(e) { alert("Error creating subadmin: " + e.message); }
+        }
+
+        // 1. DEPOSIT (Master to SubAdmin) WITH TRANSACTION LOG
+        async function fundDeposit(saId, username) {
+            let amt = prompt(`Enter coins to DEPOSIT in ${username}'s Wallet:`);
+            if(amt && !isNaN(amt) && Number(amt) > 0) {
+                const batch = db.batch();
+
+                batch.update(db.collection("admins").doc(saId), {
+                    balance: firebase.firestore.FieldValue.increment(Number(amt))
+                });
+
+                batch.set(db.collection("transactions").doc(), {
+                    userId: saId,
+                    username: username,
+                    type: 'deposit',
+                    amount: Number(amt),
+                    status: 'approved',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    remark: 'Master Deposit'
+                });
+
+                await batch.commit();
+                alert("Deposit successful!");
+            }
+        }
+
+        // 2. WITHDRAW (SubAdmin to Master) WITH TRANSACTION LOG
+        async function fundWithdraw(saId, username, currentBal) {
+            let amt = prompt(`Enter coins to WITHDRAW from ${username} (Max: ${currentBal}):`);
+            if(amt && !isNaN(amt) && Number(amt) > 0) {
+                if(Number(amt) > currentBal) { alert("Insufficient funds in SubAdmin wallet!"); return; }
+
+                const batch = db.batch();
+
+                batch.update(db.collection("admins").doc(saId), {
+                    balance: firebase.firestore.FieldValue.increment(-Number(amt))
+                });
+
+                batch.set(db.collection("transactions").doc(), {
+                    userId: saId,
+                    username: username,
+                    type: 'withdraw',
+                    amount: Number(amt),
+                    status: 'approved',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    remark: 'Master Withdraw'
+                });
+
+                await batch.commit();
+                alert("Withdrawal successful!");
+            }
+        }
+
+        // 3. LOCK/UNLOCK (Auto-locks users too)
+        async function toggleLock(saId, currentStatus, username) {
+            const newStatus = !currentStatus;
+            const actionText = newStatus ? "LOCK" : "UNLOCK";
+            if(!confirm(`Are you sure you want to ${actionText} '${username}'?`)) return;
+
+            const batch = db.batch();
+            batch.update(db.collection("admins").doc(saId), { locked: newStatus });
+            const userSnap = await db.collection("users").where("linkedSubAdminId", "==", saId).get();
+            userSnap.forEach(doc => batch.update(doc.ref, { locked: newStatus }));
+            await batch.commit();
+            alert(newStatus ? "LOCKED!" : "UNLOCKED!");
+        }
+
+        // 4. DELETE (Requires Master's OWN password to confirm — prevents mistakes)
+async function deleteSubAdmin(saId, username) {
+    const enteredPass = prompt(`🚨 To DELETE '${username}' and all their users, enter YOUR (Master) password:`);
+    if(enteredPass === null) return;
+
+    if(enteredPass.trim() !== session.password) {
+        alert("❌ Incorrect Master password! Deletion cancelled.");
+        return;
+    }
+
+    if(!confirm(`Final confirmation: DELETE '${username}' and ALL their users permanently?`)) return;
+
+    const batch = db.batch();
+    batch.delete(db.collection("admins").doc(saId));
+    const userSnap = await db.collection("users").where("linkedSubAdminId", "==", saId).get();
+    userSnap.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    alert("SubAdmin and Users deleted!");
+}
+
+        // 5. VIEW STATEMENT (coinmaster.html)
+        function viewStatement(saId, username) {
+            window.location.href = `coinmaster.html?id=${saId}&name=${username}`;
+        }
+
+        // 6. RESET PASSWORD
+        async function resetSubAdminPassword(saId, username) {
+            const newPass = prompt(`Enter new password for ${username}:`, "Subadmin@1234");
+            if(!newPass) return;
+            if(newPass.trim().length < 4) { alert("Password must be at least 4 characters!"); return; }
+
+            try {
+                await db.collection("admins").doc(saId).update({ password: newPass.trim() });
+                alert(` Password for ${username} updated successfully!`);
+            } catch(e) { alert("Error updating password."); }
+        }
+
+        // Search
+        function filterSubAdmins() {
+            const term = document.getElementById('search-bar').value.toLowerCase();
+            const cards = document.querySelectorAll('.sa-card');
+            cards.forEach(card => {
+                const uname = card.getAttribute('data-username');
+                card.style.display = uname.includes(term) ? 'block' : 'none';
+            });
+        }
+
+        loadSubAdmins();
+    </script>
+</body>
+</html>

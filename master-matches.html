@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master - Matches</title>
+    <style>
+        :root { --primary: #1a365d; --green: #2e7d32; --red: #c62828; --bg: #eceff4; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 15px; font-size: 13px;}
+        
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .card-title { color: var(--primary); margin: 0 0 10px 0; border-bottom: 2px solid #eee; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: 900;}
+        
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; font-family: inherit;}
+        
+        .btn { padding: 10px; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; text-transform: uppercase; }
+        .btn-primary { background: var(--primary); width: 100%; }
+        .btn-green { background: var(--green); }
+        .btn-red { background: var(--red); }
+        .btn-warning { background: #f57c00; color: white; }
+        .btn-small { padding: 6px 8px; font-size: 11px; }
+
+        .match-row { padding: 12px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; background: #fafafa; border-left: 4px solid var(--primary); }
+        .match-header { font-weight: 900; font-size: 14px; margin-bottom: 5px; color: #111; }
+        .time-badge { font-size: 11px; background: #e3f2fd; color: #1565c0; padding: 4px 6px; border-radius: 3px; display: inline-block; font-weight: bold;}
+        
+        .action-btns { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap;}
+        .action-btns button { flex: 1; }
+        
+        .category-header { background: #333; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; margin-top: 15px; margin-bottom: 10px; display: inline-block; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <!-- 1. CREATE LIVE MARKET -->
+    <div class="card">
+        <h3 class="card-title">✍️ Create Match Manually</h3>
+        <div style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;"><label>Team A</label><input type="text" id="tA" placeholder="e.g. VMK or Villianur"></div>
+            <div class="input-group" style="flex:1;"><label>Team B</label><input type="text" id="tB" placeholder="e.g. MMS or Mahe"></div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;"><label>Odds A (%)</label><input type="number" id="oddsA" value="98"></div>
+            <div class="input-group" style="flex:1;"><label>Odds B (%)</label><input type="number" id="oddsB" value="98"></div>
+        </div>
+        
+        <div style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;">
+                <label>Match Date</label>
+                <select id="matchDate">
+                    <option value="0">Today</option>
+                    <option value="1">Tomorrow</option>
+                    <option value="2">Day After Tomorrow</option>
+                </select>
+            </div>
+            <div class="input-group" style="flex:1;">
+                <label>Toss Time</label>
+                <input type="time" id="matchTime">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>🔒 Auto-Lock Betting — <span id="lockMinsLabel" style="color:var(--primary);">30</span> Minute(s) Before Toss</label>
+            <input type="range" id="lockMins" min="1" max="45" step="1" value="30" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
+        </div>
+        
+        <button class="btn btn-primary" id="publishBtn" onclick="createMatch()">Publish Live Match</button>
+        <button class="btn" style="background:#888; margin-top:6px;" onclick="cancelEdit()">✖ Cancel Edit</button>
+    </div>
+
+    <!-- 2. LIVE MATCHES -->
+    <div class="card" style="border-top: 3px solid var(--green);">
+        <h3 class="card-title">🟢 Active Live Markets</h3>
+        <div id="live-list">Loading...</div>
+    </div>
+
+    <!-- 3. MATCH HISTORY (Auto Delete > 4 days) -->
+    <div class="card" style="border-top: 3px solid #555;">
+        <h3 class="card-title">📜 Match History (Last 4 Days)</h3>
+        <div id="history-list">Loading...</div>
+    </div>
+
+    <!-- Hidden OCR Input -->
+    <input type="file" id="winnerImage" accept="image/*" style="display:none;" onchange="processWinnerOCR(event)">
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const MASTER_PIN = "786786";
+        let currentSettleMatchId = null;
+        let currentSettleMatchData = null;
+        let masterTgSettings = null;
+        let editingMatchId = null; // null = naya match, warna is id wala match update hoga
+
+        // Fetch TG Settings for alerts
+        db.collection("system_settings").doc("global").onSnapshot(doc => {
+            if(doc.exists) masterTgSettings = doc.data();
+        });
+
+        // ==========================================
+        // 1. CREATE MATCH LOGIC
+        // ==========================================
+        async function createMatch() {
+            const tA = document.getElementById('tA').value.trim();
+            const tB = document.getElementById('tB').value.trim();
+            const oddsA = document.getElementById('oddsA').value;
+            const oddsB = document.getElementById('oddsB').value;
+            const dateOffset = parseInt(document.getElementById('matchDate').value);
+            const timeStr = document.getElementById('matchTime').value;
+            const lockMins = parseInt(document.getElementById('lockMins').value);
+
+            if(!tA || !tB || !timeStr) { alert("Please fill all details!"); return; }
+
+            let matchDate = new Date();
+            matchDate.setDate(matchDate.getDate() + dateOffset);
+            const [hours, minutes] = timeStr.split(':');
+            matchDate.setHours(hours, minutes, 0, 0);
+
+            const tossTimestamp = matchDate.getTime();
+            const lockTimestamp = tossTimestamp - (lockMins * 60 * 1000); 
+
+            const data = {
+                teamA: tA,
+                teamB: tB,
+                oddsA: oddsA,
+                oddsB: oddsB,
+                tossTimeMs: tossTimestamp,
+                lockTimeMs: lockTimestamp,
+                tossTimeStr: matchDate.toLocaleString()
+            };
+
+            if (editingMatchId) {
+                // Existing match update — betting.html ko onSnapshot se turant naya time/lock mil jayega
+                await db.collection("matches").doc(editingMatchId).update(data);
+                alert("✅ Match Updated!");
+                cancelEdit();
+            } else {
+                data.status = 'open';
+                data.reminderSent = false;
+                data.tossTimeAlertSent = false;
+                data.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection("matches").add(data);
+                alert("Match is now LIVE!");
+            }
+            
+            document.getElementById('tA').value = '';
+            document.getElementById('tB').value = '';
+            document.getElementById('matchTime').value = '';
+        }
+
+        // Match row ke "EDIT" button se call hota hai — form ko match ki current values se bhar deta hai
+        function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs) {
+            editingMatchId = id;
+            document.getElementById('tA').value = teamA;
+            document.getElementById('tB').value = teamB;
+            document.getElementById('oddsA').value = oddsA;
+            document.getElementById('oddsB').value = oddsB;
+
+            const d = new Date(tossTimeMs);
+            const today = new Date();
+            let diffDays = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 86400000);
+            if (diffDays < 0) diffDays = 0;
+            if (diffDays > 2) diffDays = 2;
+            document.getElementById('matchDate').value = String(diffDays);
+
+            document.getElementById('matchTime').value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('lockMins').value = String(Math.round((tossTimeMs - lockTimeMs) / 60000));
+document.getElementById('lockMinsLabel').innerText = document.getElementById('lockMins').value;
+
+            const btn = document.getElementById('publishBtn');
+            btn.innerText = "💾 Update Match";
+            btn.style.background = "#f57c00";
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        function cancelEdit() {
+            editingMatchId = null;
+            document.getElementById('tA').value = '';
+            document.getElementById('tB').value = '';
+            document.getElementById('matchTime').value = '';
+            const btn = document.getElementById('publishBtn');
+            btn.innerText = "Publish Live Match";
+            btn.style.background = "";
+        }
+
+        // ==========================================
+        // 2. LOAD LIVE MATCHES (Sorted)
+        // ==========================================
+        function getCategoryByMs(ms) {
+            const d = new Date(ms);
+            const today = new Date();
+            const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            if(d.toDateString() === today.toDateString()) return "Today";
+            if(d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+            return "Upcoming";
+        }
+
+        db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
+            let matches = [];
+            snap.forEach(doc => matches.push({id: doc.id, ...doc.data()}));
+
+            matches.sort((a,b) => a.tossTimeMs - b.tossTimeMs);
+
+            const list = document.getElementById('live-list');
+            list.innerHTML = "";
+            if(matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches.</p>"; return; }
+
+            let currentCat = "";
+            matches.forEach(m => {
+                const cat = getCategoryByMs(m.tossTimeMs);
+                if(cat !== currentCat) {
+                    list.innerHTML += `<div class="category-header">${cat}</div>`;
+                    currentCat = cat;
+                }
+
+                const tDisplay = new Date(m.tossTimeMs).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // NEW: Calculate and create Lock Time badge
+                let lockDisplay = "";
+                if (m.lockTimeMs && m.tossTimeMs) {
+                    const diffMins = Math.round((m.tossTimeMs - m.lockTimeMs) / 60000);
+                    lockDisplay = `<div class="time-badge" style="background: #ffebee; color: #c62828; margin-left: 5px;">🔒 Lock: ${diffMins} Min Before</div>`;
+                }
+
+                list.innerHTML += `
+                    <div class="match-row">
+                        <div class="match-header">${m.teamA} vs ${m.teamB}</div>
+                        <div style="margin-bottom: 5px;">
+                            <div class="time-badge">📢 Toss: ${tDisplay}</div>
+                            ${lockDisplay}
+                        </div>
+                        <div class="action-btns">
+                            <button class="btn btn-primary btn-small" onclick="triggerOCR('${m.id}', '${m.teamA}', '${m.teamB}')">📸 OCR SETTLE</button>
+                            <button class="btn btn-warning btn-small" onclick="manualSettlePIN('${m.id}', '${m.teamA}', '${m.teamB}')">🔐 MANUAL</button>
+                            <button class="btn btn-red btn-small" onclick="deleteMatch('${m.id}')" style="flex: 0.5;">🔐 VOID</button>
+                        </div>
+                        <div class="action-btns">
+                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${m.teamA}','${m.teamB}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs})">✏️ EDIT DATE / TIME / LOCK</button>
+                        </div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+        // ==========================================
+        // 3. LOAD HISTORY & AUTO-DELETE LOGIC
+        // ==========================================
+        db.collection("matches").where("status", "in", ["closed", "cancelled"]).onSnapshot(snap => {
+            let matches = [];
+            const nowMs = Date.now();
+            const fourDaysMs = 4 * 24 * 60 * 60 * 1000;
+
+            snap.forEach(doc => {
+                const m = doc.data();
+                const matchTime = m.tossTimeMs || 0;
+                
+                if (nowMs - matchTime > fourDaysMs) {
+                    db.collection("matches").doc(doc.id).delete();
+                } else {
+                    matches.push({id: doc.id, ...m});
+                }
+            });
+
+            matches.sort((a,b) => b.tossTimeMs - a.tossTimeMs); 
+
+            const list = document.getElementById('history-list');
+            list.innerHTML = "";
+            if(matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No history available.</p>"; return; }
+
+            matches.forEach(m => {
+                const tDisplay = new Date(m.tossTimeMs).toLocaleString([], {day:'2-digit', month:'short', hour: '2-digit', minute:'2-digit'});
+                let winText = m.status === 'cancelled' ? 'VOIDED' : `WINNER: ${m.winner}`;
+                let color = m.status === 'cancelled' ? '#c62828' : '#2e7d32';
+
+                list.innerHTML += `
+                    <div class="match-row" style="border-left-color: #999;">
+                        <div style="font-weight:bold; color:#555;">${m.teamA} vs ${m.teamB}</div>
+                        <div style="font-size: 11px; color:#888;">${tDisplay}</div>
+                        <div style="font-weight:bold; color:${color}; font-size:12px; margin-top:5px;">${winText}</div>
+                    </div>
+                `;
+            });
+        });
+
+        // ==========================================
+        // 4. SETTLEMENT (OCR & MANUAL)
+        // ==========================================
+        
+        function manualSettlePIN(id, tA, tB) {
+            const pin = prompt("🔐 Enter Master PIN to Manual Settle:");
+            if(pin !== MASTER_PIN) { alert("❌ Access Denied: Incorrect PIN!"); return; }
+            
+            const choice = prompt(`Select Winner (Type 1 or 2):\n1: ${tA}\n2: ${tB}`);
+            if(choice === "1") executeSettlement(id, 'teamA', tA);
+            else if(choice === "2") executeSettlement(id, 'teamB', tB);
+            else if(choice) alert("Invalid choice. Operation cancelled.");
+        }
+
+        function triggerOCR(id, tA, tB) {
+            currentSettleMatchId = id;
+            currentSettleMatchData = {teamA: tA, teamB: tB};
+            document.getElementById('winnerImage').click();
+        }
+
+        // ==========================================
+        // 🚀 POWERFUL OCR MATCHING ALGORITHM
+        // ==========================================
+        async function processWinnerOCR(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            
+            alert("Scanning CREX Screenshot... Please wait 5-10 seconds.");
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("apikey", "helloworld"); 
+            
+            try {
+                const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: formData });
+                const data = await res.json();
+                document.getElementById('winnerImage').value = ""; 
+                
+                if(!data.ParsedResults || data.ParsedResults.length === 0) { 
+                    alert("❌ Screenshot se kuch read nahi hua. Quality clear rakhein."); return; 
+                }
+                
+                const text = data.ParsedResults[0].ParsedText.toLowerCase();
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                
+                let winnerCode = null;
+                let tossWinnerStr = "";
+                
+                // Extract exactly who won the toss based on CREX keywords
+                for (let line of lines) {
+                    if (line.includes('won the toss')) tossWinnerStr = line.split('won the toss')[0].trim();
+                    else if (line.includes('opt to')) tossWinnerStr = line.split('opt to')[0].trim();
+                    else if (line.includes('elected to')) tossWinnerStr = line.split('elected to')[0].trim();
+                    else if (line.includes('chose to')) tossWinnerStr = line.split('chose to')[0].trim();
+                    else if (line.includes('toss:')) tossWinnerStr = line.split('toss:')[1].trim();
+                    
+                    if (tossWinnerStr) break;
+                }
+
+                if (tossWinnerStr) {
+                    // Smart Scoring Function for Fuzzy Matches (YAR, SL U19, SAWU19 etc.)
+                    function scoreTeam(teamName, extractedStr) {
+                        let score = 0;
+                        let t = teamName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
+                        let s = extractedStr.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim(); // No spaces for chars
+                        let sWithSpaces = extractedStr.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
+                        
+                        if (!s || !t) return 0;
+                        let tWords = t.split(/\s+/);
+                        
+                        // 1. Exact match
+                        if (t === sWithSpaces) return 100;
+                        if (t.includes(sWithSpaces)) score += 50;
+                        
+                        // 2. Acronym match (e.g. GYR -> Genid Yanam Royals)
+                        let initials = tWords.map(w => w[0]).join('');
+                        if (initials === s) score += 40;
+                        else if (s.length >= 2 && (initials.includes(s) || s.includes(initials))) score += 20;
+
+                        // 3. Whole Word Matches
+                        tWords.forEach(w => {
+                            if (w.length >= 3 && sWithSpaces.includes(w)) score += 30;
+                            else if (w.length >= 2 && sWithSpaces.includes(w)) score += 10;
+                        });
+
+                        // 4. Prefix Matches (e.g. 'ind' matches 'india')
+                        tWords.forEach(w => {
+                            let sTokens = sWithSpaces.split(/\s+/);
+                            sTokens.forEach(st => {
+                                if (st.length >= 3 && w.startsWith(st)) score += 25;
+                            });
+                        });
+
+                        // 5. Character Intersection (Fuzzy Match for YAR or SAWU19)
+                        let charScore = 0;
+                        let tChars = t.replace(/\s+/g, '');
+                        for (let char of s) {
+                            let idx = tChars.indexOf(char);
+                            if (idx !== -1) {
+                                charScore += 2; // Reward for finding the letter
+                                tChars = tChars.slice(0, idx) + tChars.slice(idx + 1); // Consume the letter
+                            } else {
+                                charScore -= 4; // Penalty if the extracted name has letters NOT in the team name
+                            }
+                        }
+                        score += charScore;
+
+                        // 6. Common Country Code Fallbacks
+                        const codes = {
+                            'sl': 'sri lanka', 'sa': 'south africa', 'wi': 'west indies', 
+                            'nz': 'new zealand', 'eng': 'england', 'aus': 'australia', 
+                            'ind': 'india', 'pak': 'pakistan', 'ban': 'bangladesh', 'afg': 'afghanistan'
+                        };
+                        let sTokens = sWithSpaces.split(/\s+/);
+                        for (let [code, name] of Object.entries(codes)) {
+                            if (sTokens.includes(code) && t.includes(name)) score += 50;
+                            else if (s.startsWith(code) && t.includes(name)) score += 30; 
+                        }
+                        return score;
+                    }
+
+                    // Score both teams against the extracted text
+                    let scoreA = scoreTeam(currentSettleMatchData.teamA, tossWinnerStr);
+                    let scoreB = scoreTeam(currentSettleMatchData.teamB, tossWinnerStr);
+
+                    if (scoreA > scoreB && scoreA > 0) winnerCode = 'teamA';
+                    else if (scoreB > scoreA && scoreB > 0) winnerCode = 'teamB';
+                }
+
+                if (winnerCode) {
+                    const winnerName = winnerCode === 'teamA' ? currentSettleMatchData.teamA : currentSettleMatchData.teamB;
+                    if(confirm(`🎉 SYSTEM DETECTED WINNER: ${winnerName}\n\nClick OK to finalize Settlement.`)) {
+                        executeSettlement(currentSettleMatchId, winnerCode, winnerName);
+                    }
+                } else {
+                    alert(`⚠️ ERROR: System couldn't clearly match "${tossWinnerStr || 'Toss result'}" to ${currentSettleMatchData.teamA} or ${currentSettleMatchData.teamB}. Please use MANUAL SETTLE.`);
+                }
+            } catch(e) { 
+                alert("Error connecting to Scanner. Check internet."); 
+                console.error(e);
+            }
+        }
+
+        
+        // ==========================================
+        // 🌟 FIXED EXECUTE SETTLEMENT (Handles Deleted Users)
+        // ==========================================
+        async function executeSettlement(matchId, winnerCode, winnerName) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+                
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName });
+                    alert("Match closed! No pending bets found.");
+                    return;
+                }
+
+                const batch = db.batch();
+                let userBets = {}; 
+                
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    if(!userBets[b.userId]) {
+                        userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                    }
+                    userBets[b.userId].bets.push({ id: doc.id, ...b });
+
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') {
+                        userBets[b.userId].pnlA += winAmt;
+                        userBets[b.userId].pnlB -= b.amount;
+                    } else {
+                        userBets[b.userId].pnlB += winAmt;
+                        userBets[b.userId].pnlA -= b.amount;
+                    }
+                });
+
+                for(let userId in userBets) {
+                    let uData = userBets[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let balanceAdjustment = lockedExposure + netResult;
+
+                    if (balanceAdjustment !== 0) {
+                        // FIX: Verify user exists before updating
+                        const userRef = db.collection("users").doc(userId);
+                        const userDoc = await userRef.get();
+                        if(userDoc.exists) {
+                            batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) });
+                        }
+                    }
+
+                    uData.bets.forEach(b => {
+                        let betStatus = b.selection === winnerCode ? 'won' : 'lost';
+                        batch.update(db.collection("bets").doc(b.id), { status: betStatus });
+                    });
+                }
+                
+                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName });
+                await batch.commit();
+                alert("✅ Match Settled Perfectly!");
+            } catch(e) {
+                console.error(e);
+                alert("Error during settlement: " + e.message);
+            }
+        }
+
+        // ==========================================
+        // 🌟 FIXED VOID MATCH (Handles Deleted Users)
+        // ==========================================
+        async function deleteMatch(id) {
+            const pin = prompt("🔐 Enter Master PIN to VOID match:");
+            if(pin !== MASTER_PIN) { alert("❌ Access Denied: Incorrect PIN!"); return; }
+
+            if(confirm("Are you sure you want to VOID this match? Exact locked exposure will be refunded.")) {
+                try {
+                    const betsSnap = await db.collection("bets").where("matchId", "==", id).where("status", "==", "pending").get();
+                    
+                    if (betsSnap.empty) {
+                        await db.collection("matches").doc(id).update({ status: 'cancelled' });
+                        alert("✅ Match Voided. No active bets found.");
+                        return;
+                    }
+
+                    const batch = db.batch();
+                    let userBets = {};
+                    
+                    betsSnap.forEach(doc => {
+                        let b = doc.data();
+                        if(!userBets[b.userId]) {
+                            userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                        }
+                        userBets[b.userId].bets.push({ id: doc.id, ...b });
+
+                        let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                        if(b.selection === 'teamA') {
+                            userBets[b.userId].pnlA += winAmt;
+                            userBets[b.userId].pnlB -= b.amount;
+                        } else {
+                            userBets[b.userId].pnlB += winAmt;
+                            userBets[b.userId].pnlA -= b.amount;
+                        }
+                    });
+
+                    for(let userId in userBets) {
+                        let uData = userBets[userId];
+                        let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                        let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+
+                        if (lockedExposure > 0) {
+                            // FIX: Verify user exists before updating
+                            const userRef = db.collection("users").doc(userId);
+                            const userDoc = await userRef.get();
+                            if(userDoc.exists) {
+                                batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(lockedExposure) });
+                            }
+                        }
+
+                        uData.bets.forEach(b => {
+                            batch.update(db.collection("bets").doc(b.id), { status: 'cancelled' });
+                        });
+                    }
+                    
+                    batch.update(db.collection("matches").doc(id), { status: 'cancelled' });
+                    await batch.commit();
+                    alert("✅ Match Voided Successfully.");
+                } catch(e) {
+                    alert("Error voiding match: " + e.message);
+                }
+            }
+        }
+
+        // =========================================================
+        // 🤖 BACKGROUND TELEGRAM ALERT CHECKER (EVERY 30 SECONDS)
+        // =========================================================
+        setInterval(async () => {
+            // Check if Master configured Bot settings
+            if (!masterTgSettings || !masterTgSettings.masterBotToken || !masterTgSettings.masterChatId) return;
+
+            const now = Date.now();
+            const reminderMs = (masterTgSettings.tossReminderMins || 15) * 60000;
+
+            try {
+                // Background me open matches fetch karna (Direct Firestore GET)
+                const snap = await db.collection("matches").where("status", "==", "open").get();
+                
+                snap.forEach(async (doc) => {
+                    const m = doc.data();
+                    const tossTime = m.tossTimeMs;
+                    if (!tossTime) return;
+
+                    let needsUpdate = false;
+                    let updateData = {};
+                    let msg = "";
+
+                    // 1. TOSS REMINDER LOGIC (15/20/30 Mins before based on settings)
+                    if (now >= (tossTime - reminderMs) && now < tossTime && !m.reminderSent) {
+                        msg = `⏳ *Match Reminder!*\n\n🏏 *Match:* ${m.teamA} vs ${m.teamB}\n⏰ *Actual Toss Time:* ${m.tossTimeStr}\n\n⚠️ Toss is happening in ${masterTgSettings.tossReminderMins} minutes!`;
+                        updateData.reminderSent = true;
+                        needsUpdate = true;
+                    }
+                    
+                    // 2. TOSS TIME ACTION ALERT LOGIC (At exact toss time)
+                    else if (now >= tossTime && !m.tossTimeAlertSent) {
+                        msg = `🚨 *TOSS TIME ALERT!* 🚨\n\n🏏 *Match:* ${m.teamA} vs ${m.teamB}\n⏰ *Time:* ${m.tossTimeStr}\n\n❓ *Have you set the winner for ${m.teamA} vs ${m.teamB}?*`;
+                        updateData.tossTimeAlertSent = true;
+                        needsUpdate = true;
+                    }
+
+                    // SEND TO TELEGRAM & UPDATE DATABASE
+                    if (needsUpdate && msg !== "") {
+                        const url = `https://api.telegram.org/bot${masterTgSettings.masterBotToken}/sendMessage`;
+                        fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chat_id: masterTgSettings.masterChatId,
+                                text: msg,
+                                parse_mode: "Markdown"
+                            })
+                        }).catch(err => console.log("Master TG Alert Error:", err));
+
+                        // Mark flag as true so it doesn't send duplicate messages
+                        db.collection("matches").doc(doc.id).update(updateData);
+                    }
+                });
+            } catch (e) {
+                console.log("Alert checker error:", e);
+            }
+        }, 30000); // Har 30 second me check karega
+    </script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Change Password - TossExch</title>
+    <style>
+        :root {
+            --theme-dark: #121418;
+            --button-bg: #2e7d32;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Dark Blurry Index.html style background */
+            background: linear-gradient(135deg, rgba(18, 20, 24, 0.95), rgba(42, 45, 52, 0.95)), url('https://www.transparenttextures.com/patterns/stardust.png');
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 360px; /* Full breadth on mobile, compact on PC */
+            box-sizing: border-box;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        .card-header {
+            color: var(--theme-dark);
+            text-align: center;
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        .input-group {
+            margin-bottom: 12px; /* Compact margin */
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-weight: 600;
+            background: #f8f9fa;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--theme-dark);
+            background: #fff;
+            box-shadow: 0 0 0 2px rgba(18, 20, 24, 0.2);
+        }
+
+        .btn-update {
+            width: 100%;
+            padding: 14px;
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 900;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .btn-update:active {
+            transform: scale(0.97);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                🔒 Change Password
+            </div>
+            
+            <div class="input-group">
+                <input type="password" id="old-pass" placeholder="Enter Old Password">
+            </div>
+            <div class="input-group">
+                <input type="password" id="new-pass" placeholder="Enter New Secure Password">
+            </div>
+            
+            <button class="btn-update" onclick="updatePass()">Update & Login</button>
+            
+            <!-- Removed the Back to Dashboard link -->
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+    <script>
+        async function updatePass() {
+            const sessionStr = localStorage.getItem('userSession');
+            if(!sessionStr) {
+                window.location.href = "index.html";
+                return;
+            }
+            
+            const user = JSON.parse(sessionStr);
+            const oldP = document.getElementById('old-pass').value;
+            const newP = document.getElementById('new-pass').value;
+            
+            if (!oldP || !newP) {
+                alert("Please fill in both password fields!");
+                return;
+            }
+
+            if (newP.length < 4) {
+                alert("New password must be at least 4 characters long!");
+                return;
+            }
+
+            const btn = document.querySelector('.btn-update');
+            btn.innerText = "Updating...";
+            btn.disabled = true;
+
+            try {
+                const userRef = db.collection("users").doc(user.id);
+                const doc = await userRef.get();
+
+                if(doc.exists && doc.data().password === oldP) {
+                    await userRef.update({ 
+                        password: newP,
+                        passwordChanged: true // Mark as changed so they don't get forced again
+                    });
+                    alert("Password Changed Successfully!");
+                    window.location.href = "index.html"; // Wapas index/dashboard bhej dega login rehne ke saath
+                } else {
+                    alert("Wrong Old Password!");
+                    btn.innerText = "Update & Login";
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error("Error updating password: ", error);
+                alert("Something went wrong. Please try again.");
+                btn.innerText = "Update & Login";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - Betting</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
+    <style>
+        :root { --theme-dark: #121418; --green: #008000; --red: #ff0000; --accent: #ffb703; --bg: #eceff4; --blue-light: #b3d4f5; --blue-dark: #2e3d68;}
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-text { font-size: 20px; font-weight: bold; color: white; cursor: pointer; }
+        
+        .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+        .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; transition: 0.2s; }
+        .badge:active { transform: scale(0.95); }
+
+        .dropdown-box { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; }
+        .user-dropdown { min-width: 150px; }
+        .user-dropdown a { padding: 10px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; display:block;}
+
+        .exp-dropdown { min-width: 220px; max-height: 300px; overflow-y: auto; right: auto; left: 50%; transform: translateX(-50%); }
+        .exp-header { padding: 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 6px 6px 0 0; }
+        .exp-strip { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .exp-strip:hover { background: #f0f0f0; border-left: 3px solid var(--accent); }
+        .exp-match-name { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .exp-amt { color: var(--red); font-family: monospace; font-size: 14px; }
+
+        .container { padding: 10px; max-width: 600px; margin: 0 auto; }
+        .card { background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.2); overflow: hidden; margin-bottom:15px; border-top: 2px solid #2e3d68;}
+        
+        .market-header-row { display: flex; background: #f8f9fa; border-bottom: 2px solid #ddd; padding: 8px; font-size: 12px; font-weight: 900;}
+        .market-title { flex: 1; color: #111; }
+        .market-lbl-back { width: 60px; text-align: center; color: #1565c0; }
+        .market-lbl-lay { width: 60px; text-align: center; color: #c62828; }
+
+        .market-table { width: 100%; border-collapse: collapse; background: white; }
+        .market-table td { padding: 10px 8px; border-bottom: 1px solid #ddd; vertical-align: middle;}
+        .team-name { font-weight: 900; font-size: 14px; display: block; color: #111; }
+        
+        .pnl-container { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        .pnl-text { font-size: 12px; font-weight: 900; display: inline-block; }
+        .proj-text { font-size: 11px; font-weight: 900; font-style: italic; display: none; }
+        
+        .green-pnl { color: var(--green); }
+        .red-pnl { color: var(--red); }
+        
+        .odds-cell { width: 65px; background: #a5d5ff; text-align: center; border: 1px solid #fff; cursor: pointer; transition: 0.1s;}
+        .odds-cell:active { background: #8bc1f0; }
+        .odds-val { font-weight: 900; font-size: 16px; color: #111; display: block;}
+        .odds-vol { font-size: 10px; color: #444; display: block;}
+
+        .lay-cell { width: 65px; background: #ffcdd2; text-align: center; border: 1px solid #fff; opacity: 0.6; pointer-events: none;}
+
+        /* CSS for Default Locked State */
+        .locked-state { opacity: 0.5 !important; pointer-events: none !important; }
+
+        .betslip-container { background: var(--blue-light); display: none; flex-direction: column; padding: 10px; border-bottom: 2px solid #999;}
+        
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        
+        .odds-adjust-box { flex: 1; display: flex; background: white; border: 1px solid #2e3d68; align-items: center; }
+        .odds-adjust-box button { background: var(--blue-dark); border: none; color: white; padding: 10px 15px; font-weight: 900; font-size: 16px; cursor: pointer; height: 100%;}
+        .odds-adjust-box input { flex: 1; width: 100%; text-align: center; border: none; font-weight: 900; font-size: 18px; outline: none; background: transparent; color: #111;}
+        
+        .stake-input-box { flex: 1; background: white; }
+        .stake-input-box input { width: 100%; height: 100%; box-sizing: border-box; text-align: center; border: none; font-weight: 900; font-size: 18px; outline: none; color: #111; border: 1px solid #ddd;}
+        
+        .stake-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 2px; }
+        .stake-btn { background: white; border: 1px solid #cbe0f5; padding: 12px 0; font-weight: 900; color: var(--green); cursor: pointer; font-size: 14px; transition: 0.1s; }
+        .stake-btn:active { background: #eee; }
+        .stake-btn.edit-mode { animation: wiggle 0.5s infinite; border: 1px dashed red; }
+        
+        @keyframes wiggle { 0% {transform: rotate(0deg);} 25% {transform: rotate(-2deg);} 50% {transform: rotate(0deg);} 75% {transform: rotate(2deg);} 100% {transform: rotate(0deg);} }
+
+        .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 4px; }
+        .act-btn { padding: 12px 0; font-weight: 900; font-size: 12px; border: none; cursor: pointer; color: white; }
+        .btn-min { background: #ffc107; color: black; }
+        .btn-max { background: var(--blue-dark); }
+        .btn-edit { background: var(--green); }
+        .btn-clear { background: var(--red); }
+        
+        .final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+        .btn-cancel { background: #ff7b7b; padding: 14px; border: none; font-weight: 900; font-size: 15px; color: white; cursor: pointer; }
+        .btn-place { background: var(--green); padding: 14px; border: none; font-weight: 900; font-size: 15px; color: white; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+
+    <div id="main-nav" class="premium-header">
+        <div class="header-top">
+            <div class="logo-text" onclick="window.location.href='index.html'">TOSS EXCH</div>
+            <div style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="toggleMenu('user-dropdown', event)">⋮</div>
+        </div>
+        <div class="header-info">
+            <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+            <div class="badge" id="top-user" onclick="toggleMenu('user-dropdown', event)">User</div>
+            <div class="badge" onclick="toggleMenu('exp-dropdown', event)" style="border-color: #a61a22; background: #2a1112;">Exp: <span id="top-exp">0</span></div>
+        </div>
+        
+        <div id="user-dropdown" class="dropdown-box user-dropdown">
+            <a href="history.html">📜 Betting History</a>
+            <a href="change-pass.html">🔑 Change Password</a>
+            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+        </div>
+
+        <div id="exp-dropdown" class="dropdown-box exp-dropdown">
+            <div class="exp-header">Loading Exposures...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <div class="card">
+            <div class="market-header-row">
+                <div class="market-title">Min:10 Max:300k</div>
+                <div class="market-lbl-back">BACK</div>
+                <div class="market-lbl-lay">LAY</div>
+            </div>
+            
+            <table class="market-table">
+                <tbody>
+                    <tr>
+                        <td style="text-align:left;">
+                            <span class="team-name" id="name-teamA">...</span>
+                            <div class="pnl-container">
+                                <span id="pnl-teamA" class="pnl-text">0.00</span>
+                                <span id="proj-teamA" class="proj-text"></span>
+                            </div>
+                        </td>
+                        <!-- Added 'locked-state' by default -->
+                        <td class="odds-cell locked-state" id="btn-teamA" onclick="openBetSlip('teamA')">
+                            <span class="odds-val" id="odds-teamA">98</span>
+                            <span class="odds-vol">300k</span>
+                        </td>
+                        <td class="lay-cell"><span class="odds-val">0</span><span class="odds-vol">0.0</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:left;">
+                            <span class="team-name" id="name-teamB">...</span>
+                            <div class="pnl-container">
+                                <span id="pnl-teamB" class="pnl-text">0.00</span>
+                                <span id="proj-teamB" class="proj-text"></span>
+                            </div>
+                        </td>
+                        <!-- Added 'locked-state' by default -->
+                        <td class="odds-cell locked-state" id="btn-teamB" onclick="openBetSlip('teamB')">
+                            <span class="odds-val" id="odds-teamB">98</span>
+                            <span class="odds-vol">300k</span>
+                        </td>
+                        <td class="lay-cell"><span class="odds-val">0</span><span class="odds-vol">0.0</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div id="betslip-container" class="betslip-container">
+                <div class="input-row">
+                    <div class="odds-adjust-box">
+                        <button>-</button>
+                        <input type="text" id="slip-odds" readonly>
+                        <button>+</button>
+                    </div>
+                    <div class="stake-input-box">
+                        <input type="number" id="slip-stake" placeholder="0" oninput="updateProjectedPnL()">
+                    </div>
+                </div>
+                
+                <div class="stake-grid" id="stake-buttons-grid">
+                    </div>
+                
+                <div class="action-grid">
+                    <button class="act-btn btn-min" onclick="minStake()">MIN STAKE</button>
+                    <button class="act-btn btn-max" onclick="maxStake()">MAX STAKE</button>
+                    <button class="act-btn btn-edit" id="edit-btn" onclick="toggleEditStake()">EDIT STAKE</button>
+                    <button class="act-btn btn-clear" onclick="clearStake()">CLEAR</button>
+                </div>
+                
+                <div class="final-grid">
+                    <button class="btn-cancel" onclick="closeBetSlip()">CANCEL</button>
+                    <button class="btn-place" id="btn-place" onclick="placeBet()">PLACE BET</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const matchId = new URLSearchParams(window.location.search).get('id');
+        if(!matchId) window.location.href = "index.html";
+
+        const session = localStorage.getItem('userSession');
+        if(!session) window.location.href = "index.html";
+        const user = JSON.parse(session);
+        document.getElementById('top-user').innerText = user.username;
+        
+        let currentMatch = null;
+        let selectedTeamKey = null;
+        let currentBalance = 0;
+        let currentMatchPnL = { teamA: 0, teamB: 0 }; 
+
+        window.toggleMenu = function(menuId, e) { 
+            e.stopPropagation(); 
+            const menus = ['user-dropdown', 'exp-dropdown'];
+            menus.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === menuId) {
+                    el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+        }
+        
+        window.onclick = function() { 
+            document.getElementById('user-dropdown').style.display = 'none'; 
+            document.getElementById('exp-dropdown').style.display = 'none'; 
+        }
+
+        window.logout = function() { 
+            localStorage.removeItem('userSession'); 
+            window.location.href = 'index.html';
+        }
+
+        let stakeValues = JSON.parse(localStorage.getItem('userStakeButtons')) || [100, 200, 500, 1000, 2000, 5000, 10000, 25000];
+        let isEditMode = false;
+
+        function renderStakeButtons() {
+            const grid = document.getElementById('stake-buttons-grid');
+            grid.innerHTML = "";
+            stakeValues.forEach((val, index) => {
+                grid.innerHTML += `<button class="stake-btn ${isEditMode ? 'edit-mode' : ''}" onclick="handleStakeClick(${index})">${isEditMode ? 'Edit ' : '+ '}${val}</button>`;
+            });
+        }
+        renderStakeButtons();
+
+        function handleStakeClick(index) {
+            if (isEditMode) {
+                let newVal = prompt(`Enter new value for button ${index + 1}:`, stakeValues[index]);
+                if (newVal !== null && !isNaN(newVal) && newVal.trim() !== "") {
+                    stakeValues[index] = parseInt(newVal);
+                    renderStakeButtons();
+                }
+            } else {
+                addStake(stakeValues[index]);
+            }
+        }
+
+        function toggleEditStake() {
+            isEditMode = !isEditMode;
+            const editBtn = document.getElementById('edit-btn');
+            if (isEditMode) {
+                editBtn.innerText = "SAVE STAKE";
+                editBtn.style.background = "#ff9800";
+            } else {
+                editBtn.innerText = "EDIT STAKE";
+                editBtn.style.background = "var(--green)";
+                localStorage.setItem('userStakeButtons', JSON.stringify(stakeValues)); 
+            }
+            renderStakeButtons();
+        }
+
+        db.collection("matches").doc(matchId).onSnapshot(doc => {
+    if(!doc.exists) { window.location.href = "index.html"; return; }
+    currentMatch = doc.data();
+    currentMatch.id = doc.id;
+
+    document.getElementById('name-teamA').innerText = currentMatch.teamA;
+    document.getElementById('name-teamB').innerText = currentMatch.teamB;
+    document.getElementById('odds-teamA').innerText = currentMatch.oddsA;
+    document.getElementById('odds-teamB').innerText = currentMatch.oddsB;
+
+    applyLockState(); // turant ek baar check kar lo
+});
+
+// Har second real time me lock/unlock check karta hai — chahe admin ne kuch update kiya ho ya na kiya ho,
+// jaise hi system time lockTimeMs cross kare, khud lock ho jayega; agar admin lock time badha/ghata de
+// to onSnapshot upar wala turant naya lockTimeMs de dega aur ye interval usी se turant match kar lega.
+function applyLockState() {
+    if (!currentMatch) return;
+    const nowMs = Date.now();
+
+    if (!currentMatch.lockTimeMs || nowMs < currentMatch.lockTimeMs) {
+        document.getElementById('btn-teamA').classList.remove('locked-state');
+        document.getElementById('btn-teamB').classList.remove('locked-state');
+    } else {
+        document.getElementById('btn-teamA').classList.add('locked-state');
+        document.getElementById('btn-teamB').classList.add('locked-state');
+        closeBetSlip();
+    }
+}
+setInterval(applyLockState, 1000);
+        // ---------------------------------------------------------
+        // BYPASS LOGIC: LOAD BALANCE (DEMO vs REAL)
+        // ---------------------------------------------------------
+        if (user.isDemo) {
+            currentBalance = parseFloat(user.balance || 1500);
+            document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
+        } else {
+            db.collection("users").doc(user.id).onSnapshot(d => {
+                if(d.exists) {
+                    currentBalance = parseFloat(d.data().balance || 0);
+                    document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
+                }
+            });
+        }
+
+        // ---------------------------------------------------------
+        // BYPASS LOGIC: LOAD EXPOSURE AND PNL (DEMO vs REAL)
+        // ---------------------------------------------------------
+        if (user.isDemo) {
+            window.updateDemoUI = async function() {
+                let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
+                let matchPnL = {}; 
+                demoBets.forEach(b => {
+                    if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                    let winAmt = b.amount * (b.odds / 100); 
+                    if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= b.amount; } 
+                    else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= b.amount; }
+                });
+
+                let totalExp = 0;
+                let expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`;
+                let hasExp = false;
+                
+                const matchSnap = await db.collection("matches").get();
+                let matchNames = {};
+                matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+
+                for(let mId in matchPnL) {
+                    let w = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                    if(w < 0) {
+                        let expVal = Math.abs(w);
+                        totalExp += expVal;
+                        hasExp = true;
+                        let mName = matchNames[mId] || "Live Match";
+                        expHtml += `
+                            <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                <div class="exp-match-name">🏏 ${mName}</div>
+                                <div class="exp-amt">-${Math.floor(expVal)}</div>
+                            </div>
+                        `;
+                    }
+                }
+                if(!hasExp) expHtml += `<div style="padding: 15px; text-align: center; font-size: 12px; font-weight: bold; color: #555;">No Active Bets</div>`;
+                
+                document.getElementById('top-exp').innerText = Math.floor(totalExp);
+                const dropEl = document.getElementById('exp-dropdown');
+                if(dropEl) dropEl.innerHTML = expHtml;
+                
+                currentMatchPnL = matchPnL[matchId] || { teamA: 0, teamB: 0 };
+                
+                let displayA = document.getElementById('pnl-teamA');
+                displayA.innerText = (currentMatchPnL.teamA >= 0 ? "+" : "") + currentMatchPnL.teamA.toFixed(2);
+                displayA.className = "pnl-text " + (currentMatchPnL.teamA >= 0 ? "green-pnl" : "red-pnl");
+
+                let displayB = document.getElementById('pnl-teamB');
+                displayB.innerText = (currentMatchPnL.teamB >= 0 ? "+" : "") + currentMatchPnL.teamB.toFixed(2);
+                displayB.className = "pnl-text " + (currentMatchPnL.teamB >= 0 ? "green-pnl" : "red-pnl");
+            };
+            window.updateDemoUI();
+        } else {
+            db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(async snap => {
+                let matchPnL = {}; 
+                snap.forEach(doc => {
+                    let b = doc.data();
+                    if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                    let bAmt = parseFloat(b.amount || 0);
+                    let bOdds = parseFloat(b.odds || 0);
+                    let winAmt = bAmt * (bOdds / 100); 
+                    if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= bAmt; } 
+                    else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= bAmt; }
+                });
+
+                let totalExp = 0;
+                let expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`;
+                let hasExp = false;
+                
+                const matchSnap = await db.collection("matches").get();
+                let matchNames = {};
+                matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+
+                for(let mId in matchPnL) {
+                    let w = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                    if(w < 0) {
+                        let expVal = Math.abs(w);
+                        totalExp += expVal;
+                        hasExp = true;
+                        let mName = matchNames[mId] || "Live Match";
+                        expHtml += `
+                            <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                <div class="exp-match-name">🏏 ${mName}</div>
+                                <div class="exp-amt">-${Math.floor(expVal)}</div>
+                            </div>
+                        `;
+                    }
+                }
+                if(!hasExp) expHtml += `<div style="padding: 15px; text-align: center; font-size: 12px; font-weight: bold; color: #555;">No Active Bets</div>`;
+                
+                document.getElementById('top-exp').innerText = Math.floor(totalExp);
+                const dropEl = document.getElementById('exp-dropdown');
+                if(dropEl) dropEl.innerHTML = expHtml;
+                
+                currentMatchPnL = matchPnL[matchId] || { teamA: 0, teamB: 0 };
+                
+                let displayA = document.getElementById('pnl-teamA');
+                displayA.innerText = (currentMatchPnL.teamA >= 0 ? "+" : "") + currentMatchPnL.teamA.toFixed(2);
+                displayA.className = "pnl-text " + (currentMatchPnL.teamA >= 0 ? "green-pnl" : "red-pnl");
+
+                let displayB = document.getElementById('pnl-teamB');
+                displayB.innerText = (currentMatchPnL.teamB >= 0 ? "+" : "") + currentMatchPnL.teamB.toFixed(2);
+                displayB.className = "pnl-text " + (currentMatchPnL.teamB >= 0 ? "green-pnl" : "red-pnl");
+            });
+        }
+
+        function updateProjectedPnL() {
+            const amtStr = document.getElementById('slip-stake').value;
+            const amt = parseFloat(amtStr);
+            const projA = document.getElementById('proj-teamA');
+            const projB = document.getElementById('proj-teamB');
+
+            if (isNaN(amt) || amt <= 0 || !selectedTeamKey) {
+                projA.style.display = 'none';
+                projB.style.display = 'none';
+                return;
+            }
+
+            const odds = parseFloat(document.getElementById('slip-odds').value) || 0;
+            const winAmt = amt * (odds / 100);
+
+            let newPnlA = currentMatchPnL.teamA;
+            let newPnlB = currentMatchPnL.teamB;
+
+            if (selectedTeamKey === 'teamA') { newPnlA += winAmt; newPnlB -= amt; } 
+            else { newPnlA -= amt; newPnlB += winAmt; }
+
+            projA.innerText = `» ${newPnlA >= 0 ? '+' : ''}${newPnlA.toFixed(2)}`;
+            projA.style.color = newPnlA >= 0 ? 'var(--green)' : 'var(--red)';
+            projA.style.display = 'inline-block';
+
+            projB.innerText = `» ${newPnlB >= 0 ? '+' : ''}${newPnlB.toFixed(2)}`;
+            projB.style.color = newPnlB >= 0 ? 'var(--green)' : 'var(--red)';
+            projB.style.display = 'inline-block';
+        }
+
+        function openBetSlip(teamKey) {
+            if (currentMatch.lockTimeMs && Date.now() >= currentMatch.lockTimeMs) {
+                return; // Disabled click event logic backup
+            }
+            selectedTeamKey = teamKey;
+            document.getElementById('slip-odds').value = teamKey === 'teamA' ? currentMatch.oddsA : currentMatch.oddsB;
+            document.getElementById('slip-stake').value = "";
+            document.getElementById('betslip-container').style.display = "flex";
+            updateProjectedPnL(); 
+        }
+        
+        function closeBetSlip() { 
+            document.getElementById('betslip-container').style.display = "none";
+            selectedTeamKey = null;
+            updateProjectedPnL(); 
+            if(isEditMode) toggleEditStake(); 
+        }
+        
+        function addStake(val) { document.getElementById('slip-stake').value = (parseFloat(document.getElementById('slip-stake').value) || 0) + val; updateProjectedPnL(); }
+        function clearStake() { document.getElementById('slip-stake').value = ""; updateProjectedPnL(); }
+        function minStake() { document.getElementById('slip-stake').value = 10; updateProjectedPnL(); }
+        function maxStake() { document.getElementById('slip-stake').value = Math.floor(currentBalance); updateProjectedPnL(); }
+
+        // 🌟 RACE-CONDITION FREE EXACT MATHEMATICAL BET PLACEMENT 🌟
+        async function placeBet() {
+            if (currentMatch.lockTimeMs && Date.now() >= currentMatch.lockTimeMs) {
+                alert("Bet Rejected! Match locked."); closeBetSlip(); return;
+            }
+
+            let amt = parseFloat(document.getElementById('slip-stake').value);
+            if(isNaN(amt) || amt < 10) { alert("Minimum stake is 10 coins!"); return; }
+
+            const odds = parseFloat(document.getElementById('slip-odds').value);
+            const teamName = selectedTeamKey === 'teamA' ? currentMatch.teamA : currentMatch.teamB;
+
+            const placeBtn = document.getElementById('btn-place');
+            placeBtn.innerText = "⏳ Wait...";
+            placeBtn.disabled = true;
+
+            try {
+                // --- DEMO BYPASS: LOCAL PLACEMENT ---
+                if (user.isDemo) {
+                    let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
+                    let pnlA = 0; let pnlB = 0;
+                    
+                    demoBets.filter(b => b.matchId === matchId).forEach(b => {
+                        let winAmt = b.amount * (parseFloat(b.odds) || 98) / 100;
+                        if(b.selection === 'teamA') { pnlA += winAmt; pnlB -= b.amount; }
+                        else { pnlB += winAmt; pnlA -= b.amount; }
+                    });
+
+                    let oldWorst = Math.min(pnlA, pnlB);
+                    let oldExp = oldWorst < 0 ? Math.abs(oldWorst) : 0;
+
+                    const winAmt = amt * (odds / 100);
+                    if (selectedTeamKey === 'teamA') { pnlA += winAmt; pnlB -= amt; }
+                    else { pnlB += winAmt; pnlA -= amt; }
+
+                    let newWorst = Math.min(pnlA, pnlB);
+                    let newExp = newWorst < 0 ? Math.abs(newWorst) : 0;
+                    
+                    let marginRequired = Math.round((newExp - oldExp) * 100) / 100;
+
+                    if (currentBalance < marginRequired) { 
+                        alert("❌ Insufficient Demo Balance!"); 
+                        placeBtn.innerText = "PLACE BET"; placeBtn.disabled = false;
+                        return; 
+                    }
+
+                    if (marginRequired !== 0) {
+                        user.balance -= marginRequired;
+                        currentBalance = user.balance;
+                        localStorage.setItem('userSession', JSON.stringify(user));
+                        document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
+                    }
+                    
+                    demoBets.push({ matchId: matchId, selection: selectedTeamKey, amount: amt, odds: odds });
+                    localStorage.setItem('demoBets', JSON.stringify(demoBets));
+                    
+                    window.updateDemoUI();
+                    
+                    closeBetSlip(); 
+                    placeBtn.innerText = "PLACE BET"; placeBtn.disabled = false;
+                    return;
+                }
+
+                // --- REAL LOGIC: FETCH EXACT PENDING BETS FROM DB ---
+                const betSnap = await db.collection("bets")
+                    .where("userId", "==", user.id)
+                    .where("matchId", "==", matchId)
+                    .where("status", "==", "pending")
+                    .get();
+
+                let pnlA = 0;
+                let pnlB = 0;
+
+                betSnap.forEach(doc => {
+                    let b = doc.data();
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') { pnlA += winAmt; pnlB -= b.amount; }
+                    else { pnlB += winAmt; pnlA -= b.amount; }
+                });
+
+                let oldWorst = Math.min(pnlA, pnlB);
+                let oldExp = oldWorst < 0 ? Math.abs(oldWorst) : 0;
+
+                // 2. Add the requested new bet calculations
+                const winAmt = amt * (odds / 100);
+                if (selectedTeamKey === 'teamA') { pnlA += winAmt; pnlB -= amt; }
+                else { pnlB += winAmt; pnlA -= amt; }
+
+                let newWorst = Math.min(pnlA, pnlB);
+                let newExp = newWorst < 0 ? Math.abs(newWorst) : 0;
+                
+                // 3. Exact Mathematical Margin (Rounding protects from floating point bugs like 0.000000000001)
+                let marginRequired = Math.round((newExp - oldExp) * 100) / 100;
+
+                // 4. Fetch Exact Real-time Balance
+                const userDoc = await db.collection("users").doc(user.id).get();
+                let freshBalance = parseFloat(userDoc.data().balance || 0);
+
+                if (freshBalance < marginRequired) { 
+                    alert("❌ Insufficient Balance!"); 
+                    placeBtn.innerText = "PLACE BET"; placeBtn.disabled = false;
+                    return; 
+                }
+
+                // 5. Commit as Atomic Transaction
+                const batch = db.batch();
+                if (marginRequired !== 0) {
+                    batch.update(db.collection("users").doc(user.id), { balance: firebase.firestore.FieldValue.increment(-marginRequired) });
+                }
+                
+                batch.set(db.collection("bets").doc(), {
+                    userId: user.id, username: user.username, matchId: matchId,
+                    selection: selectedTeamKey, selectionName: teamName, amount: amt, odds: odds,
+                    status: 'pending', timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                await batch.commit(); 
+                closeBetSlip(); 
+            } catch(e) { 
+                console.error(e);
+                alert("Failed to place bet! Please check connection."); 
+            } finally {
+                placeBtn.innerText = "PLACE BET"; 
+                placeBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

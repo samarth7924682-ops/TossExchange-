@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banking - SubAdmin</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --red: #d32f2f; --green: #2e7d32; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid var(--primary); }
+        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 13px; font-weight: bold; color: #555; margin-bottom: 5px; }
+        input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        .btn-action { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-action:disabled { background: #999; }
+        .saved-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-bottom: 10px; }
+        .badge { font-size: 11px; padding: 4px 8px; border-radius: 20px; color: white; }
+        .badge-upi { background: var(--primary); }
+        .badge-qr { background: var(--green); }
+        .btn-remove { background: var(--red); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .qr-preview { max-width: 50px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+
+    <button onclick="window.location.href='subadmin-dashboard.html'" style="margin-bottom:15px; padding:8px 12px; background:#333; color:white; border:none; border-radius:4px; font-weight:bold;">⬅ Back</button>
+
+    <div class="card">
+        <h3>🏦 Add Banking Details</h3>
+        <div class="input-group">
+            <label>UPI ID (e.g., name@bank)</label>
+            <input type="text" id="upi" placeholder="Enter UPI ID">
+        </div>
+        <div class="input-group">
+            <label>Upload QR Code Scanner (Optional)</label>
+            <input type="file" id="qr" accept="image/*">
+        </div>
+        <button class="btn-action" id="save-btn" onclick="saveBank()">➕ Add Payment Method</button>
+    </div>
+
+    <div class="card">
+        <h3>📋 Active Payment Methods</h3>
+        <div id="methods-list"><p style="color:#777; font-size:12px;">Loading details...</p></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const IMGBB_KEY = "d31576e535f3516a79211d96d1b21ffa"; 
+        const adminSession = localStorage.getItem('adminSession');
+        if(!adminSession) window.location.href = "subadmin-login.html";
+        const admin = JSON.parse(adminSession);
+        const adminRef = db.collection("admins").doc(admin.id);
+
+        async function saveBank() {
+            const upiVal = document.getElementById('upi').value.trim();
+            const qrFile = document.getElementById('qr').files[0];
+            const btn = document.getElementById('save-btn');
+
+            if(!upiVal && !qrFile) { alert("Please provide UPI or QR Code!"); return; }
+
+            btn.innerText = "Saving... ⏳"; btn.disabled = true;
+
+            try {
+                let doc = await adminRef.get();
+                // SAFE CHECK: Agar paymentMethods nahi hai toh khali array [] maan lo
+                let data = doc.exists ? doc.data() : {};
+                let methods = data.paymentMethods ? data.paymentMethods : []; 
+
+                if(upiVal) methods.push({ id: Date.now().toString(), type: 'UPI', detail: upiVal });
+
+                if(qrFile) {
+                    const formData = new FormData();
+                    formData.append('image', qrFile);
+                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: formData });
+                    const resData = await res.json();
+                    methods.push({ id: (Date.now() + 1).toString(), type: 'QR', detail: resData.data.url });
+                }
+
+                await adminRef.update({ paymentMethods: methods });
+                alert("Payment Method Added!");
+                document.getElementById('upi').value = ""; document.getElementById('qr').value = "";
+            } catch (e) {
+                console.error(e);
+                alert("Error saving details!");
+            }
+            btn.innerText = "➕ Add Payment Method"; btn.disabled = false;
+        }
+
+        async function removeMethod(methodId) {
+            if(!confirm("Remove this method?")) return;
+            try {
+                let doc = await adminRef.get();
+                let methods = doc.data().paymentMethods || [];
+                methods = methods.filter(m => m.id !== methodId);
+                await adminRef.update({ paymentMethods: methods });
+            } catch(e) { alert("Error removing."); }
+        }
+
+        adminRef.onSnapshot(doc => {
+            const list = document.getElementById('methods-list');
+            list.innerHTML = "";
+            if(!doc.exists) return;
+            
+            const methods = doc.data().paymentMethods || [];
+            if(methods.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No active methods.</p>"; return; }
+
+            methods.forEach(m => {
+                let content = m.type === 'UPI' ? `<span class="badge badge-upi">UPI</span> <span>${m.detail}</span>` : `<span class="badge badge-qr">QR</span> <img src="${m.detail}" class="qr-preview" onclick="window.open('${m.detail}')">`;
+                list.innerHTML += `<div class="saved-item"><div style="display:flex; gap:10px; align-items:center;">${content}</div><button class="btn-remove" onclick="removeMethod('${m.id}')">🗑️ Remove</button></div>`;
+            });
+        });
+    </script>
+</body>
+</html>

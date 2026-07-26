@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - Master Settings</title>
+    <style>
+        :root { --theme-dark: #121418; --green: #008000; --red: #ff0000; --accent: #ffb703; --bg: #eceff4; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* Premium Header */
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .logo-text { font-size: 18px; font-weight: 900; color: white; cursor: pointer; display: flex; align-items: center; gap: 10px;}
+        
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+        
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-top: 4px solid var(--accent);}
+        .card-title { color: var(--theme-dark); border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; font-size: 16px; font-weight: 900; text-transform: uppercase;}
+        
+        .input-group { margin-bottom: 20px; margin-top: 15px;}
+        label { display: block; font-size: 13px; font-weight: 900; color: #444; margin-bottom: 8px; text-transform: uppercase;}
+        input, select { width: 100%; padding: 14px; border: 2px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; font-size: 16px; font-weight: bold; outline: none; transition: 0.2s;}
+        input:focus, select:focus { border-color: var(--accent); }
+        
+        .btn-save { background: var(--theme-dark); color: var(--accent); width: 100%; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: 900; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 10px rgba(0,0,0,0.2); letter-spacing: 1px;}
+        .btn-save:active { transform: scale(0.98); box-shadow: none;}
+    </style>
+</head>
+<body>
+
+    <div class="premium-header">
+        <div class="logo-text" onclick="window.location.href='master-dashboard.html'">
+            <span>&#8592; BACK</span>
+        </div>
+        <div style="font-weight: 900; font-size: 16px; color: var(--accent);">⚙️ SETTINGS</div>
+    </div>
+
+    <div class="container">
+        <!-- WhatsApp Settings (Old) -->
+        <div class="card">
+            <h3 class="card-title">📲 Support Contact (For SubAdmins)</h3>
+            <p style="font-size: 12px; color: #666; font-weight: bold;">Enter your WhatsApp Number. SubAdmins will see a floating WhatsApp icon.</p>
+            <div class="input-group">
+                <label>WhatsApp Number (With Country Code)</label>
+                <input type="number" id="masterWA" placeholder="e.g. 919876543210">
+            </div>
+            
+            <!-- Telegram Alert Settings (New) -->
+            <h3 class="card-title" style="margin-top: 30px;">🤖 Telegram Bot Alert Settings</h3>
+            <p style="font-size: 12px; color: #666; font-weight: bold;">Setup Bot Token and Chat ID to receive auto-reminders before Toss Time.</p>
+            
+            <div class="input-group">
+                <label>Telegram Bot Token</label>
+                <input type="text" id="masterBotToken" placeholder="e.g. 123456789:ABCdefGHIjkl...">
+            </div>
+            <div class="input-group">
+                <label>Telegram Chat ID</label>
+                <input type="text" id="masterChatId" placeholder="e.g. 987654321">
+            </div>
+            <div class="input-group">
+                <label>⏰ Pre-Toss Reminder Time</label>
+                <select id="tossReminderMins">
+                    <option value="10">10 Minutes Before</option>
+                    <option value="15" selected>15 Minutes Before</option>
+                    <option value="20">20 Minutes Before</option>
+                    <option value="30">30 Minutes Before</option>
+                </select>
+            </div>
+
+            <button class="btn-save" onclick="saveSettings()" id="saveBtn">💾 Save Settings</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const session = JSON.parse(localStorage.getItem('adminSession'));
+        if(!session || session.role !== 'master' && session.id !== 'master_demo_id') {
+            window.location.href = "master-login.html";
+        }
+
+        // Load existing settings from Firebase
+        db.collection("system_settings").doc("global").onSnapshot(doc => {
+            if(doc.exists) {
+                const data = doc.data();
+                document.getElementById('masterWA').value = data.masterWhatsApp || '';
+                document.getElementById('masterBotToken').value = data.masterBotToken || '';
+                document.getElementById('masterChatId').value = data.masterChatId || '';
+                if(data.tossReminderMins) document.getElementById('tossReminderMins').value = data.tossReminderMins;
+            }
+        });
+
+        // Save settings to Firebase
+        async function saveSettings() {
+            const waNum = document.getElementById('masterWA').value.trim();
+            const botToken = document.getElementById('masterBotToken').value.trim();
+            const chatId = document.getElementById('masterChatId').value.trim();
+            const reminderTime = parseInt(document.getElementById('tossReminderMins').value);
+
+            const btn = document.getElementById('saveBtn');
+            btn.innerText = "Saving... ⏳";
+            
+            try {
+                // Merge use kiya hai taaki purani settings delete na ho jaye
+                await db.collection("system_settings").doc("global").set({
+                    masterWhatsApp: waNum,
+                    masterBotToken: botToken,
+                    masterChatId: chatId,
+                    tossReminderMins: reminderTime
+                }, { merge: true });
+                
+                if(window.showMsg) window.showMsg("Settings Updated Successfully!", "success");
+                else alert("Settings Updated!");
+                
+                btn.innerText = "💾 Save Settings";
+            } catch(e) {
+                if(window.showMsg) window.showMsg("Error saving settings.", "error");
+                else alert("Error saving settings.");
+                btn.innerText = "💾 Save Settings";
+            }
+        }
+    </script>
+</body>
+</html>

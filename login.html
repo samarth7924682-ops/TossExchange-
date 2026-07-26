@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TOSS EXCH - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@900&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Premium Light/White Background */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: #f0f2f5; /* Soft light background so the white card pops */
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+        }
+        
+        /* Ultra Compact Card (White Theme) */
+        .login-card { 
+            background: #ffffff; 
+            padding: 25px 20px 20px 20px; 
+            border-radius: 12px; 
+            width: 90%; 
+            max-width: 320px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 0 15px rgba(255, 183, 3, 0.1); 
+            box-sizing: border-box; 
+            border-top: 5px solid #ffb703; /* Gold Coin Top Border */
+            border-bottom: 5px solid #ffb703;
+        }
+
+        /* Coin & Logo Flexbox */
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        /* Spinning Coin Animation */
+        .coin-icon {
+            font-size: 28px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+            animation: flipCoin 3s infinite linear;
+        }
+        @keyframes flipCoin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        
+        /* TOSS EXCH Text */
+        .logo { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 34px; 
+            font-weight: 900; 
+            color: #ffb703; 
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            /* Crisp shadow for light background */
+            text-shadow: -1px -1px 0 #333, 1px -1px 0 #333, -1px 1px 0 #333, 1px 1px 0 #333, 3px 3px 6px rgba(0,0,0,0.2); 
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .input-group { margin-bottom: 16px; }
+        .input-group input { 
+            width: 100%; 
+            padding: 10px 5px; 
+            border: none; 
+            border-bottom: 2px solid #e2e8f0; 
+            font-size: 14px; 
+            font-weight: 600; 
+            outline: none; 
+            box-sizing: border-box; 
+            color: #111; 
+            transition: 0.3s; 
+            background: transparent;
+        }
+        
+        /* Gold focus matching coin theme */
+        .input-group input:focus { border-bottom: 2px solid #ffb703; }
+        
+        /* Main Button - Gold Coin Theme */
+        .btn { 
+            width: 100%; 
+            padding: 12px; 
+            background: linear-gradient(135deg, #fde047, #ffb703, #d97706); 
+            color: #3a2a00; /* Dark text for contrast */
+            border: 1px solid #b45309; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            font-weight: 900; 
+            text-transform: uppercase;
+            cursor: pointer; 
+            transition: 0.2s; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 8px; 
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.4); 
+        }
+        .btn:hover { filter: brightness(1.05); }
+        .btn:active { transform: scale(0.97); box-shadow: 0 2px 3px rgba(0,0,0,0.1); }
+        
+        /* Demo Button (Clean Light Theme Version) */
+        .btn-demo { 
+            background: #ffffff; 
+            color: #334155; 
+            border: 2px solid #e2e8f0; 
+            box-shadow: none; 
+        }
+        .btn-demo:hover { background: #f8fafc; border-color: #cbd5e1; }
+        
+        .footer-text { font-size: 10px; color: #64748b; text-align: center; margin-top: 10px; line-height: 1.3; font-weight: 600;}
+
+        /* Force Password Change Screen (Hidden by default) */
+        #change-password-screen { display: none; }
+        #login-screen { display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- MAIN LOGIN -->
+    <div class="login-card" id="login-screen">
+        <div class="logo-container">
+            <span class="coin-icon">🪙</span>
+            <div class="logo">TOSS EXCH</div>
+        </div>
+        
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Username">
+        </div>
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Password">
+        </div>
+        
+        <button class="btn" onclick="loginUser()">Login ➜</button>
+        <button class="btn btn-demo" onclick="loginDemo()">Demo ID ➜</button>
+
+        <div class="footer-text">
+            Protected by reCAPTCHA & Google Privacy Policy.
+        </div>
+    </div>
+
+    <!-- FORCE CHANGE PASSWORD -->
+    <div class="login-card" id="change-password-screen">
+        <h4 style="margin-top:0; color:#e53e3e; text-align:center; font-family:'Segoe UI';">Change Default Password</h4>
+        <div class="input-group">
+            <input type="password" id="cp-current" placeholder="Current Password">
+        </div>
+        <div class="input-group">
+            <input type="password" id="cp-new" placeholder="New Password">
+        </div>
+        <div class="input-group">
+            <input type="password" id="cp-confirm" placeholder="Confirm New Password">
+        </div>
+        <button class="btn" onclick="submitNewPassword()">Save & Login ➜</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // Check if already logged in
+        window.onload = function() {
+            if(localStorage.getItem('userSession')) {
+                window.location.replace("index.html");
+            }
+        }
+
+        window.tempLoginUser = null;
+
+        window.loginUser = async function() {
+            const rawU = document.getElementById('username').value;
+            const cleanU = rawU.trim().toLowerCase().replace(/\s+/g, ''); 
+            const p = document.getElementById('password').value.trim();
+            
+            if(!cleanU || !p) { alert("Please enter both username and password!"); return; }
+
+            const btn = document.querySelector('.btn');
+            btn.innerText = "Please Wait...";
+
+            try {
+                let snap = await db.collection("users").where("username", "==", cleanU).where("password", "==", p).get();
+                if(snap.empty) {
+                    snap = await db.collection("users").where("username", "==", rawU.trim()).where("password", "==", p).get();
+                }
+
+                if(!snap.empty) {
+                    const doc = snap.docs[0];
+                    const userData = doc.data();
+
+                    if (userData.locked) { alert("Account Locked!"); btn.innerText = "Login ➜"; return; }
+
+                    if (userData.passwordChanged === true) {
+                        localStorage.setItem('userSession', JSON.stringify({id: doc.id, username: userData.username}));
+                        window.location.replace("index.html");
+                    } else {
+                        window.tempLoginUser = { id: doc.id, username: userData.username, currentPass: p };
+                        document.getElementById('cp-current').value = p; 
+                        document.getElementById('login-screen').style.display = 'none';
+                        document.getElementById('change-password-screen').style.display = 'block';
+                    }
+                } else { 
+                    alert("Invalid Credentials!"); 
+                    btn.innerText = "Login ➜";
+                }
+            } catch (error) {
+                console.error("Login Error:", error);
+                alert("Database connection error.");
+                btn.innerText = "Login ➜";
+            }
+        }
+
+        window.submitNewPassword = async function() {
+            const currP = document.getElementById('cp-current').value.trim();
+            const newP = document.getElementById('cp-new').value.trim();
+            const confP = document.getElementById('cp-confirm').value.trim();
+
+            if (!currP || !newP || !confP) { alert("Please fill all fields!"); return; }
+            if (currP !== window.tempLoginUser.currentPass) { alert("Current password incorrect!"); return; }
+            if (newP !== confP) { alert("Passwords do not match!"); return; }
+            if (newP.length < 4) { alert("Minimum 4 characters required!"); return; }
+
+            try {
+                await db.collection("users").doc(window.tempLoginUser.id).update({ password: newP, passwordChanged: true });
+                localStorage.setItem('userSession', JSON.stringify({ id: window.tempLoginUser.id, username: window.tempLoginUser.username }));
+                window.location.replace("index.html");
+            } catch(e) {
+                alert("Error updating password.");
+            }
+        }
+
+        window.loginDemo = function() {
+            const randomNum = Math.floor(Math.random() * 100) + 1001; 
+            const demoSession = {
+                id: 'demo_' + randomNum,
+                username: 'Demo@' + randomNum,
+                isDemo: true, 
+                balance: 1500 
+            };
+            
+            localStorage.setItem('userSession', JSON.stringify(demoSession));
+            window.location.replace("index.html");
+        }
+    </script>
+</body>
+</html>

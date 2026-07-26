@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOSS EXCH - Home</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
+    <link rel="prefetch" href="history.html" as="document"> 
+    <style>
+        /* CSS Exact Same as Original */
+        :root { --theme-dark: #121418; --green: #2e7d32; --red: #d32f2f; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #eceff4; margin: 0; padding: 0; }
+        #demo-alert { position: fixed; top: 0; left: 0; width: 100%; background: #d32f2f; color: white; text-align: center; padding: 8px; font-size: 13px; font-weight: bold; z-index: 99999; transform: translateY(-100%); transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        #demo-alert.show { transform: translateY(0); }
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-text { font-size: 20px; font-weight: 900; color: white; letter-spacing: 0.5px; }
+        .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+        .badge { background: #222; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #444; text-align: center; cursor: pointer; transition: 0.2s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .badge:active { transform: scale(0.95); }
+        .dropdown-box { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; }
+        .user-dropdown { min-width: 150px; }
+        .user-dropdown a { padding: 10px 12px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; display: block;}
+        .exp-dropdown { min-width: 220px; max-height: 300px; overflow-y: auto; right: auto; left: 50%; transform: translateX(-50%); }
+        .exp-header { padding: 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 6px 6px 0 0; }
+        .exp-strip { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .exp-strip:hover { background: #f0f0f0; border-left: 3px solid var(--accent); }
+        .exp-match-name { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .exp-amt { color: var(--red); font-family: monospace; font-size: 14px; }
+        .container { padding: 10px; max-width: 600px; margin: 0 auto; }
+        .btn-action { width: 48%; padding: 10px; border: none; border-radius: 6px; font-weight: 900; color: white; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); font-size: 13px; letter-spacing: 0.5px;}
+        .btn-action:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.2); }
+        .section-title { margin: 15px 0 10px 0; font-size: 13px; color: #111; font-weight: 900; display: flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .games-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-bottom: 10px; }
+        .game-card { width: 100%; height: 95px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.1); animation: cardGlow 2.4s ease-in-out infinite; }
+        .game-card:active { transform: scale(0.95); }
+        .game-card::before { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent); transform: skewX(-20deg); animation: cardShine 3s ease-in-out infinite; z-index: 1; }
+        .game-card .ic { font-size: 28px; z-index: 2; margin-bottom: 6px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }
+        .game-card span { z-index: 2; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); text-align: center;}
+        .ic-plane { animation: planeFloat 1.8s ease-in-out infinite; }
+        .ic-bomb { animation: bombPulse 1.1s ease-in-out infinite; }
+        @keyframes cardShine { 0% { left: -60%; } 50% { left: 120%; } 100% { left: 120%; } }
+        @keyframes cardGlow { 0%, 100% { box-shadow: 0 4px 8px rgba(0,0,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,255,255,0.25), 0 4px 8px rgba(0,0,0,0.3); } }
+        @keyframes planeFloat { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(-6deg); } }
+        @keyframes bombPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        .coin-icon-wrapper { position: relative; width: 34px; height: 34px; margin-bottom: 6px; z-index: 2; background: radial-gradient(circle, #ffe066, #f2c14e); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #3a2a00; border: 2px solid #fff; box-shadow: 0 0 10px rgba(242,193,78,0.8); animation: miniFlip 2s linear infinite; font-size: 16px; }
+        @keyframes miniFlip { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        .card-aviator { background: linear-gradient(135deg, #a61a22, #1a0f0a); border-bottom: 3px solid #ff4d4d;}
+        .card-overout { background: linear-gradient(135deg, #1565c0, #0a192f); border-bottom: 3px solid #4fc3f7;}
+        .card-coinflip { background: linear-gradient(135deg, #f2c14e, #8b6508); border-bottom: 3px solid #ffd700;}
+        .category-header { background: var(--theme-dark); color: var(--accent); padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 900; margin: 12px 0 8px 0; text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: inline-block; letter-spacing: 0.5px;}
+        .match-row { padding: 12px 12px; background: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--theme-dark); margin-bottom: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); transition: 0.2s; }
+        .match-row:active { transform: scale(0.98); background: #f0f0f0; }
+        .match-teams { font-weight: 900; font-size: 14px; color: #111; letter-spacing: -0.2px;}
+        .match-time { font-size: 11px; background: #f1f5f9; color: #334155; padding: 3px 8px; border-radius: 12px; display: inline-block; margin-top: 6px; font-weight: bold; border: 1px solid #e2e8f0;}
+        .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; animation: blink 1s infinite; }
+        .dot-green { background-color: #2e7d32; box-shadow: 0 0 6px #2e7d32; }
+        .dot-red { background-color: #d32f2f; box-shadow: 0 0 6px #d32f2f; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+        .status-badge { font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-play { color: var(--green); }
+        .status-lock { color: var(--red); }
+        
+        /* WhatsApp Button CSS (Unchanged) */
+        .wa-wrapper{ position: fixed; right: 28px; bottom: 28px; z-index: 9999; display:flex; align-items:center; cursor: pointer; }
+        .wa-btn{ position:relative; width: 66px; height: 66px; border:none; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; background: radial-gradient(circle at 32% 28%, #3CE86D 0%, #25D366 42%, #128C3E 78%, #0b6b2c 100%); box-shadow: 0 2px 2px rgba(255,255,255,0.6) inset, 0 -6px 10px rgba(0,0,0,0.28) inset, 0 12px 20px rgba(11, 107, 44, 0.35), 0 4px 6px rgba(0,0,0,0.15); animation: wa-float-idle 3.6s ease-in-out infinite; transition: transform 0.35s cubic-bezier(.34,1.56,.64,1), box-shadow 0.3s ease; text-decoration:none; }
+        .wa-btn:hover{ transform: translateY(-6px) scale(1.07) rotate(-4deg); box-shadow: 0 2px 2px rgba(255,255,255,0.7) inset, 0 -6px 10px rgba(0,0,0,0.25) inset, 0 18px 30px rgba(11, 107, 44, 0.45), 0 6px 10px rgba(0,0,0,0.18); }
+        .wa-btn:active{ transform: translateY(-2px) scale(0.95); }
+        .wa-btn::before{ content:""; position:absolute; top:8%; left:14%; width:46%; height:34%; background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0)); border-radius:50%; filter: blur(1px); transform: rotate(-18deg); pointer-events:none; }
+        .wa-pulse-ring{ position:absolute; inset:0; border-radius:50%; border: 2px solid rgba(37, 211, 102, 0.55); animation: wa-pulse-out 2.4s ease-out infinite; pointer-events:none; }
+        .wa-pulse-ring.wa-delay{ animation-delay: 1.2s; }
+        @keyframes wa-pulse-out{ 0%{ transform: scale(1); opacity: 0.7; } 100%{ transform: scale(1.9); opacity: 0; } }
+        @keyframes wa-float-idle{ 0%, 100%{ transform: translateY(0); } 50%{ transform: translateY(-5px); } }
+        .wa-icon{ width: 32px; height: 32px; position:relative; z-index:2; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15)); }
+        .wa-ripple{ position:absolute; border-radius:50%; background: rgba(255,255,255,0.55); transform: scale(0); animation: wa-ripple-anim 0.6s ease-out forwards; pointer-events:none; }
+        @keyframes wa-ripple-anim{ to{ transform: scale(2.6); opacity:0; } }
+        @media (prefers-reduced-motion: reduce){ .wa-btn, .wa-pulse-ring{ animation: none !important; } }
+        @media (max-width: 480px){ .wa-wrapper{ right:18px; bottom:18px; } .wa-btn{ width:58px; height:58px; } .wa-icon{ width:28px; height:28px; } }
+    </style>
+</head>
+<body>
+    
+    <div id="demo-alert">This is a demo account. Deposit/withdrawal can't be done.</div>
+
+    <script>
+        if (!localStorage.getItem('userSession')) {
+            window.location.replace('login.html');
+        }
+    </script>
+
+    <div id="main-nav" class="premium-header">
+        <div class="header-top">
+            <div class="logo-text">TOSS EXCH</div>
+            <div style="cursor: pointer; font-size: 20px; font-weight: bold;" onclick="toggleMenu('user-dropdown', event)">⋮</div>
+        </div>
+        <div class="header-info">
+            <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+            <div class="badge" id="top-user" onclick="toggleMenu('user-dropdown', event)">User</div>
+            <div class="badge" onclick="toggleMenu('exp-dropdown', event)" style="border-color: #a61a22; background: #2a1112;">Exp: <span id="top-exp">0</span></div>
+        </div>
+        
+        <div id="user-dropdown" class="dropdown-box user-dropdown">
+            <a href="#" onclick="handleMenuClick('history')">📜 Betting History</a>
+            <a href="#" onclick="handleMenuClick('changePass')">🔑 Change Password</a>
+            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+        </div>
+
+        <div id="exp-dropdown" class="dropdown-box exp-dropdown">
+            <div class="exp-header">Loading Exposures...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="home-screen">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <button class="btn-action" style="background:var(--green);" onclick="handleBanking('deposit.html')">💰 Deposit</button>
+                <button class="btn-action" style="background:var(--red);" onclick="handleBanking('withdraw.html')">💸 Withdraw</button>
+            </div>
+
+            <h4 class="section-title">🎰 Casino & Games</h4>
+            <div class="games-grid">
+                <div class="game-card card-aviator" onclick="window.location.href='sixer.html'">
+                    <div class="ic ic-plane">✈️</div><span>AVIATOR</span>
+                </div>
+                <div class="game-card card-overout" onclick="window.location.href='over-out.html'">
+                    <div class="ic ic-bomb">💣</div><span>MINES</span>
+                </div>
+                <div class="game-card card-coinflip" onclick="window.location.href='coinflip.html'">
+                    <div class="coin-icon-wrapper">🪙</div><span>COIN FLIP</span>
+                </div>
+            </div>
+
+            <div id="matches-list"></div>
+        </div>
+    </div>
+
+    <!-- WhatsApp Button (Unchanged) -->
+    <div class="wa-wrapper" id="waWrapper" onclick="handleWhatsAppClick(event)">
+      <a class="wa-btn" id="waBtn" aria-label="Chat on WhatsApp" href="javascript:void(0);">
+        <span class="wa-pulse-ring"></span>
+        <span class="wa-pulse-ring wa-delay"></span>
+        <svg class="wa-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.02 2.667c-7.363 0-13.353 5.99-13.353 13.353 0 2.354.62 4.65 1.796 6.671L2.667 29.333l6.8-1.783a13.29 13.29 0 0 0 6.55 1.72h.005c7.362 0 13.352-5.99 13.352-13.353 0-3.567-1.39-6.921-3.912-9.443A13.256 13.256 0 0 0 16.02 2.667Z" fill="#F5F5F5"/>
+          <path d="M23.87 19.24c-.343-.172-2.03-1.002-2.345-1.116-.315-.115-.544-.172-.773.172-.229.343-.888 1.116-1.088 1.345-.2.23-.4.258-.744.086-.343-.172-1.448-.534-2.759-1.702-1.02-.91-1.709-2.034-1.909-2.377-.2-.343-.021-.529.151-.7.155-.154.343-.4.515-.6.172-.2.229-.343.343-.572.115-.23.057-.43-.029-.6-.086-.172-.773-1.863-1.059-2.552-.279-.671-.562-.58-.773-.591l-.658-.012a1.267 1.267 0 0 0-.916.43c-.315.343-1.202 1.174-1.202 2.864s1.23 3.323 1.402 3.552c.172.23 2.42 3.696 5.865 5.183.819.353 1.458.564 1.956.722.822.261 1.57.224 2.161.136.659-.098 2.03-.83 2.316-1.632.286-.801.286-1.487.2-1.632-.086-.144-.315-.229-.658-.4Z" fill="#25D366"/>
+        </svg>
+      </a>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        window.toggleMenu = function(menuId, e) { 
+            e.stopPropagation(); 
+            const menus = ['user-dropdown', 'exp-dropdown'];
+            menus.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === menuId) { el.style.display = el.style.display === 'flex' ? 'none' : 'flex'; } 
+                else { el.style.display = 'none'; }
+            });
+        }
+        
+        window.onclick = function() { 
+            document.getElementById('user-dropdown').style.display = 'none'; 
+            document.getElementById('exp-dropdown').style.display = 'none'; 
+        }
+
+        window.logout = function() { localStorage.removeItem('userSession'); window.location.replace('login.html'); }
+
+        window.showDemoAlert = function(msg) {
+            const alertBar = document.getElementById('demo-alert');
+            alertBar.innerText = msg;
+            alertBar.classList.add('show');
+            setTimeout(() => { alertBar.classList.remove('show'); }, 3000);
+        }
+
+        window.handleBanking = function(targetPage) {
+            const s = localStorage.getItem('userSession');
+            if(s) {
+                const user = JSON.parse(s);
+                if(user.isDemo) { showDemoAlert("This is a demo account. Deposit/withdrawal can't be done."); } 
+                else { window.location.href = targetPage; }
+            }
+        }
+
+        window.handleMenuClick = function(action) {
+            const s = localStorage.getItem('userSession');
+            if(s) {
+                const user = JSON.parse(s);
+                if(user.isDemo) {
+                    if(action === 'history') showDemoAlert("Demo account can't access history");
+                    else if(action === 'changePass') showDemoAlert("Demo account can't change password");
+                } else {
+                    if(action === 'history') window.location.href = 'history.html';
+                    else if(action === 'changePass') window.location.href = 'change-pass.html';
+                }
+            }
+        }
+        
+        let realAdminWhatsApp = "";
+
+        window.handleWhatsAppClick = async function(e) {
+            const s = localStorage.getItem('userSession');
+            if(s) {
+                const user = JSON.parse(s);
+                if(user.isDemo) { showDemoAlert("Demo account admin not assign"); } 
+                else {
+                    try {
+                        const userDoc = await db.collection("users").doc(user.id).get();
+                        if(userDoc.exists) {
+                            const linkedSubAdminId = userDoc.data().linkedSubAdminId;
+                            if(linkedSubAdminId) {
+                                const adminDoc = await db.collection("admins").doc(linkedSubAdminId).get();
+                                if(adminDoc.exists && adminDoc.data().whatsapp) {
+                                    const number = adminDoc.data().whatsapp;
+                                    window.open(`https://wa.me/${number}?text=Hi,%20I%20need%20help%20with%20my%20User%20ID:%20${user.username}`, '_blank');
+                                } else { showDemoAlert("Admin has not set number"); }
+                            } else { showDemoAlert("Admin has not set number"); }
+                        }
+                    } catch(err) { showDemoAlert("Admin has not set number"); }
+                }
+            }
+
+            const waLink = document.getElementById('waBtn');
+            if(waLink && e) {
+                var r = document.createElement('span'); r.className = 'wa-ripple';
+                var size = Math.max(waLink.clientWidth, waLink.clientHeight);
+                r.style.width = r.style.height = size + 'px';
+                var rect = waLink.getBoundingClientRect();
+                r.style.left = (e.clientX - rect.left - size/2) + 'px';
+                r.style.top = (e.clientY - rect.top - size/2) + 'px';
+                waLink.appendChild(r);
+                setTimeout(function(){ r.remove(); }, 650);
+            }
+        }
+
+        window.checkSession = function() {
+            const s = localStorage.getItem('userSession');
+            if(s) { 
+                const user = JSON.parse(s); 
+                document.getElementById('top-user').innerText = user.username; 
+                const waWrapper = document.getElementById('waWrapper');
+
+                if (user.isDemo) {
+                    waWrapper.style.display = 'flex';
+                    document.getElementById('top-bal').innerText = Math.floor(user.balance || 1500).toFixed(2);
+                    
+                    let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
+                    let matchPnL = {}; 
+                    demoBets.forEach(b => {
+                        if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                        let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100); 
+                        if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= b.amount; } 
+                        else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= b.amount; }
+                    });
+
+                    let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
+                    db.collection("matches").get().then(matchSnap => {
+                        let matchNames = {};
+                        matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+                        
+                        for(let mId in matchPnL) {
+                            let w = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                            if(w < 0) {
+                                let expVal = Math.abs(w);
+                                totalExp += expVal; hasExp = true;
+                                expHtml += `
+                                    <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                        <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
+                                        <div class="exp-amt">-${Math.floor(expVal)}</div>
+                                    </div>`;
+                            }
+                        }
+                        if(!hasExp) { expHtml += `<div style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; color: #555;">No Active Bets</div>`; }
+                        const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
+                        const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
+                    });
+                    
+                } else {
+                    db.collection("users").doc(user.id).onSnapshot(d => {
+                        if(d.exists) {
+                            const userData = d.data();
+                            const balEl = document.getElementById('top-bal');
+                            if(balEl) balEl.innerText = Math.floor(userData.balance || 0).toFixed(2);
+                            realAdminWhatsApp = userData.adminNumber || userData.subadminNumber || "";
+                            waWrapper.style.display = 'flex';
+                        }
+                    });
+
+                    // ⚡ SMART BACKGROUND CACHE WARMUP ⚡ 
+                    // Ye history page par click karte hi usko bina load kiye 0 second me khol dega
+                    setTimeout(() => {
+                        if (window.db && user && user.id) {
+                            // Run passive fetch queries to store them in Firebase's local IndexedDB Cache
+                            db.collection("transactions").where("userId", "==", user.id).get().catch(()=>{});
+                            db.collection("bets").where("userId", "==", user.id).get().catch(()=>{});
+                            db.collection("aviator_history").where("userId", "==", user.id).get().catch(()=>{});
+                            db.collection("overout_history").where("userId", "==", user.id).get().catch(()=>{});
+                            db.collection("coinflip_history").where("userId", "==", user.id).get().catch(()=>{});
+                        }
+                    }, 2000);
+            
+                    // Build Real User Exposure
+                    db.collection("matches").get().then(matchSnap => {
+                        let matchNames = {};
+                        matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+
+                        db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(snap => {
+                            let matchPnL = {}; 
+                            snap.forEach(doc => {
+                                let b = doc.data();
+                                if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                                let bAmt = parseFloat(b.amount || 0);
+                                let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
+                                
+                                if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= b.amount; } 
+                                else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= b.amount; }
+                            });
+
+                            let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
+
+                            for(let mId in matchPnL) {
+                                let worst = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                                if(worst < 0) {
+                                    let expVal = Math.abs(worst);
+                                    totalExp += expVal; hasExp = true;
+                                    expHtml += `
+                                        <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                            <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
+                                            <div class="exp-amt">-${Math.floor(expVal)}</div>
+                                        </div>`;
+                                }
+                            }
+                            if(!hasExp) { expHtml += `<div style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; color: #555;">No Active Bets</div>`; }
+                            const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
+                            const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
+                        });
+                    });
+                }
+                window.loadLiveMatches();
+            }
+        }
+
+        function getRelativeDateLabel(ms) {
+            if(!ms) return "UNKNOWN DATE";
+            const d = new Date(ms); const today = new Date(); const tmrw = new Date(); tmrw.setDate(today.getDate() + 1);
+            if(d.toDateString() === today.toDateString()) return "TODAY";
+            if(d.toDateString() === tmrw.toDateString()) return "TOMORROW";
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            return `${d.getDate()} ${months[d.getMonth()]}`;
+        }
+
+        window.loadLiveMatches = function() {
+            db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
+                const list = document.getElementById('matches-list');
+                if(!list) return;
+                list.innerHTML = "";
+                
+                if (snap.empty) {
+                    list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>No Toss Matches Active.</p>";
+                    return;
+                }
+
+                let matches = [];
+                snap.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
+                matches.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+
+                let groupedMatches = {};
+                let categoryOrder = []; 
+
+                matches.forEach(m => {
+                    let catLabel = getRelativeDateLabel(m.tossTimeMs);
+                    if (!groupedMatches[catLabel]) { groupedMatches[catLabel] = []; categoryOrder.push(catLabel); }
+                    groupedMatches[catLabel].push(m);
+                });
+
+                const nowMs = Date.now();
+                let finalHtml = "";
+
+                categoryOrder.forEach(cat => {
+                    const group = groupedMatches[cat];
+                    finalHtml += `<div class="category-header">${cat} (${group.length} Match${group.length > 1 ? 'es' : ''})</div>`;
+
+                    group.forEach(m => {
+                        let displayTime = m.tossTimeStr || m.tossTime; 
+                        if(m.tossTimeMs) { displayTime = new Date(m.tossTimeMs).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: true}); }
+
+                        let isLocked = false, actionHtml = '', statusClass = 'status-play';
+                        
+                        if (m.tossTimeMs && nowMs >= m.tossTimeMs) { isLocked = true; actionHtml = ``; statusClass = `status-lock`; } 
+                        else if (m.lockTimeMs && nowMs >= m.lockTimeMs) { isLocked = true; actionHtml = `<span class="live-dot dot-red"></span>`; statusClass = `status-lock`; } 
+                        else { isLocked = false; actionHtml = `<span class="live-dot dot-green"></span>`; statusClass = `status-play`; }
+
+                        finalHtml += `
+                            <div class="match-row" onclick="window.location.href='betting.html?id=${m.id}'" style="border-left-color: ${isLocked ? 'var(--red)' : 'var(--theme-dark)'}; opacity: ${isLocked ? '0.85' : '1'};">
+                                <div>
+                                    <span class="match-teams" style="color: ${isLocked ? '#444' : '#111'}">${m.teamA} vs ${m.teamB}</span><br>
+                                    <span class="match-time"> Toss: ${displayTime}</span>
+                                </div>
+                                <div class="status-badge ${statusClass}">${actionHtml}</div>
+                            </div>
+                        `;
+                    });
+                });
+
+                list.innerHTML = finalHtml;
+            });
+        }
+        
+        document.addEventListener("DOMContentLoaded", function () { window.checkSession && window.checkSession(); });
+        if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(function () { window.checkSession && window.checkSession(); }, 1); }
+        window.addEventListener("pageshow", function (event) { if (event.persisted) { window.checkSession && window.checkSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
+    </script>
+</body>
+</html>

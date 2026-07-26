@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - SubAdmin Market</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
+        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; cursor: pointer;}
+        .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
+        .sa-badge span { color: var(--accent); font-size: 12px;}
+
+        .container { padding: 10px; max-width: 800px; margin: 0 auto; }
+
+        .card { background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 3px solid var(--green); }
+        h3 { margin-top: 0; font-size: 14px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
+        
+        .slim-strip { display: flex; flex-direction: column; justify-content: space-between; padding: 12px; background: #f8f9fa; border: 1px solid #e2e8f0; margin-bottom: 10px; border-radius: 6px; border-left: 4px solid var(--primary);}
+        .match-title { font-weight:900; font-size:14px; color:#111; margin-bottom: 8px; }
+        .volume-stats { font-size:12px; color:#444; background: white; padding: 10px; border-radius: 4px; border: 1px dashed #ccc;}
+        
+        .whatsapp-float-btn {
+            position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 50px; height: 50px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none; display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sa-header">
+        <div class="sa-header-top">
+            <div class="sa-logo" onclick="window.location.href='subadmin-dashboard.html'">⚡ SA PANEL</div>
+            <div style="font-size: 12px; font-weight: bold; color: #cbd5e1;">👤 <span id="sa-name">...</span></div>
+        </div>
+        <div class="sa-stats-bar">
+            <div class="sa-badge">BAL: <span id="sa-bal">0.00</span></div>
+            <div class="sa-badge">DOWNLINE: <span id="sa-downline">0.00</span></div>
+            <div class="sa-badge" style="border-color:var(--red);">PnL: <span id="sa-pnl" style="color:var(--red);">0.00</span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <!-- Live Market Volume (Net Exact Position) -->
+        <div class="card">
+            <h3>🏏 SubAdmin Net Book (Market)</h3>
+            <p style="font-size: 11px; color: #666; margin-top: -5px; margin-bottom: 15px;">Aapke users ka overall net exposure (Loss in Red, Profit in Green).</p>
+            <div id="sa-matches-list"><p style="color: #666; font-size: 11px;">Loading live book...</p></div>
+        </div>
+
+    </div>
+
+    <a href="#" id="wa-master-btn" class="whatsapp-float-btn">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WA" style="width: 30px; height: 30px;">
+    </a>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 🛡️ SECURITY MIDDLEWARE
+        const subAdminSession = localStorage.getItem('adminSession');
+        let subAdmin = null;
+
+        if(!subAdminSession) {
+            window.location.replace("subadmin-login.html");
+        } else {
+            subAdmin = JSON.parse(subAdminSession);
+            if(subAdmin.role !== 'subadmin') {
+                localStorage.removeItem('adminSession');
+                window.location.replace("subadmin-login.html");
+            }
+        }
+        
+        let currentSaBal = 0;
+        let totalDownlineBal = 0;
+
+        // Fetch Master WhatsApp
+        db.collection("system_settings").doc("global").onSnapshot(doc => {
+            if(doc.exists && doc.data().masterWhatsApp) {
+                const waBtn = document.getElementById('wa-master-btn');
+                waBtn.href = `https://wa.me/${doc.data().masterWhatsApp}?text=Hello%20Master,%20I%20am%20Subadmin:%20${subAdmin.username}`;
+                waBtn.target = "_blank";
+                waBtn.style.display = "flex";
+            }
+        });
+
+        // Load Header Stats & PnL
+        document.getElementById('sa-name').innerText = subAdmin.username;
+        db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
+            if(doc.exists) {
+                currentSaBal = doc.data().balance || 0;
+                document.getElementById('sa-bal').innerText = Math.floor(currentSaBal);
+                calcPnL();
+            }
+        });
+
+        db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
+            totalDownlineBal = 0;
+            snap.forEach(doc => { totalDownlineBal += (doc.data().balance || 0); });
+            document.getElementById('sa-downline').innerText = Math.floor(totalDownlineBal);
+            calcPnL();
+        });
+
+        function calcPnL() {
+            let pnl = currentSaBal - totalDownlineBal; 
+            let pnlEl = document.getElementById('sa-pnl');
+            pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
+            pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+        }
+
+        // 🌟 FINAL EXACT NET VOLUME (BOOK) LOGIC 🌟
+        async function initLiveMarket() {
+            // Get all downline users
+            const uSnap = await db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).get();
+            let myUserIds = [];
+            uSnap.forEach(d => myUserIds.push(d.id));
+
+            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
+                db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
+                    const listVolume = document.getElementById('sa-matches-list');
+                    listVolume.innerHTML = "";
+                    
+                    if(matchSnap.empty) { 
+                        listVolume.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches right now.</p>"; 
+                        return; 
+                    }
+
+                    // Store combined subadmin net book here
+                    let saBook = {}; 
+
+                    betSnap.forEach(bDoc => {
+                        const b = bDoc.data();
+                        
+                        if(myUserIds.includes(b.userId)) { 
+                            if(!saBook[b.matchId]) saBook[b.matchId] = { teamA: 0, teamB: 0 };
+                            
+                            // EXACT MATH: Profit = Stake * (Odds/100) | Loss = Stake
+                            let netProfit = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                            let netLoss = b.amount; 
+
+                            // Calculate overall book
+                            if(b.selection === 'teamA') {
+                                saBook[b.matchId].teamA += netProfit; // Win logic
+                                saBook[b.matchId].teamB -= netLoss;   // Loss logic
+                            } else {
+                                saBook[b.matchId].teamB += netProfit; // Win logic
+                                saBook[b.matchId].teamA -= netLoss;   // Loss logic
+                            }
+                        }
+                    });
+
+                    // Render UI
+                    matchSnap.forEach(doc => {
+                        const m = doc.data();
+                        const book = saBook[doc.id] || { teamA: 0, teamB: 0 };
+                        
+                        let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
+                        let signA = book.teamA > 0 ? "+" : ""; 
+                        
+                        let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
+                        let signB = book.teamB > 0 ? "+" : "";
+
+                        listVolume.innerHTML += `
+                            <div class="slim-strip">
+                                <div class="match-title">🏏 ${m.teamA} vs ${m.teamB}</div>
+                                <div class="volume-stats">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
+                                        <span style="font-weight:bold; font-size:13px;">${m.teamA}:</span> 
+                                        <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(2)}</span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between;">
+                                        <span style="font-weight:bold; font-size:13px;">${m.teamB}:</span> 
+                                        <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                });
+            });
+        }
+        
+        initLiveMarket(); 
+    </script>
+</body>
+</html>

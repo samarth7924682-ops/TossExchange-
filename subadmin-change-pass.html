@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - Change Password</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* 🌟 COMMON SUBADMIN HEADER 🌟 */
+        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
+        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; cursor: pointer;}
+        .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
+        .sa-badge span { color: var(--accent); font-size: 12px;}
+
+        .container { padding: 15px; max-width: 500px; margin: 0 auto; }
+
+        .card { background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #f97316; }
+        h3 { margin-top: 0; font-size: 16px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
+        
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: 900; color: #444; margin-bottom: 5px; text-transform: uppercase;}
+        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;}
+        input:focus { border-color: var(--primary); }
+
+        .btn-submit { background: var(--primary); color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: 900; font-size: 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s;}
+        .btn-submit:active { transform: translateY(2px); }
+    </style>
+</head>
+<body>
+
+    <div class="sa-header">
+        <div class="sa-header-top">
+            <div class="sa-logo" onclick="window.location.href='subadmin-dashboard.html'">⬅ SA PANEL</div>
+            <div style="font-size: 12px; font-weight: bold; color: #cbd5e1;">👤 <span id="sa-name">...</span></div>
+        </div>
+        <div class="sa-stats-bar">
+            <div class="sa-badge">BAL: <span id="sa-bal">0.00</span></div>
+            <div class="sa-badge">DOWNLINE: <span id="sa-downline">0.00</span></div>
+            <div class="sa-badge" style="border-color:var(--red);">PnL: <span id="sa-pnl" style="color:var(--red);">0.00</span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>🔑 Change SubAdmin Password</h3>
+            
+            <div class="input-group">
+                <label>Current Password</label>
+                <input type="password" id="oldPass" placeholder="Enter current password">
+            </div>
+
+            <div class="input-group">
+                <label>New Password</label>
+                <input type="password" id="newPass" placeholder="Enter new password">
+            </div>
+
+            <div class="input-group">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirmPass" placeholder="Confirm new password">
+            </div>
+
+            <button class="btn-submit" onclick="changePass()" id="submitBtn">Update Password</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const subAdminSession = localStorage.getItem('adminSession');
+        if(!subAdminSession) { window.location.href = "subadmin-login.html"; }
+        const subAdmin = JSON.parse(subAdminSession);
+        
+        // Header Logic
+        document.getElementById('sa-name').innerText = subAdmin.username;
+        let currentSaBal = 0, totalDownlineBal = 0;
+        
+        db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
+            if(doc.exists) {
+                currentSaBal = doc.data().balance || 0;
+                document.getElementById('sa-bal').innerText = Math.floor(currentSaBal);
+                calcPnL();
+            }
+        });
+        db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
+            totalDownlineBal = 0;
+            snap.forEach(doc => { totalDownlineBal += (doc.data().balance || 0); });
+            document.getElementById('sa-downline').innerText = Math.floor(totalDownlineBal);
+            calcPnL();
+        });
+        function calcPnL() {
+            let pnl = currentSaBal - totalDownlineBal; 
+            let pnlEl = document.getElementById('sa-pnl');
+            pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
+            pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+        }
+
+        // Change Password Logic
+        async function changePass() {
+            const oldPass = document.getElementById('oldPass').value.trim();
+            const newPass = document.getElementById('newPass').value.trim();
+            const confirmPass = document.getElementById('confirmPass').value.trim();
+            const btn = document.getElementById('submitBtn');
+
+            if(!oldPass || !newPass || !confirmPass) { alert("All fields are required!"); return; }
+            if(newPass !== confirmPass) { alert("New Passwords do not match!"); return; }
+            if(newPass.length < 6) { alert("Password must be at least 6 characters long!"); return; }
+
+            btn.innerText = "Updating...";
+            btn.disabled = true;
+
+            try {
+                const doc = await db.collection("admins").doc(subAdmin.id).get();
+                if(doc.exists && doc.data().password === oldPass) {
+                    await db.collection("admins").doc(subAdmin.id).update({
+                        password: newPass
+                    });
+                    alert("✅ Password changed successfully! Please login again.");
+                    localStorage.removeItem('adminSession');
+                    window.location.href = "subadmin-login.html";
+                } else {
+                    alert("❌ Incorrect Current Password!");
+                    btn.innerText = "Update Password";
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert("Error updating password.");
+                btn.innerText = "Update Password";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

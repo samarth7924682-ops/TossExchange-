@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> TOSS EXCH - Master Dashboard</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* 🌟 SUBADMIN STYLE HEADER APPLIED TO MASTER 🌟 */
+        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
+        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; }
+        .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
+        .sa-badge span { color: var(--accent); font-size: 12px;}
+
+        .container { padding: 10px; max-width: 800px; margin: 0 auto; }
+
+        /* Navigation Flex Grid */
+        .nav-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; justify-content: space-between;}
+        .nav-btn { flex: 1 1 30%; background: white; color: var(--primary); text-align: center; padding: 12px 5px; text-decoration: none; font-weight: 900; font-size: 11px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 3px solid var(--accent); box-sizing: border-box;}
+        .nav-btn:active { transform: scale(0.95); }
+
+        .card { background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 3px solid var(--primary); }
+        h3 { margin-top: 0; font-size: 14px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
+        
+        /* Match Strips */
+        .slim-strip { display: flex; flex-direction: column; justify-content: space-between; padding: 12px; background: #f8f9fa; border: 1px solid #e2e8f0; margin-bottom: 10px; border-radius: 6px; border-left: 4px solid var(--green);}
+        .match-title { font-weight:900; font-size:15px; color:#111; margin-bottom: 4px; }
+        .match-time { font-size: 11px; background: #e3f2fd; color: #1565c0; padding: 3px 6px; border-radius: 3px; display: inline-block; font-weight: bold; margin-bottom: 8px; width: fit-content;}
+        .volume-stats { font-size:12px; color:#444; background: white; padding: 10px; border-radius: 4px; border: 1px dashed #ccc;}
+        
+        /* Date Strip Category Header */
+        .category-header { background: #334155; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; margin-top: 15px; margin-bottom: 10px; display: inline-block; font-weight: bold; border-left: 3px solid var(--accent); text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+    </style>
+</head>
+<body>
+
+    <div class="sa-header">
+        <div class="sa-header-top">
+            <div class="sa-logo"> TOSS EXCHANGE</div>
+            <div style="font-size: 12px; font-weight: bold; color: var(--accent); padding-right:5px;"> MASTER ADMIN</div>
+        </div>
+        <div class="sa-stats-bar">
+            <div class="sa-badge">SubAdmins: <span id="master-sa-count">0</span></div>
+            <div class="sa-badge">Global Book: <span id="master-global-vol">0</span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <div class="nav-grid">
+            <a href="master-subadmins.html" class="nav-btn">👥 SUB-ADMINS</a>
+            <a href="master-matches.html" class="nav-btn">⚙️ SET MATCHES</a>
+            <a href="masterSettings.html" class="nav-btn">📲 WA / BOT</a>
+            
+            <a href="master-change-pass.html" class="nav-btn" style="flex: 1 1 45%; border-bottom-color: #f97316;">🔑 PASSWORD</a>
+            <div class="nav-btn" onclick="logoutWithPassword()" style="flex: 1 1 45%; border-bottom-color: var(--red); cursor: pointer; color: var(--red);">🚪 LOGOUT</div>
+        </div>
+
+        <div class="card" style="border-left-color: var(--green);">
+            <h3>🌍 Global Market Book</h3>
+            <p style="font-size: 11px; color: #666; margin-top: -5px; margin-bottom: 15px;">Overall Net Book for all users.</p>
+            <div id="global-matches-list"><p style="color: #666; font-size: 12px; font-weight: bold;">Loading global live data... ⏳</p></div>
+        </div>
+
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 🌟 INFINITE LOOP FIX & AUTHENTICATION
+        const sessionStr = localStorage.getItem('adminSession');
+        let session = null;
+        if(sessionStr) {
+            try { session = JSON.parse(sessionStr); } catch(e) {}
+        }
+
+        if(!session || (session.role !== 'master' && session.id !== 'master_demo_id')) {
+            window.location.replace("master-login.html");
+        }
+
+        // SubAdmin Count Fetcher
+        db.collection("admins").where("role", "==", "subadmin").onSnapshot(snap => {
+            document.getElementById('master-sa-count').innerText = snap.size;
+        });
+
+        // 🔒 SECURE LOGOUT LOGIC
+        async function logoutWithPassword() {
+            let pass = prompt("🔒 Please enter your Master password to Logout:");
+            if (!pass) return;
+
+            if (pass.trim() === session.password) {
+                localStorage.removeItem('adminSession');
+                window.location.replace("master-login.html");
+            } else {
+                alert("❌ Incorrect Password! Logout blocked.");
+            }
+        }
+
+        // Function to determine category based on Toss Time (Today, Tomorrow, etc.)
+        function getCategoryByMs(ms) {
+            if(!ms) return "Upcoming";
+            const d = new Date(ms);
+            const today = new Date();
+            const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+            const dayAfter = new Date(today); dayAfter.setDate(dayAfter.getDate() + 2);
+            
+            if(d.toDateString() === today.toDateString()) return "Today";
+            if(d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+            if(d.toDateString() === dayAfter.toDateString()) return "Day After Tomorrow";
+            return d.toLocaleDateString([], {day:'2-digit', month:'short'});
+        }
+
+        // 🌍 GLOBAL LIVE MATCHES & NET BOOK LOGIC
+        function initGlobalMarket() {
+            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
+                db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
+                    
+                    const listMatches = document.getElementById('global-matches-list');
+                    listMatches.innerHTML = "";
+                    
+                    if(matchSnap.empty) { 
+                        listMatches.innerHTML = "<p style='color:#777; font-size:12px; font-weight:bold;'>No active matches right now.</p>"; 
+                        document.getElementById('master-global-vol').innerText = "0";
+                        return; 
+                    }
+
+                    let masterBook = {};
+                    let totalGlobalRisk = 0;
+                    let matchesArray = [];
+
+                    // Extract matches into array for sorting
+                    matchSnap.forEach(m => { 
+                        matchesArray.push({ id: m.id, ...m.data() }); 
+                    });
+
+                    // Sort Matches by Increasing Order of Time
+                    matchesArray.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+
+                    // Calculate Global Book
+                    betSnap.forEach(bDoc => {
+                        const b = bDoc.data();
+                        const amt = parseFloat(b.amount || 0);
+                        const odds = parseFloat(b.odds || 98);
+                        
+                        if(!masterBook[b.matchId]) {
+                            masterBook[b.matchId] = { teamA: 0, teamB: 0 };
+                        }
+
+                        let netProfit = amt * (odds / 100);
+                        let netLoss = amt;
+
+                        // Calculate overall net position for the book
+                        if(b.selection === 'teamA') {
+                            masterBook[b.matchId].teamA += netProfit; 
+                            masterBook[b.matchId].teamB -= netLoss;   
+                        } else {
+                            masterBook[b.matchId].teamB += netProfit; 
+                            masterBook[b.matchId].teamA -= netLoss;   
+                        }
+                    });
+                    
+                    let currentCat = "";
+
+                    // Render Match UI with Date Categories
+                    matchesArray.forEach(m => {
+                        const book = masterBook[m.id] || { teamA: 0, teamB: 0 };
+                        
+                        let worstCase = Math.min(book.teamA, book.teamB);
+                        if(worstCase < 0) {
+                            totalGlobalRisk += Math.abs(worstCase);
+                        }
+
+                        let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
+                        let signA = book.teamA > 0 ? "+" : ""; 
+                        
+                        let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
+                        let signB = book.teamB > 0 ? "+" : "";
+
+                        // Format Date/Time
+                        let displayTime = m.tossTimeStr || "";
+                        if(m.tossTimeMs) {
+                            const d = new Date(m.tossTimeMs);
+                            displayTime = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        }
+
+                        // Determine Date Category Strip
+                        const cat = getCategoryByMs(m.tossTimeMs);
+                        if(cat !== currentCat) {
+                            listMatches.innerHTML += `<div class="category-header">📅 ${cat}</div>`;
+                            currentCat = cat;
+                        }
+
+                        listMatches.innerHTML += `
+                            <div class="slim-strip" style="border-left-color: var(--green);">
+                                <div class="match-title"> ${m.teamA} vs ${m.teamB}</div>
+                                <div class="match-time">🕒 Toss: ${displayTime}</div>
+                                <div class="volume-stats">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
+                                        <span style="font-weight:900;">${m.teamA}:</span> 
+                                        <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(0)}</span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between;">
+                                        <span style="font-weight:900;">${m.teamB}:</span> 
+                                        <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(0)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    document.getElementById('master-global-vol').innerText = totalGlobalRisk.toFixed(0);
+                });
+            });
+        }
+        
+        initGlobalMarket(); 
+    </script>
+</body>
+</html>

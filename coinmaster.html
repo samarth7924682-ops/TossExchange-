@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👑 Master Coin Ledger</title>
+    <style>
+        :root { --primary: #1a365d; --green: #2e7d32; --red: #c62828; --bg: #eceff4; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; font-size: 13px; }
+        
+        .container { padding: 15px; max-width: 800px; margin: 0 auto; }
+
+        /* LEDGER LIST */
+        .ledger-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow: hidden; }
+        .ledger-header { background: #334155; color: white; padding: 10px 15px; font-weight: 900; font-size: 13px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;}
+        
+        .strip { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; transition: 0.2s; }
+        .strip:hover { background: #f8f9fa; }
+        .strip-left { display: flex; flex-direction: column; gap: 4px; }
+        .date-txt { font-size: 11px; color: #777; font-weight: bold; }
+        .remark-txt { font-size: 13px; font-weight: 900; color: #111; }
+        
+        .strip-right { text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end;}
+        .amt-txt { font-size: 16px; font-weight: 900; }
+        .text-green { color: var(--green); }
+        .text-red { color: var(--red); }
+        
+        .running-bal { font-size: 11px; color: #444; font-weight: bold; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; display: inline-block; border: 1px solid #cbd5e1;}
+
+        .no-data { padding: 30px; text-align: center; color: #777; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Ledger List -->
+        <div class="ledger-wrapper">
+            <div class="ledger-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <a href="#" id="back-btn" style="color: white; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px;">⬅</a>
+                    <span>Transaction Details</span>
+                </div>
+                <span>Amount / Bal</span>
+            </div>
+            <div id="ledger-list">
+                <div class="no-data">Loading ledger records... ⏳</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 1. Authenticate Session
+        const sessionStr = localStorage.getItem('adminSession');
+        if(!sessionStr) { window.location.href = "index.html"; }
+        const adminSession = JSON.parse(sessionStr);
+
+        let targetSaId = null;
+
+        // 2. Determine whose ledger to show based on Role
+        if (adminSession.role === 'subadmin') {
+            targetSaId = adminSession.id;
+            document.getElementById('back-btn').href = "subadmin-dashboard.html";
+        } 
+        else if (adminSession.role === 'master') {
+            const urlParams = new URLSearchParams(window.location.search);
+            targetSaId = urlParams.get('id');
+            document.getElementById('back-btn').href = "master-subadmins.html";
+            
+            if(!targetSaId) {
+                alert("❌ No SubAdmin selected! Going back.");
+                window.location.href = "master-subadmins.html";
+            }
+        }
+
+        // 3. Fetch Transactions
+        function loadLedger() {
+            db.collection("transactions")
+              .where("userId", "==", targetSaId)
+              .onSnapshot(snap => {
+                  let records = [];
+
+                  snap.forEach(doc => {
+                      let tx = doc.data();
+                      // Only pick transactions marked as "Master" and Approved
+                      if(tx.remark && tx.remark.includes('Master') && tx.status === 'approved') {
+                          records.push(tx);
+                      }
+                  });
+
+                  // Sort Oldest to Newest to calculate running balance correctly
+                  records.sort((a,b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+
+                  const listEl = document.getElementById('ledger-list');
+                  listEl.innerHTML = "";
+
+                  if(records.length === 0) {
+                      listEl.innerHTML = `<div class="no-data">No transactions found with Master Admin.</div>`;
+                      return;
+                  }
+
+                  let runningBalance = 0;
+                  let finalUIArray = [];
+
+                  records.forEach(tx => {
+                      let amt = parseFloat(tx.amount || 0);
+                      let isDeposit = (tx.type === 'deposit'); // Deposit MEANS Subadmin RECEIVED from Master
+                      
+                      let oldBal = runningBalance; // Store old balance before transaction
+                      
+                      if(isDeposit) {
+                          runningBalance += amt;
+                      } else {
+                          runningBalance -= amt;
+                      }
+                      
+                      let newBal = runningBalance; // Store new balance after transaction
+
+                      let colorClass = isDeposit ? "text-green" : "text-red";
+                      let sign = isDeposit ? "+" : "-";
+                      let remarkText = isDeposit ? "Received from Master" : "Returned to Master";
+                      let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleString([], {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
+
+                      finalUIArray.unshift(`
+                          <div class="strip" style="border-left: 4px solid ${isDeposit ? 'var(--green)' : 'var(--red)'}">
+                              <div class="strip-left">
+                                  <span class="remark-txt">${remarkText}</span>
+                                  <span class="date-txt">📅 ${dateStr}</span>
+                              </div>
+                              <div class="strip-right">
+                                  <span class="amt-txt ${colorClass}">${sign}${amt.toFixed(2)}</span>
+                                  <span class="running-bal">
+                                      Old: ${oldBal.toFixed(2)} &nbsp;<strong class="${colorClass}">${sign}${amt.toFixed(0)}</strong> &nbsp;=&nbsp; <span style="color:#000;">${newBal.toFixed(2)}</span>
+                                  </span>
+                              </div>
+                          </div>
+                      `);
+                  });
+
+                  // Update UI
+                  listEl.innerHTML = finalUIArray.join('');
+              });
+        }
+
+        if(targetSaId) loadLedger();
+
+    </script>
+</body>
+</html>

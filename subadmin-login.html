@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Viewport tag for perfect mobile view -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SubAdmin Login</title>
+    <style>
+        :root { --primary: #121416; --bg: #eceff4; --accent: #ff9800; }
+        body { 
+            padding: 15px; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: var(--bg); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 90vh; 
+            margin: 0;
+        }
+        .card { 
+            padding: 25px 20px; 
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            width: 100%; 
+            max-width: 300px; 
+            box-sizing: border-box;
+            border-top: 4px solid var(--primary);
+        }
+        h3 { 
+            margin-top: 0; 
+            color: var(--primary); 
+            text-align: center; 
+            border-bottom: 1px solid #eee; 
+            padding-bottom: 12px; 
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .input-group { margin-bottom: 12px; }
+        input { 
+            width: 100%; 
+            padding: 10px 12px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            font-size: 13px; 
+            font-weight: 600; 
+            background: #fafafa;
+            transition: all 0.2s;
+        }
+        input:focus { 
+            border-color: var(--primary); 
+            outline: none; 
+            background: #fff;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        button { 
+            width: 100%; 
+            padding: 10px; 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            font-size: 13px;
+            cursor: pointer; 
+            margin-top: 8px; 
+            text-transform: uppercase; 
+            transition: 0.1s;
+        }
+        button:hover {
+            background: #222;
+        }
+        button:active { 
+            transform: scale(0.98); 
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>SubAdmin Login</h3>
+        <div class="input-group">
+            <input type="text" id="user" placeholder="Enter Username">
+        </div>
+        <div class="input-group">
+            <input type="password" id="pass" placeholder="Enter Password">
+        </div>
+        <button onclick="login()" id="loginBtn">Log In</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // --- AUTO-LOGIN CHECK ---
+        document.addEventListener("DOMContentLoaded", () => {
+            const session = localStorage.getItem('adminSession');
+            if (session) {
+                try {
+                    const adminData = JSON.parse(session);
+                    if (adminData.role === 'subadmin') {
+                        // Direct Redirect, dashboard will verify password change
+                        window.location.href = "subadmin-dashboard.html";
+                    }
+                } catch(e) {
+                    localStorage.removeItem('adminSession');
+                }
+            }
+        });
+
+        async function login() {
+            const rawU = document.getElementById('user').value;
+            const rawP = document.getElementById('pass').value;
+
+            const cleanU = rawU.trim().toLowerCase().replace(/\s+/g, '');
+            const cleanP = rawP.trim();
+
+            if(!cleanU || !cleanP) { alert("Please enter both fields!"); return; }
+
+            const btn = document.getElementById('loginBtn');
+            btn.innerText = "Authenticating...";
+            btn.disabled = true;
+
+            try {
+                const snap = await db.collection("admins")
+                                     .where("username", "==", cleanU)
+                                     .where("password", "==", cleanP)
+                                     .where("role", "==", "subadmin")
+                                     .get();
+                
+                if(!snap.empty) {
+                    const doc = snap.docs[0];
+                    // Save password in session to auto-logout if Master changes it later
+                    localStorage.setItem('adminSession', JSON.stringify({
+                        id: doc.id, 
+                        role: 'subadmin', 
+                        username: doc.data().username,
+                        password: cleanP 
+                    }));
+                    window.location.href = "subadmin-dashboard.html";
+                } else {
+                    const rawTrimmedU = rawU.trim();
+                    const snapFallback = await db.collection("admins")
+                                                 .where("username", "==", rawTrimmedU)
+                                                 .where("password", "==", cleanP)
+                                                 .where("role", "==", "subadmin")
+                                                 .get();
+
+                    if(!snapFallback.empty) {
+                        const docFallback = snapFallback.docs[0];
+                        localStorage.setItem('adminSession', JSON.stringify({
+                            id: docFallback.id, 
+                            role: 'subadmin', 
+                            username: docFallback.data().username,
+                            password: cleanP
+                        }));
+                        window.location.href = "subadmin-dashboard.html";
+                    } else {
+                        alert("Invalid SubAdmin Details! Check your username/password.");
+                    }
+                }
+            } catch(e) {
+                console.error(e);
+                alert("Database Connection Error!");
+            } finally {
+                btn.innerText = "Log In";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

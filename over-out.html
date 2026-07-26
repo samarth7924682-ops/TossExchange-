@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OVER OUT - TOSS EXCH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --theme-dark: #121418; --dusk1: #1a0f0a; --dusk2: #2b1710;
+    --gold: #ffb703; --cream: #F4E9D8; --leaf: #2e7d32; --wicket: #d32f2f;
+    --line: rgba(244,233,216,0.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; overscroll-behavior:none; background: var(--theme-dark);}
+  body{
+    font-family:'Inter', sans-serif; color:var(--cream); min-height:100vh;
+    background: radial-gradient(120% 55% at 50% -8%, rgba(255,183,3,0.15), transparent 60%), linear-gradient(180deg, var(--dusk1), #000 80%);
+  }
+  
+  /* Standard TOSS EXCH Header */
+  .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border-bottom: 1px solid #333;}
+  .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+  .logo-text { font-size: 20px; font-weight: bold; color: white; text-decoration: none; display: inline-block; cursor: pointer; font-family: 'Oswald'; letter-spacing: 1px;}
+  .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+  .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--gold); font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; }
+
+  .app{ width:100%; max-width:480px; margin: 0 auto; padding-bottom:24px; }
+
+  .field{
+    margin:15px 15px 0; border-radius:18px; padding:18px;
+    background: radial-gradient(70% 40% at 50% 0%, rgba(255,183,3,0.08), transparent 65%), linear-gradient(180deg, #241108, #1a0d07);
+    border:1px solid #333; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  }
+  .over-strip{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .over-strip .label{ font-family:'JetBrains Mono'; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#999; }
+  .over-strip .value{ font-family:'Oswald'; font-weight:700; font-size:32px; color:var(--gold); text-shadow:0 0 14px rgba(255,183,3,0.4); }
+
+  .grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; }
+  .tile{
+    aspect-ratio:1; border-radius:10px; border:1px solid #444;
+    background:linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; position:relative; overflow:hidden;
+    transition: transform 0.1s ease, background 0.2s; box-shadow: inset 0 2px 4px rgba(255,255,255,0.05);
+  }
+  .tile:active{ transform:scale(0.92); }
+  .tile.safe{ background:linear-gradient(160deg, rgba(46,125,50,0.6), rgba(46,125,50,0.2)); border-color:var(--leaf); cursor:default; }
+  .tile.wicket{ background:linear-gradient(160deg, rgba(211,47,47,0.7), rgba(211,47,47,0.2)); border-color:var(--wicket); cursor:default; }
+  .tile.dim{ opacity:0.4; cursor:default; }
+
+  .status-row{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-family:'Oswald'; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; }
+  #statusMsg{ color:#aaa; }
+  #potentialWin{ font-family:'JetBrains Mono'; font-weight:700; color:var(--green); font-size: 15px;}
+
+  /* 🌟 GAME HISTORY CHIPS 🌟 */
+  .history-container { display: flex; gap: 8px; overflow-x: auto; padding: 12px 15px; scrollbar-width: none; margin: 0 5px; }
+  .history-container::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; font-family: 'JetBrains Mono'; font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 6px; background: #1a1a1a; border: 1px solid #333; }
+  .chip.win { color: #4caf50; border-color: rgba(76,175,80,0.4); background: rgba(76,175,80,0.1); }
+  .chip.out { color: #f44336; border-color: rgba(244,67,54,0.4); background: rgba(244,67,54,0.1); }
+
+  /* Controls */
+  .controls{ padding:15px; margin: 0 15px 15px 15px; background: #1a1a1a; border-radius: 12px; border: 1px solid #333;}
+  
+  .auto-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #333; }
+  .auto-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #aaa; text-transform: uppercase;}
+  .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .3s; border-radius: 20px; }
+  .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+  input:checked + .slider { background-color: var(--gold); }
+  input:checked + .slider:before { transform: translateX(16px); }
+
+  .bet-row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .bet-box{ flex:1; background:#0d0d0d; border:1px solid #444; border-radius:8px; padding:10px; text-align: center;}
+  .bet-box label{ font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#888; display: block; margin-bottom: 4px;}
+  .bet-box input{ width:100%; background:transparent; border:none; outline:none; color:white; font-family:'JetBrains Mono'; font-size:18px; font-weight:700; text-align: center;}
+  
+  .difficulty{ display:flex; gap:6px; margin-bottom: 15px;}
+  .difficulty button{ flex:1; background:#0d0d0d; border:1px solid #444; color:#aaa; font-family:'Inter'; font-size:12px; font-weight:700; border-radius:6px; padding:10px 4px; cursor:pointer; transition: 0.2s;}
+  .difficulty button.active{ background:var(--wicket); color:white; border-color:var(--wicket); }
+
+  .action-btn{ width:100%; border:none; border-radius:8px; padding:15px; font-family:'Oswald'; font-weight:700; font-size:18px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition: 0.2s;}
+  .action-btn:active{ transform:scale(0.97); }
+  .action-btn.start{ background: var(--leaf); color:white; box-shadow:0 4px 10px rgba(46,125,50,0.3); }
+  .action-btn.cashout{ background: var(--gold); color:black; box-shadow:0 4px 10px rgba(255,183,3,0.3); }
+  .action-btn.stopauto { background: var(--wicket); color: white; }
+  .action-btn:disabled{ background:#333; color:#666; box-shadow:none; cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<div id="main-nav" class="premium-header">
+    <div class="header-top">
+        <a href="index.html" class="logo-text">TOSS EXCH</a>
+    </div>
+    <div class="header-info">
+        <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+        <div class="badge" id="top-user">User</div>
+    </div>
+</div>
+
+<div class="app">
+  <div class="field">
+    <div class="over-strip">
+      <span class="label">Current Odds</span>
+      <span class="value" id="multVal">1.00x</span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="status-row">
+      <span id="statusMsg">Set bet & wickets</span>
+      <span id="potentialWin"></span>
+    </div>
+  </div>
+
+  <!-- 🌟 IN-GAME HISTORY CHIPS 🌟 -->
+  <div class="history-container" id="historyBox">
+      <!-- Chips will load here -->
+  </div>
+
+  <div class="controls">
+    <!-- Auto Mode Bar -->
+    <div class="auto-bar">
+      <div class="auto-toggle">
+        <span>Auto Play</span>
+        <label class="switch"><input type="checkbox" id="autoToggle"><span class="slider"></span></label>
+      </div>
+      <div style="text-align:right;">
+        <label style="font-size:10px; color:#888; display:block;">TARGET PICKS</label>
+        <input type="number" id="targetPicks" value="2" min="1" max="24" style="width:50px; background:#0d0d0d; border:1px solid #444; color:white; font-weight:bold; text-align:center; border-radius:4px; padding:4px;">
+      </div>
+    </div>
+
+    <div class="bet-row">
+      <div class="bet-box">
+        <label>Bet Amount (₹)</label>
+        <input type="number" id="betInput" value="100" min="10" step="10">
+      </div>
+    </div>
+    
+    <div class="difficulty" id="difficulty">
+      <button data-wickets="3" class="active">3 Wickets</button>
+      <button data-wickets="5">5 Wickets</button>
+      <button data-wickets="10">10 Wickets</button>
+    </div>
+    
+    <button class="action-btn start" id="actionBtn">START GAME</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+
+<script>
+  const session = localStorage.getItem('userSession');
+  if(!session) window.location.href = "index.html";
+  const user = JSON.parse(session);
+  document.getElementById('top-user').innerText = user.username;
+
+  const TILE_COUNT = 25;
+  const grid = document.getElementById('grid');
+  const multVal = document.getElementById('multVal');
+  const statusMsg = document.getElementById('statusMsg');
+  const potentialWin = document.getElementById('potentialWin');
+  const actionBtn = document.getElementById('actionBtn');
+  const betInput = document.getElementById('betInput');
+  const difficultyBtns = document.querySelectorAll('#difficulty button');
+  const autoToggle = document.getElementById('autoToggle');
+  const targetPicksInput = document.getElementById('targetPicks');
+
+  let realBalance = 0;
+  let wicketCount = 3;
+  let state = 'idle'; // idle -> playing -> resolved
+  let tiles = []; 
+  let picksRevealed = 0;
+  let currentBet = 0;
+  let multiplier = 1.00;
+  let isAutoPlaying = false;
+  let autoPlayLoopTimeout = null;
+
+  // 🤖 --- ADVANCED RIGGED SYSTEM TRACKERS --- 🤖
+  let isRiggedRound = false;
+  let targetBombClick = 0;
+  let currentClickCount = 0;
+  let fairWicketIndices = [];
+  
+  let targetRecoveryAmount = 0; // Tracks wins to slowly claw back
+  let roundsUntilForcedLoss = -1; // Tracks delayed punishment
+
+  // --- DEMO BYPASS: BALANCE SYNC ---
+  if (user.isDemo) {
+      realBalance = parseFloat(user.balance || 1500);
+      document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
+  } else {
+      db.collection("users").doc(user.id).onSnapshot(doc => {
+          if(doc.exists) {
+              realBalance = doc.data().balance || 0;
+              document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
+          }
+      });
+  }
+
+  // --- DEMO BYPASS: IN-GAME HISTORY CHIPS ---
+  function loadHistory() {
+      if (user.isDemo) {
+          let histData = JSON.parse(localStorage.getItem('demoOveroutHistory') || '[]');
+          histData.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+          histData = histData.slice(0, 15);
+
+          const box = document.getElementById('historyBox');
+          if(!box) return;
+          box.innerHTML = '';
+          histData.forEach(d => {
+              const chip = document.createElement('div');
+              chip.className = 'chip ' + (d.winAmount > 0 ? 'win' : 'out');
+              chip.textContent = d.winAmount > 0 ? d.cashoutMult.toFixed(2)+'x' : 'OUT';
+              box.appendChild(chip);
+          });
+      } else {
+          db.collection("overout_history")
+            .where("userId", "==", user.id)
+            .onSnapshot(snap => {
+                let histData = [];
+                snap.forEach(doc => histData.push(doc.data()));
+                
+                histData.sort((a, b) => {
+                    let timeA = a.timestamp?.seconds || 0;
+                    let timeB = b.timestamp?.seconds || 0;
+                    return timeB - timeA;
+                });
+
+                histData = histData.slice(0, 15); 
+
+                const box = document.getElementById('historyBox');
+                if(!box) return;
+                box.innerHTML = '';
+                histData.forEach(d => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip ' + (d.winAmount > 0 ? 'win' : 'out');
+                    chip.textContent = d.winAmount > 0 ? d.cashoutMult.toFixed(2)+'x' : 'OUT';
+                    box.appendChild(chip);
+                });
+            });
+      }
+  }
+  loadHistory(); 
+
+  difficultyBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(state !== 'idle') return;
+      difficultyBtns.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      wicketCount = Number(btn.dataset.wickets);
+    });
+  });
+
+  // House edge 5% 
+  function multiplierForPick(pickIndex, wickets){
+    const safeTiles = TILE_COUNT - wickets;
+    let prob = 1;
+    for(let i=0;i<pickIndex;i++){ prob *= (safeTiles - i) / (TILE_COUNT - i); }
+    return (0.95 / prob);
+  }
+
+  function buildGrid(){
+    grid.innerHTML = '';
+    tiles = [];
+    for(let i=0;i<TILE_COUNT;i++){
+      // UI Generate - Start sabhi boxes Ball 🏐 lagenge
+      tiles.push({ wicket: false, revealed: false });
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.dataset.idx = i;
+      el.innerHTML = '🏐'; 
+      grid.appendChild(el);
+    }
+  }
+  buildGrid();
+
+  grid.addEventListener('click', (e)=>{
+    if(isAutoPlaying && state === 'playing') return; 
+    const tileEl = e.target.closest('.tile');
+    if(!tileEl || state !== 'playing') return;
+    handleTileClick(tileEl);
+  });
+
+  function handleTileClick(tileEl) {
+    const idx = Number(tileEl.dataset.idx);
+    const tile = tiles[idx];
+    if(tile.revealed) return;
+
+    currentClickCount++;
+    tile.revealed = true;
+
+    // 🛑 CORE ALGORITHM INTERCEPTOR 🛑
+    let hitWicket = false;
+    if (isRiggedRound) {
+        if (currentClickCount === targetBombClick) hitWicket = true;
+    } else {
+        if (fairWicketIndices.includes(idx)) hitWicket = true;
+    }
+
+    if(hitWicket){
+      tile.wicket = true;
+      tileEl.classList.add('wicket');
+      tileEl.innerHTML = '💥'; 
+      loseRound(idx);
+    } else {
+      tile.wicket = false;
+      tileEl.classList.add('safe');
+      tileEl.innerHTML = '💎'; // Safe nikalne par Diamond 💎
+      picksRevealed++;
+      multiplier = multiplierForPick(picksRevealed, wicketCount);
+      multVal.textContent = multiplier.toFixed(2)+'x';
+      const potential = Math.floor(currentBet * multiplier);
+      potentialWin.textContent = 'Win: ₹' + potential;
+      statusMsg.textContent = 'Keep going or cash out';
+      actionBtn.disabled = false;
+    }
+  }
+
+  function startRound(){
+    const bet = Math.floor(Number(betInput.value)) || 0;
+    if(bet < 10){ alert('Min bet is ₹10'); autoToggle.checked = false; return false; }
+    if(bet > realBalance){ alert('Insufficient Balance!'); autoToggle.checked = false; return false; }
+
+    // --- DEMO BYPASS: DEDUCT BET ---
+    if (user.isDemo) {
+        realBalance -= bet;
+        user.balance = realBalance;
+        localStorage.setItem('userSession', JSON.stringify(user));
+        document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
+    } else {
+        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-bet) });
+    }
+    
+    currentBet = bet;
+    picksRevealed = 0;
+    multiplier = 1.00;
+
+    // 🤖 --- SMART RIGGED LOGIC (NATURAL DISTRIBUTION) --- 🤖
+    currentClickCount = 0;
+    let maxSafe = TILE_COUNT - wicketCount;
+    isRiggedRound = false;
+
+    // Condition 1: Recovery Mode (Bleed them if they are in profit)
+    if (targetRecoveryAmount > 0) {
+        isRiggedRound = Math.random() < 0.85; // 85% chance to enforce loss to recover money
+    } 
+    // Condition 2: Delayed Punisher
+    else if (roundsUntilForcedLoss === 0) {
+        isRiggedRound = true;
+        roundsUntilForcedLoss = -1; // Reset
+    } 
+    // Condition 3: Normal Play (Neutral base mode)
+    else {
+        isRiggedRound = Math.random() < 0.35; // 35% natural casino rigged edge, rest relies on their luck
+        if (roundsUntilForcedLoss > 0) roundsUntilForcedLoss--;
+    }
+
+    // Smart Click Distribution (Let them go deeper occasionally)
+    if (isRiggedRound) {
+        let r = Math.random();
+        if (r < 0.15) {
+            targetBombClick = Math.floor(Math.random() * 2) + 1; // 15% chance: 1st or 2nd click
+        } else if (r < 0.50) {
+            targetBombClick = Math.floor(Math.random() * 3) + 3; // 35% chance: 3rd, 4th, or 5th click
+        } else if (r < 0.85) {
+            targetBombClick = Math.floor(Math.random() * 3) + 6; // 35% chance: 6th, 7th, or 8th click
+        } else {
+            targetBombClick = Math.floor(Math.random() * 3) + 9; // 15% chance: 9th, 10th, or 11th click
+        }
+    }
+
+    // Safety check 
+    if (isRiggedRound && targetBombClick > maxSafe) {
+        targetBombClick = maxSafe;
+    }
+
+    // Fair positions for non-rigged rounds
+    if (!isRiggedRound) {
+        let allIndices = Array.from({length: TILE_COUNT}, (_, i) => i);
+        allIndices.sort(() => Math.random() - 0.5);
+        fairWicketIndices = allIndices.slice(0, wicketCount);
+    }
+
+    buildGrid();
+    state = 'playing';
+    multVal.textContent = '1.00x';
+    statusMsg.textContent = 'Pick a tile to score';
+    potentialWin.textContent = '';
+    
+    if(isAutoPlaying) {
+        actionBtn.textContent = 'STOP AUTO PLAY';
+        actionBtn.className = 'action-btn stopauto';
+    } else {
+        actionBtn.textContent = 'CASH OUT';
+        actionBtn.className = 'action-btn cashout';
+        actionBtn.disabled = true;
+    }
+    
+    betInput.disabled = true;
+    difficultyBtns.forEach(b=>b.disabled = true);
+    return true;
+  }
+
+  function loseRound(fatalIdx){
+    state = 'resolved';
+
+    // 📉 Reduce recovery amount on loss
+    if (targetRecoveryAmount > 0) {
+        targetRecoveryAmount -= currentBet;
+        if (targetRecoveryAmount < 0) targetRecoveryAmount = 0;
+    }
+
+    // 🤫 ILLUSION CREATOR
+    let unclicked = [];
+    for(let i=0; i<TILE_COUNT; i++) {
+        if(i !== fatalIdx && !tiles[i].revealed) unclicked.push(i);
+    }
+    unclicked.sort(() => Math.random() - 0.5);
+    let illusionBombs = unclicked.slice(0, wicketCount - 1);
+
+    document.querySelectorAll('.tile').forEach(el=>{
+      const idx = Number(el.dataset.idx);
+      if(!tiles[idx].revealed){
+        el.classList.add('dim');
+        if(illusionBombs.includes(idx)) {
+            tiles[idx].wicket = true;
+            el.innerHTML = '💥';
+        } else {
+            el.innerHTML = '💎'; 
+        }
+      }
+    });
+
+    statusMsg.textContent = 'Wicket! Bet Lost';
+    potentialWin.textContent = '';
+    
+    // --- DEMO BYPASS: SAVE LOSS TO HISTORY ---
+    if (user.isDemo) {
+        let hist = JSON.parse(localStorage.getItem('demoOveroutHistory') || '[]');
+        hist.push({ winAmount: 0, cashoutMult: 0, timestamp: { seconds: Date.now() / 1000 } });
+        localStorage.setItem('demoOveroutHistory', JSON.stringify(hist));
+        loadHistory();
+    } else {
+        db.collection("overout_history").add({
+            userId: user.id,
+            betAmount: currentBet,
+            cashoutMult: 0,
+            winAmount: 0,
+            closingBalance: realBalance, 
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    endRoundUI();
+  }
+
+  function cashOut(){
+    if(state !== 'playing' || picksRevealed === 0) return;
+    
+    const winnings = Math.floor(currentBet * multiplier);
+    
+    // 🤖 --- TRACK WIN FOR PUNISHMENT --- 🤖
+    let netWin = winnings - currentBet;
+    
+    // Always aim to recover 110% of their net win eventually
+    targetRecoveryAmount += (netWin * 1.1);
+    
+    // Small win trap: Delay the punishment so they don't get suspicious
+    if (multiplier < 1.5 && roundsUntilForcedLoss === -1) {
+        roundsUntilForcedLoss = Math.floor(Math.random() * 4) + 2; // Punish in 2 to 5 rounds
+    }
+
+    // --- DEMO BYPASS: ADD WINNINGS & SAVE HISTORY ---
+    if (user.isDemo) {
+        realBalance += winnings;
+        user.balance = realBalance;
+        localStorage.setItem('userSession', JSON.stringify(user));
+        document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
+        
+        let hist = JSON.parse(localStorage.getItem('demoOveroutHistory') || '[]');
+        hist.push({ winAmount: winnings, cashoutMult: multiplier, timestamp: { seconds: Date.now() / 1000 } });
+        localStorage.setItem('demoOveroutHistory', JSON.stringify(hist));
+        loadHistory();
+    } else {
+        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(winnings) });
+        db.collection("overout_history").add({
+            userId: user.id,
+            betAmount: currentBet,
+            cashoutMult: multiplier,
+            winAmount: winnings,
+            closingBalance: realBalance + winnings, 
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    statusMsg.textContent = 'WON ₹' + winnings;
+    statusMsg.style.color = 'var(--green)';
+    potentialWin.textContent = '';
+    
+    state = 'resolved';
+
+    // Show where bombs were fairly to avoid suspicion
+    let unclicked = [];
+    for(let i=0; i<TILE_COUNT; i++) {
+        if(!tiles[i].revealed) unclicked.push(i);
+    }
+    unclicked.sort(() => Math.random() - 0.5);
+    let illusionBombs = unclicked.slice(0, wicketCount);
+
+    document.querySelectorAll('.tile').forEach(el=>{
+      const idx = Number(el.dataset.idx);
+      if(!tiles[idx].revealed) {
+          el.classList.add('dim');
+          if(illusionBombs.includes(idx)) {
+              el.innerHTML = '💥';
+          } else {
+              el.innerHTML = '💎'; 
+          }
+      }
+    });
+
+    endRoundUI();
+  }
+
+  function endRoundUI(){
+    betInput.disabled = false;
+    difficultyBtns.forEach(b=>b.disabled = false);
+    
+    if(isAutoPlaying && autoToggle.checked) {
+        autoPlayLoopTimeout = setTimeout(() => {
+            if(autoToggle.checked) executeAutoPlay();
+            else resetUI();
+        }, 2000);
+    } else {
+        setTimeout(resetUI, 1500);
+    }
+  }
+
+  function resetUI() {
+    state = 'idle';
+    isAutoPlaying = false;
+    buildGrid();
+    multVal.textContent = '1.00x';
+    statusMsg.textContent = 'Set bet & wickets';
+    statusMsg.style.color = '#aaa';
+    actionBtn.textContent = 'START GAME';
+    actionBtn.className = 'action-btn start';
+    actionBtn.disabled = false;
+  }
+
+  // Auto Play
+  async function executeAutoPlay() {
+      if(!autoToggle.checked) { resetUI(); return; }
+      isAutoPlaying = true;
+      
+      let started = startRound();
+      if(!started) { isAutoPlaying = false; resetUI(); return; }
+
+      let target = parseInt(targetPicksInput.value) || 1;
+      
+      for(let i=0; i<target; i++) {
+          if(state !== 'playing' || !autoToggle.checked) break;
+          
+          await new Promise(resolve => setTimeout(resolve, 600)); 
+          
+          let unrevealed = tiles.map((t, idx) => ({t, idx})).filter(x => !x.t.revealed);
+          if(unrevealed.length === 0) break;
+          
+          let choice = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+          let tileEl = document.querySelector(`.tile[data-idx='${choice.idx}']`);
+          
+          handleTileClick(tileEl);
+          
+          if(state !== 'playing') break; 
+      }
+
+      if(state === 'playing' && picksRevealed >= target) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          cashOut();
+      }
+  }
+
+  actionBtn.addEventListener('click', ()=>{
+    if(isAutoPlaying) {
+        autoToggle.checked = false;
+        clearTimeout(autoPlayLoopTimeout);
+        if(state === 'playing') cashOut(); 
+        else resetUI();
+    } else {
+        if(state === 'idle') {
+            if(autoToggle.checked) executeAutoPlay();
+            else startRound();
+        }
+        else if(state === 'playing') cashOut();
+    }
+  });
+
+  autoToggle.addEventListener('change', (e) => {
+      if(!e.target.checked && isAutoPlaying) {
+          actionBtn.textContent = 'CASH OUT';
+          actionBtn.className = 'action-btn cashout';
+      }
+  });
+
+</script>
+</body>
+</html>

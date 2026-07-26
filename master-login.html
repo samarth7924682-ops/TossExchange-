@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Master Admin Login</title>
+    <style>
+        :root { --primary: #121416; --bg: #eceff4; } /* Background is now clean white/light grey */
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 300px; text-align: center; border-top: 4px solid var(--primary); box-sizing: border-box; }
+        h3 { color: var(--primary); margin-top: 0; margin-bottom: 20px; font-weight: 800; letter-spacing: 0.5px; font-size: 16px; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+        input { width: 100%; padding: 10px 12px; margin-bottom: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-weight: 600; outline: none; background: #fafafa; transition: 0.2s; }
+        input:focus { border-color: var(--primary); background: #fff; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+        button { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 13px; text-transform: uppercase; transition: 0.1s; }
+        button:hover { background: #222; }
+        button:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>Master Login</h3>
+        <input type="text" id="user" placeholder="Enter Username">
+        <input type="password" id="pass" placeholder="Enter Password">
+        <button id="loginBtn" onclick="login()">Log In</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // --- AUTO-LOGIN CHECK ---
+        document.addEventListener("DOMContentLoaded", () => {
+            const sessionStr = localStorage.getItem('adminSession');
+            if (sessionStr) {
+                try {
+                    const session = JSON.parse(sessionStr);
+                    if (session && (session.role === 'master' || session.id === 'master_demo_id')) {
+                        // Direct Redirect to Dashboard
+                        window.location.replace("master-dashboard.html");
+                    }
+                } catch(e) {
+                    localStorage.removeItem('adminSession');
+                }
+            }
+        });
+
+        // 🌟 Fixed document ID used for Master's credentials in Firestore
+        const MASTER_DOC_ID = "master_demo_id";
+
+        async function login() {
+            let u = document.getElementById('user').value.trim();
+            let p = document.getElementById('pass').value.trim();
+
+            const btn = document.getElementById('loginBtn');
+            btn.innerText = "Authenticating...";
+            btn.disabled = true;
+
+            try {
+                const doc = await db.collection("admins").doc(MASTER_DOC_ID).get();
+
+                // Default fallback credentials (used only the very first time, before Firestore doc exists)
+                let realUsername = "master";
+                let realPassword = "Master@123";
+
+                if (doc.exists) {
+                    // Use whatever is currently saved in Firestore (reflects any password change)
+                    realUsername = doc.data().username || realUsername;
+                    realPassword = doc.data().password || realPassword;
+                } else {
+                    // First-time setup: persist the default credentials so future changes actually stick
+                    await db.collection("admins").doc(MASTER_DOC_ID).set({
+                        username: realUsername,
+                        password: realPassword,
+                        role: 'master'
+                    });
+                }
+
+                // Credentials Check (username case-insensitive, password exact/case-sensitive)
+                if (u.toLowerCase() === realUsername.toLowerCase() && p === realPassword) {
+                    // Persistent Session Save (Saving password so dashboard/subadmin pages can verify changes)
+                    localStorage.setItem('adminSession', JSON.stringify({
+                        id: MASTER_DOC_ID,
+                        username: realUsername,
+                        role: 'master',
+                        password: realPassword
+                    }));
+
+                    window.location.replace("master-dashboard.html");
+                } else {
+                    alert("Incorrect Username or Password!");
+                    btn.innerText = "Log In";
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert("Error connecting. Check internet connection.");
+                btn.innerText = "Log In";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

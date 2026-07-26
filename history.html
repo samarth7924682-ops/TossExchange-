@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - Account Statement</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">    
+    <style>
+        /* CSS Same as Original */
+        :root { --theme-dark: #121418; --green: #008000; --red: #ff0000; --accent: #ffb703; --bg: #eceff4; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-text { font-size: 20px; font-weight: 900; color: white; cursor: pointer; text-decoration: none;}
+        .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+        .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; transition: 0.2s; }
+        .badge:active { transform: scale(0.95); }
+        .dropdown-box { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; }
+        .user-dropdown { min-width: 150px; }
+        .user-dropdown a { padding: 10px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; display:block;}
+        .exp-dropdown { min-width: 220px; max-height: 300px; overflow-y: auto; right: auto; left: 50%; transform: translateX(-50%); }
+        .exp-header { padding: 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 1px solid #eee; background: #f8f9fa; border-radius: 6px 6px 0 0; }
+        .exp-strip { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .exp-strip:hover { background: #f0f0f0; border-left: 3px solid var(--accent); }
+        .exp-match-name { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .exp-amt { color: var(--red); font-family: monospace; font-size: 14px; }
+        .container { padding: 10px; margin: 0 auto; max-width: 800px; }
+        .page-title { font-size: 15px; font-weight: 900; color: #111; margin: 5px 0 10px 0; background: white; padding: 12px; border-radius: 4px; border-left: 4px solid var(--theme-dark); box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-transform: uppercase;}
+        .filter-container { background: white; padding: 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .filter-input { flex: 1; min-width: 110px; padding: 8px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; font-weight: bold; color: #333; outline: none; }
+        .btn-submit { background: var(--theme-dark); color: white; border: none; padding: 9px 15px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
+        .table-wrapper { background: white; overflow-x: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border-radius: 6px; }
+        .ledger-table { width: 100%; border-collapse: collapse; min-width: 550px; font-size: 11px; }
+        .ledger-table th { background: var(--theme-dark); color: white; padding: 10px 6px; text-align: center; white-space: nowrap; font-weight: 900; text-transform: uppercase; border-right: 1px solid rgba(255,255,255,0.1);}
+        .ledger-table td { border: 1px solid #e2e8f0; padding: 8px 6px; text-align: center; color: #111; font-weight: 700; vertical-align: middle;}
+        .ledger-table tr:nth-child(even) { background-color: #f8f9fa; }
+        .text-green { color: var(--green); font-weight: 900; font-size: 13px;}
+        .text-red { color: var(--red); font-weight: 900; font-size: 13px;}
+        .text-remark { color: #334155; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+    <div id="main-nav" class="premium-header">
+        <div class="header-top">
+            <a href="index.html" class="logo-text">TOSS EXCH</a>
+            <div style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="toggleMenu('user-dropdown', event)">⋮</div>
+        </div>
+        <div class="header-info">
+            <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+            <div class="badge" id="top-user" onclick="toggleMenu('user-dropdown', event)">User</div>
+            <div class="badge" onclick="toggleMenu('exp-dropdown', event)" style="border-color: #a61a22; background: #2a1112;">Exp: <span id="top-exp">0</span></div>
+        </div>
+        
+        <div id="user-dropdown" class="dropdown-box user-dropdown">
+            <a href="index.html" id="home-link">🏠 Home / Dashboard</a>
+            <a href="change-pass.html">🔑 Change Password</a>
+            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+        </div>
+
+        <div id="exp-dropdown" class="dropdown-box exp-dropdown">
+            <div class="exp-header">Loading Exposures...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="page-title">📜 Account Statement</div>
+
+        <div class="filter-container">
+            <input type="date" id="filter-start" class="filter-input" title="Start Date">
+            <input type="date" id="filter-end" class="filter-input" title="End Date">
+            <select id="filter-category" class="filter-input">
+                <option value="all">All Records</option>
+                <option value="dep_with">Deposit/Withdraw</option>
+                <option value="toss">Toss Matches</option>
+                <option value="aviator">Aviator Game</option>
+                <option value="overout">Over Out Game</option>
+                <option value="coinflip">Coin Flip Game</option>
+            </select>
+            <button class="btn-submit" onclick="applyFilters()">Submit</button>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="ledger-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">Sr</th>
+                        <th style="width: 20%;">Date & Time</th>
+                        <th style="width: 15%;">Credit (+)</th>
+                        <th style="width: 15%;">Debit (-)</th>
+                        <th style="width: 15%;">Balance</th>
+                        <th style="width: 30%;">Remark</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger-body">
+                    <tr><td colspan="6" style="padding: 20px; color: #777;">Loading Records... ⏳</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetUserId = urlParams.get('id');
+        const targetUserName = urlParams.get('name');
+
+        let user = {};
+
+        if (targetUserId && targetUserName) {
+            user = { id: targetUserId, username: targetUserName };
+            document.addEventListener("DOMContentLoaded", () => {
+                const homeLink = document.getElementById('home-link');
+                if (homeLink) {
+                    homeLink.href = 'subadmin-users.html';
+                    homeLink.innerText = '⬅ Back to Users List';
+                }
+            });
+        } else {
+            const session = localStorage.getItem('userSession');
+            if(!session) window.location.href = "index.html";
+            user = JSON.parse(session);
+        }
+        
+        let matchDictionary = {};
+        let masterLedgerData = []; 
+        let lockedWithdrawals = 0;
+        let activeExposure = 0;
+
+        // ⚡ INSTANT CACHE LOAD ⚡ (Phase 1: Hybrid Sync)
+        let cachedLedger = localStorage.getItem('fastLedger_' + user.id);
+        if(cachedLedger) {
+            try {
+                masterLedgerData = JSON.parse(cachedLedger);
+                masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
+                renderTable(masterLedgerData);
+            } catch(e) { console.error("Cache error", e); }
+        }
+        
+        window.toggleMenu = function(menuId, e) { 
+            e.stopPropagation(); 
+            const menus = ['user-dropdown', 'exp-dropdown'];
+            menus.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === menuId) {
+                    el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+        }
+        window.onclick = function() { 
+            document.getElementById('user-dropdown').style.display = 'none'; 
+            document.getElementById('exp-dropdown').style.display = 'none'; 
+        }
+        function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
+
+        window.buildExposureDropdown = async function(userId) {
+            const matchSnap = await db.collection("matches").get();
+            let matchNames = {};
+            matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+
+            db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").onSnapshot(snap => {
+                let matchPnL = {}; 
+                snap.forEach(doc => {
+                    let b = doc.data();
+                    if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0, totalBet: 0 };
+                    let bAmt = parseFloat(b.amount || 0);
+                    let bOdds = parseFloat(b.odds || 0);
+                    let winAmt = bAmt * (bOdds / 100);
+                    
+                    if(b.selection === 'teamA') {
+                        matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= bAmt;
+                    } else {
+                        matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= bAmt;
+                    }
+                });
+
+                let totalExp = 0;
+                let expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`;
+                let hasExp = false;
+
+                for(let mId in matchPnL) {
+                    let worst = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                    if(worst < 0) {
+                        let expVal = Math.abs(worst);
+                        totalExp += expVal;
+                        hasExp = true;
+                        let mName = matchNames[mId] || "Live Match";
+                        expHtml += `
+                            <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                <div class="exp-match-name">${mName}</div>
+                                <div class="exp-amt">-${Math.floor(expVal)}</div>
+                            </div>
+                        `;
+                    }
+                }
+                if(!hasExp) expHtml += `<div style="padding: 15px; text-align: center; font-size: 12px; font-weight: bold; color: #555;">No Active Bets</div>`;
+                
+                const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
+                const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
+            });
+        }
+
+        function setupHeader() {
+            document.getElementById('top-user').innerText = user.username;
+            db.collection("users").doc(user.id).onSnapshot(d => {
+                if(d.exists) document.getElementById('top-bal').innerText = Math.floor(d.data().balance || 0).toFixed(2);
+            });
+            window.buildExposureDropdown(user.id);
+        }
+
+        async function fetchMatchNames() {
+            const snap = await db.collection("matches").get();
+            snap.forEach(doc => { 
+                let d = doc.data();
+                matchDictionary[doc.id] = { title: `${d.teamA} vs ${d.teamB}`, teamA: d.teamA, teamB: d.teamB }; 
+            });
+            loadCombinedLedger();
+        }
+
+        // 🗑️ Helper function to silently delete old records without freezing the app
+        function silentDeleteOldDoc(ref) {
+            setTimeout(() => { ref.delete().catch(() => {}); }, 100);
+        }
+
+        async function loadCombinedLedger() {
+            let freshLedgerData = [];
+            lockedWithdrawals = 0;
+            activeExposure = 0;
+
+            // 🕒 10-DAY AUTO-DELETE THRESHOLD
+            const tenDaysAgo = new Date();
+            tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+            // Fetch Transactions
+            const txnSnap = await db.collection("transactions").where("userId", "==", user.id).get();
+            txnSnap.forEach(doc => {
+                let t = doc.data();
+                let docDate = t.timestamp ? t.timestamp.toDate() : new Date();
+                
+                if (docDate < tenDaysAgo) {
+                    silentDeleteOldDoc(doc.ref);
+                    return; // Skip adding to UI logic
+                }
+
+                if(t.status === 'approved') {
+                    let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : 'Approved Withdrawal');
+                    freshLedgerData.push({ dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
+                } else if (t.status === 'pending' && t.type === 'withdraw') {
+                    lockedWithdrawals += parseFloat(t.amount) || 0;
+                }
+            });
+
+            // Fetch Bets
+            const betSnap = await db.collection("bets").where("userId", "==", user.id).get();
+            let matchGroups = {};
+
+            betSnap.forEach(doc => {
+                let b = doc.data();
+                let docDate = b.timestamp ? b.timestamp.toDate() : new Date();
+                
+                if (docDate < tenDaysAgo && b.status !== 'pending') {
+                    silentDeleteOldDoc(doc.ref);
+                    return; 
+                }
+
+                if(!matchGroups[b.matchId]) {
+                    matchGroups[b.matchId] = { bets: [], status: 'pending', dateObj: docDate, netResult: 0 };
+                }
+                matchGroups[b.matchId].bets.push(b);
+                if(['won', 'lost', 'cancelled'].includes(b.status)) matchGroups[b.matchId].status = 'settled';
+            });
+
+            for (let mId in matchGroups) {
+                let group = matchGroups[mId];
+                let mInfo = matchDictionary[mId] || { title: "Toss Match", teamA: "Team A", teamB: "Team B" };
+                
+                if (group.status === 'settled') {
+                    let isCancelled = false;
+                    let finalTeamBetOn = "";
+                    
+                    group.bets.forEach(b => {
+                        let bAmt = parseFloat(b.amount) || 0;
+                        if (b.status === 'won') {
+                            group.netResult += bAmt * ((parseFloat(b.odds) || 98) / 100);
+                            finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
+                        } else if (b.status === 'lost') {
+                            group.netResult -= bAmt;
+                            finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
+                        } else if (b.status === 'cancelled') {
+                            isCancelled = true;
+                        }
+                    });
+                    
+                    if (isCancelled) {
+                        freshLedgerData.push({ dateObj: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
+                    } else if (group.netResult !== 0) {
+                        let isWin = group.netResult > 0;
+                        let resultText = isWin ? 'Won' : 'Lost';
+                        let color = isWin ? 'var(--green)' : 'var(--red)';
+                        freshLedgerData.push({ dateObj: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
+                    }
+                } else {
+                    let pnlA = 0, pnlB = 0;
+                    group.bets.forEach(b => {
+                        let bAmt = parseFloat(b.amount) || 0;
+                        let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
+                        if(b.selection === 'teamA') { pnlA += winAmt; pnlB -= bAmt; }
+                        else { pnlB += winAmt; pnlA -= bAmt; }
+                    });
+                    let worst = Math.min(pnlA, pnlB);
+                    if (worst < 0) { activeExposure += Math.abs(worst); }
+                }
+            }
+
+            // Fetch Aviator
+            const aviatorSnap = await db.collection("aviator_history").where("userId", "==", user.id).get();
+            aviatorSnap.forEach(doc => {
+                let a = doc.data();
+                let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
+                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
+                
+                let pnl = parseFloat(a.winAmount || 0) > 0 ? (parseFloat(a.winAmount) - parseFloat(a.betAmount)) : -parseFloat(a.betAmount); 
+                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
+                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
+            });
+
+            // Fetch OverOut
+            const overoutSnap = await db.collection("overout_history").where("userId", "==", user.id).get();
+            overoutSnap.forEach(doc => {
+                let o = doc.data();
+                let docDate = o.timestamp ? o.timestamp.toDate() : new Date();
+                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
+
+                let pnl = parseFloat(o.winAmount || 0) > 0 ? (parseFloat(o.winAmount) - parseFloat(o.betAmount)) : -parseFloat(o.betAmount); 
+                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
+                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
+            });
+
+            // Fetch CoinFlip
+            const coinflipSnap = await db.collection("coinflip_history").where("userId", "==", user.id).get();
+            coinflipSnap.forEach(doc => {
+                let c = doc.data();
+                let docDate = c.timestamp ? c.timestamp.toDate() : new Date();
+                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
+
+                let pnl = parseFloat(c.winAmount || 0) > 0 ? (parseFloat(c.winAmount) - parseFloat(c.betAmount)) : -parseFloat(c.betAmount); 
+                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+            });
+
+            freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
+            
+            const userDoc = await db.collection("users").doc(user.id).get();
+            let runningBal = (parseFloat(userDoc.data().balance) || 0) + activeExposure + lockedWithdrawals;
+
+            // Perfect balance math mapping backwards through the 10 days
+            freshLedgerData.forEach((item) => {
+                item.histBalance = runningBal; 
+               if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
+                    runningBal -= item.amount; 
+                } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
+                    runningBal += item.amount; 
+                }
+            });
+
+            masterLedgerData = freshLedgerData;
+            
+            // 🔥 UPDATE CACHE SEAMLESSLY
+            localStorage.setItem('fastLedger_' + user.id, JSON.stringify(masterLedgerData));
+            
+            // Optional: Only re-render if we didn't render from cache, OR re-render to inject new data silently
+            renderTable(masterLedgerData);
+        }
+
+        function applyFilters() {
+            const sStr = document.getElementById('filter-start').value;
+            const eStr = document.getElementById('filter-end').value;
+            const cat = document.getElementById('filter-category').value;
+
+            let filtered = masterLedgerData.filter(item => {
+                let matchCat = true;
+                if(cat === 'dep_with') matchCat = ['deposit', 'withdraw', 'bonus'].includes(item.type);
+                if(cat === 'toss') matchCat = ['match_profit', 'match_loss', 'match_cancelled'].includes(item.type);
+                if(cat === 'aviator') matchCat = ['aviator_profit', 'aviator_loss'].includes(item.type);
+                if(cat === 'overout') matchCat = ['overout_profit', 'overout_loss'].includes(item.type);
+                if(cat === 'coinflip') matchCat = ['coinflip_profit', 'coinflip_loss'].includes(item.type); 
+
+                let matchDate = true;
+                if(sStr) { let sD = new Date(sStr); sD.setHours(0,0,0,0); if(item.dateObj < sD) matchDate = false; }
+                if(eStr) { let eD = new Date(eStr); eD.setHours(23,59,59,999); if(item.dateObj > eD) matchDate = false; }
+                return matchCat && matchDate;
+            });
+            renderTable(filtered);
+        }
+
+        function renderTable(dataArray) {
+            const tbody = document.getElementById('ledger-body');
+            tbody.innerHTML = "";
+            if(dataArray.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; font-weight:bold;'>No Records Found for past 10 Days</td></tr>"; return; }
+
+            dataArray.forEach((item, index) => {
+                let d = item.dateObj;
+                let dateStr = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + "<br><span style='font-size:10px;color:#777;'>" + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0') + "</span>";
+                
+                let credit = "-", debit = "-";
+                
+                if(['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) {
+                    credit = `<span class="text-green">+${Number(item.amount || 0).toFixed(2)}</span>`;
+                }
+                else if(['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) {
+                    debit = `<span class="text-red">-${Number(item.amount || 0).toFixed(2)}</span>`;
+                }
+
+                let balColor = Number(item.histBalance || 0) >= 0 ? "var(--green)" : "var(--red)";
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${dateStr}</td>
+                        <td>${credit}</td>
+                        <td>${debit}</td>
+                        <td style="color:${balColor}; font-weight:900; font-size:13px;">${Number(item.histBalance || 0).toFixed(2)}</td>
+                        <td class="text-remark">${item.remark}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            setupHeader(); 
+            fetchMatchNames();
+        });
+    </script>
+</body>
+</html>

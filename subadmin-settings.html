@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubAdmin Settings</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #c62828; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
+        
+        /* Card & Input Styles */
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; border-top: 3px solid var(--primary); }
+        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 16px; }
+        
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+        .input-field { width: 100%; padding: 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-weight: bold; outline: none; transition: 0.3s; }
+        .input-field:focus { border-color: var(--primary); box-shadow: 0 0 5px rgba(26, 54, 93, 0.2); }
+        
+        /* Buttons */
+        .action-row { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; color: white; text-transform: uppercase; transition: 0.2s; }
+        .btn-save { background: var(--green); }
+        .btn-clear { background: var(--red); }
+        
+        .info-text { font-size: 11px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 4px; border: 1px solid #bbdefb; margin-bottom: 15px; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h3>💬 WhatsApp Support Setup</h3>
+        <span class="info-text">Ye number users ko Deposit/Withdraw page par floating button mein dikhega. Format: 919876543210 (Bina + ke)</span>
+        
+        <div class="input-group">
+            <label>WhatsApp Number:</label>
+            <input type="text" id="wa-number" class="input-field" placeholder="e.g. 919999999999">
+        </div>
+        
+        <div class="action-row">
+            <button class="btn-action btn-save" id="save-wa-btn" onclick="saveWhatsApp()">💾 Save WhatsApp</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🎁 Deposit Bonus Setup</h3>
+        <span class="info-text">Jab bhi aap kisi user ka deposit APPROVE karoge, is percentage ke hisaab se extra bonus coins automatically add ho jayenge (aapke wallet se hi katega). 0 daalne se bonus band ho jayega.</span>
+        
+        <div class="input-group">
+            <label>Bonus Percentage (%):</label>
+            <input type="number" id="bonus-percent" class="input-field" placeholder="e.g. 5" min="0" step="0.1">
+        </div>
+        
+        <div class="action-row">
+            <button class="btn-action btn-save" id="save-bonus-btn" onclick="saveBonusPercent()">💾 Save Bonus %</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🤖 Telegram Bot Settings</h3>
+        <span class="info-text">Yahan apne Telegram Bot ka Token aur Chat ID save karein taaki jab bhi koi user deposit/withdraw request bheje, aapko turant notification mil jaye.</span>
+        
+        <div class="input-group">
+            <label>Bot Token (From @BotFather):</label>
+            <input type="text" id="sub-token" class="input-field" placeholder="e.g. 123456789:ABCdefGhIJKlmno...">
+        </div>
+        
+        <div class="input-group">
+            <label>Chat ID (Your Telegram ID):</label>
+            <input type="text" id="sub-chatid" class="input-field" placeholder="e.g. 987654321">
+        </div>
+        
+        <div class="action-row">
+            <button class="btn-action btn-save" id="save-bot-btn" onclick="saveBotSettings()">💾 Save Settings</button>
+            <button class="btn-action btn-clear" onclick="clearBotSettings()">🗑️ Clear</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const adminSession = localStorage.getItem('adminSession');
+        if(!adminSession) window.location.href = "subadmin-login.html";
+        const subAdmin = JSON.parse(adminSession);
+        const adminRef = db.collection("admins").doc(subAdmin.id);
+
+        function logout() { localStorage.removeItem('adminSession'); window.location.href = "subadmin-login.html"; }
+
+        // --- 1. Load Existing Settings ---
+        async function loadSettings() {
+            try {
+                const doc = await adminRef.get();
+                if(doc.exists) {
+                    const data = doc.data();
+                    // Load WhatsApp
+                    if(data.whatsapp) document.getElementById('wa-number').value = data.whatsapp;
+                    // Load Bonus %
+                    document.getElementById('bonus-percent').value = data.depositBonusPercent || 0;
+                    // Load Telegram (Using your exact database fields)
+                    if(data.botToken) document.getElementById('sub-token').value = data.botToken;
+                    if(data.chatId) document.getElementById('sub-chatid').value = data.chatId;
+                }
+            } catch(e) {
+                console.log("Error loading settings:", e);
+            }
+        }
+        
+        // --- 2. Save WhatsApp ---
+        async function saveWhatsApp() {
+            const num = document.getElementById('wa-number').value.trim();
+            const btn = document.getElementById('save-wa-btn');
+            if(!num) { alert("Number blank nahi ho sakta!"); return; }
+            
+            btn.innerText = "Saving... ⏳"; btn.disabled = true;
+            try {
+                await adminRef.update({ whatsapp: num });
+                alert("✅ WhatsApp Number Saved Successfully!");
+            } catch (error) { alert("❌ Update Failed!"); }
+            btn.innerText = "💾 Save WhatsApp"; btn.disabled = false;
+        }
+
+        // --- 2b. Save Deposit Bonus % ---
+        async function saveBonusPercent() {
+            const percent = parseFloat(document.getElementById('bonus-percent').value) || 0;
+            const btn = document.getElementById('save-bonus-btn');
+
+            if(percent < 0) { alert("Bonus % negative nahi ho sakta!"); return; }
+
+            btn.innerText = "Saving... ⏳"; btn.disabled = true;
+            try {
+                await adminRef.update({ depositBonusPercent: percent });
+                alert(`✅ Bonus set to ${percent}%! Ab har approved deposit par ${percent}% extra bonus milega.`);
+            } catch (error) { alert("❌ Update Failed!"); }
+            btn.innerText = "💾 Save Bonus %"; btn.disabled = false;
+        }
+
+        // --- 3. Save Telegram Bot Settings ---
+        async function saveBotSettings() {
+            const token = document.getElementById('sub-token').value.trim();
+            const chatId = document.getElementById('sub-chatid').value.trim();
+            const btn = document.getElementById('save-bot-btn');
+
+            if(!token || !chatId) { alert("Dono fields bharna zaroori hai!"); return; }
+
+            btn.innerText = "Saving... ⏳"; btn.disabled = true;
+            try {
+                await adminRef.update({
+                    botToken: token,
+                    chatId: chatId
+                });
+                alert("✅ Telegram Settings Saved Successfully!");
+            } catch(e) {
+                alert("Error saving settings. Please try again.");
+            }
+            btn.innerText = "💾 Save Settings"; btn.disabled = false;
+        }
+
+        // --- 4. Clear Telegram Settings ---
+        async function clearBotSettings() {
+            if(!confirm("Kya aap sach me Telegram notifications band karna chahte hain?")) return;
+
+            try {
+                await adminRef.update({
+                    botToken: "",
+                    chatId: ""
+                });
+                document.getElementById('sub-token').value = "";
+                document.getElementById('sub-chatid').value = "";
+                alert("🗑️ Settings cleared! Ab koi notification nahi aayegi.");
+            } catch(e) {
+                alert("Error clearing settings.");
+            }
+        }
+
+        // Run on load
+        window.onload = loadSettings;
+    </script>
+</body>
+</html>

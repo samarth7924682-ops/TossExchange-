@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit - TOSS EXCH</title>
+    <style>
+        :root { --theme-dark: #121418; --accent: #ffb703; --green: #2e7d32; --bg: #eceff4; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* Premium Header */
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-text { font-size: 20px; font-weight: bold; color: white; text-decoration: none; display: inline-block; cursor: pointer; }
+        
+        .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+        .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: #ffb703; font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; }
+
+        .user-dropdown { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; min-width: 150px; }
+        .user-dropdown a { padding: 10px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; }
+
+        .container { padding: 12px; max-width: 600px; margin: 0 auto; box-sizing: border-box; }
+        .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h3 { margin-top: 0; color: var(--theme-dark); border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 15px; }
+        
+        /* Dynamic Methods Box - Sleek Design */
+        .method-strip { background: #f8f9fa; border: 1px solid #ddd; border-left: 4px solid var(--accent); padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .method-type { font-size: 10px; background: #333; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; width: fit-content; text-transform: uppercase; }
+        .method-val { font-size: 14px; font-weight: 900; color: #d32f2f; word-break: break-all; }
+        
+        /* Chhota QR Code */
+        .qr-img { width: 150px; height: 150px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; margin-top: 4px; display: block; background: #fff; }
+
+        /* Action Buttons for UPI */
+        .upi-actions { display: flex; gap: 8px; margin-top: 5px; }
+        .btn-copy { background: #444; color: white; border: none; padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .btn-pay-app { background: var(--green); color: white; text-decoration: none; padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; }
+
+        /* Sleek Inputs */
+        label { display: block; font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
+        .input-field { width: 100%; padding: 10px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-weight: bold; outline: none; margin-bottom: 12px; transition: 0.3s; }
+        .input-field:focus { border-color: var(--theme-dark); }
+        
+        /* Patla Submit Button */
+        .btn-action { width: 100%; padding: 10px; background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 4px; color: white; font-weight: 900; font-size: 13px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s;}
+        .btn-action:active { transform: scale(0.98); }
+        .btn-action:disabled { background: #999; cursor: not-allowed; }
+        
+        .history-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; font-size: 12px; font-weight: bold; border-left: 5px solid var(--accent);}
+        .status-badge { font-size: 10px; padding: 3px 6px; border-radius: 3px; color: white; }
+
+        /* Floating WhatsApp Button */
+        .whatsapp-float-btn {
+            position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 50px; height: 50px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none;
+            display: none; 
+        }
+
+        /* Popup Modal Styles */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); text-align: center; border-top: 5px solid #d32f2f; }
+        .close-btn { color: #aaa; float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
+        .modal-title { font-size: 18px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
+        .modal-body { font-size: 14px; color: #333; margin-bottom: 20px; word-wrap: break-word; }
+        .btn-close-modal { background-color: #333; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="main-nav" class="premium-header">
+        <div class="header-top">
+            <a href="index.html" class="logo-text">TOSS EXCH</a>
+            <div style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="toggleMenu(event)">⋮</div>
+        </div>
+        <div class="header-info">
+            <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+            <div class="badge" id="top-user" onclick="toggleMenu(event)">User</div>
+            <div class="badge">Exp: <span id="top-exp">0</span></div>
+        </div>
+        
+        <div id="dropdown-menu" class="user-dropdown">
+            <a href="history.html">📜 Betting History</a>
+            <a href="change-pass.html">🔑 Change Password</a>
+            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>🏦 Send Payment Here</h3>
+            <div id="dynamic-methods-box">
+                <p style="color:#777; font-size:12px; text-align:center; font-weight:bold;">Loading SubAdmin Details... ⏳</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>💰 Submit Payment Proof</h3>
+            
+            <label>Enter Deposit Amount (Coins):</label>
+            <input type="number" id="dep-amount" class="input-field" placeholder="Minimum 100" min="100">
+
+            <label>Upload Payment Screenshot:</label>
+            <input type="file" id="dep-file" accept="image/*" class="input-field">
+            
+            <button class="btn-action" id="sub-btn" onclick="submitDeposit()">Submit Request 🚀</button>
+        </div>
+
+        <h4 style="color:#222; margin-bottom: 8px; padding-left: 2px; font-size:13px;">⏳ Recent Deposits Logs</h4>
+        <div id="history-container"></div>
+    </div>
+
+    <a href="#" id="wa-support-btn" target="_blank" class="whatsapp-float-btn">💬</a>
+
+    <!-- Reason Modal -->
+    <div id="reasonModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="modal-title">Reason for Rejection</div>
+            <div class="modal-body" id="modal-reason-text"></div>
+            <button class="btn-close-modal" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // NAYI API KEY DAL DI GAYI HAI
+        const IMGBB_KEY = "d31576e535f3516a79211d96d1b21ffa"; 
+        const session = localStorage.getItem('userSession');
+        if(!session) window.location.href = "index.html";
+        const user = JSON.parse(session);
+        let currentSubAdminId = null; 
+
+        let uploadedProofUrl = null;
+        let isUploading = false;
+
+        // Header Handlers
+        function toggleMenu(e) { e.stopPropagation(); const menu = document.getElementById('dropdown-menu'); menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex'; }
+        
+        window.onclick = function(e) { 
+            document.getElementById('dropdown-menu').style.display = 'none'; 
+            if (e.target == document.getElementById('reasonModal')) {
+                closeModal();
+            }
+        }
+        
+        function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
+
+        // Setup Header Data
+        function setupHeader() {
+            document.getElementById('top-user').innerText = user.username;
+            db.collection("users").doc(user.id).onSnapshot(d => {
+                if(d.exists) document.getElementById('top-bal').innerText = Math.floor(d.data().balance || 0).toFixed(2);
+            });
+        }
+
+        // Copy UPI Function
+        function copyUPI(upiId) {
+            navigator.clipboard.writeText(upiId).then(() => {
+                window.showMsg("UPI ID Copied!", "success");
+            }).catch(err => {
+                console.error("Copy failed", err);
+            });
+        }
+
+        // 1. Load SubAdmin Payment Methods & WhatsApp
+        async function loadSubAdminMethods() {
+            const displayBox = document.getElementById('dynamic-methods-box');
+            try {
+                const userDoc = await db.collection("users").doc(user.id).get();
+                if(userDoc.exists) {
+                    currentSubAdminId = userDoc.data().linkedSubAdminId; 
+                    
+                    if(currentSubAdminId) {
+                        const adminDoc = await db.collection("admins").doc(currentSubAdminId).get();
+                        
+                        if(adminDoc.exists) {
+                            if (adminDoc.data().whatsapp) {
+                                const waBtn = document.getElementById('wa-support-btn');
+                                waBtn.href = `https://wa.me/${adminDoc.data().whatsapp}?text=Hello%20Admin,%20my%20username%20is%20${user.username}`;
+                                waBtn.style.display = 'flex'; 
+                            }
+
+                            if(adminDoc.data().paymentMethods && adminDoc.data().paymentMethods.length > 0) {
+                                displayBox.innerHTML = ""; 
+                                const methods = adminDoc.data().paymentMethods;
+                                methods.forEach(m => {
+                                    let innerHTML = `<div class="method-strip">`;
+                                    if(m.type === 'UPI') {
+                                        innerHTML += `
+                                            <span class="method-type">UPI ID</span>
+                                            <div class="method-val">${m.detail}</div>
+                                            <div class="upi-actions">
+                                                <button class="btn-copy" onclick="copyUPI('${m.detail}')">📋 Copy</button>
+                                                <a href="upi://pay?pa=${m.detail}&pn=Admin&cu=INR" class="btn-pay-app">⚡ Pay via App</a>
+                                            </div>`;
+                                    } else if(m.type === 'QR') {
+                                        innerHTML += `
+                                            <span class="method-type">QR SCANNER</span>
+                                            <img src="${m.detail}" class="qr-img">`;
+                                    }
+                                    innerHTML += `</div>`;
+                                    displayBox.innerHTML += innerHTML;
+                                });
+                            } else {
+                                displayBox.innerHTML = "<p style='color:red; font-weight:bold; font-size:12px; text-align:center;'>❌ No active payment methods set by your admin.</p>";
+                            }
+                        }
+                    } else {
+                        displayBox.innerHTML = "<p style='color:red; font-weight:bold; font-size:12px; text-align:center;'>❌ Error: No SubAdmin linked to this account.</p>";
+                    }
+                }
+            } catch(e) {
+                displayBox.innerHTML = "<p style='color:red; font-size:12px;'>⚠️ Error loading data.</p>";
+            }
+        }
+
+        // ==========================================
+        // BACKGROUND IMAGE UPLOAD (Base64 Fix)
+        // ==========================================
+        document.getElementById('dep-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if(!file) {
+                uploadedProofUrl = null;
+                return;
+            }
+            
+            const btn = document.getElementById('sub-btn');
+            btn.innerText = "Uploading Image... ⏳";
+            btn.disabled = true;
+            isUploading = true;
+
+            const reader = new FileReader();
+            reader.onloadend = async function() {
+                // Base64 string me se prefix (data:image/png;base64,) hatana
+                const base64Image = reader.result.split(',')[1];
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('key', IMGBB_KEY);
+                    formData.append('image', base64Image);
+                    
+                    const res = await fetch('https://api.imgbb.com/1/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const jsonRes = await res.json();
+                    
+                    if (jsonRes.success && jsonRes.data && jsonRes.data.url) {
+                        uploadedProofUrl = jsonRes.data.url;
+                        btn.innerText = "Submit Request 🚀";
+                        btn.disabled = false;
+                        isUploading = false;
+                    } else {
+                        throw new Error(jsonRes.error ? jsonRes.error.message : "Upload Failed");
+                    }
+                } catch (err) {
+                    console.error("Upload error:", err);
+                    window.showMsg("Image upload failed! Please select again.", "error");
+                    e.target.value = ""; 
+                    btn.innerText = "Submit Request 🚀";
+                    btn.disabled = false;
+                    isUploading = false;
+                    uploadedProofUrl = null;
+                }
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        // ==========================================
+        // SUBMIT DEPOSIT (Instant Save)
+        // ==========================================
+        async function submitDeposit() {
+            const amt = parseFloat(document.getElementById('dep-amount').value);
+            const btn = document.getElementById('sub-btn');
+
+            if(isNaN(amt) || amt < 100) { 
+                window.showMsg("Minimum deposit amount is 100 coins!", "error"); 
+                return; 
+            }
+            if(isUploading) {
+                window.showMsg("Please wait, image is uploading...", "error");
+                return;
+            }
+            if(!uploadedProofUrl) { 
+                window.showMsg("Uploading a payment screenshot is mandatory!", "error"); 
+                return; 
+            }
+
+            const checkQ = await db.collection("transactions").where("userId", "==", user.id).where("status", "==", "pending").get();
+            if(!checkQ.empty) { 
+                window.showMsg("You already have an active pending request!", "error"); 
+                return; 
+            }
+
+            btn.innerText = "Processing... ⏳";
+            btn.disabled = true;
+
+            try {
+                await db.collection("transactions").add({
+                    userId: user.id,
+                    username: user.username,
+                    linkedSubAdminId: currentSubAdminId,
+                    amount: amt,
+                    utr: "N/A", 
+                    proof: uploadedProofUrl,
+                    type: 'deposit',
+                    status: 'pending',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Safe Telegram Alert
+                try {
+                    await window.sendTelegramNotification(currentSubAdminId, "Deposit", user.username, amt);
+                } catch(tgError) { 
+                    console.log("Telegram alert failed: ", tgError); 
+                }
+
+                window.showMsg("Request Submitted!", "success");
+                
+                setTimeout(() => {
+                    window.location.reload(); 
+                }, 1500);
+
+            } catch (e) {
+                window.showMsg("Submission Failed! Check connection.", "error");
+                btn.innerText = "Submit Request 🚀";
+                btn.disabled = false;
+            }
+        }
+
+        function showRejectReason(reason) {
+            document.getElementById('modal-reason-text').innerText = reason || "No reason provided.";
+            document.getElementById('reasonModal').style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById('reasonModal').style.display = "none";
+        }
+
+        // 3. Load Deposit History 
+        function loadTxHistory() {
+            db.collection("transactions")
+              .where("userId", "==", user.id)
+              .where("type", "==", "deposit")
+              .onSnapshot(snap => {
+                  const container = document.getElementById('history-container');
+                  container.innerHTML = "";
+                  
+                  if(snap.empty) {
+                      container.innerHTML = "<p style='font-size:12px; color:#777;'>No past records available.</p>";
+                      return;
+                  }
+                  
+                  let htmlList = [];
+                  snap.forEach(doc => htmlList.push(doc.data()));
+                  htmlList.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+                  htmlList.forEach(t => {
+                      let color = '', badgeStyle = '';
+                      if (t.status === 'approved') { 
+                          color = '#2e7d32'; 
+                          badgeStyle = 'background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32;'; 
+                      } else if (t.status === 'rejected') { 
+                          color = '#d32f2f'; 
+                          badgeStyle = 'background: #ffebee; color: #d32f2f; border: 1px solid #d32f2f;'; 
+                      } else { 
+                          color = '#f57f17'; 
+                          badgeStyle = 'background: #fff8e1; color: #f57f17; border: 1px solid #f57f17;'; 
+                      }
+
+                      let rejectBtn = "";
+                      if (t.status === 'rejected') {
+                          let r = t.rejectReason ? t.rejectReason.replace(/'/g, "\\'") : "No reason provided.";
+                          rejectBtn = `<br><span onclick="showRejectReason('${r}')" style="font-size:10px; color:#d32f2f; text-decoration:underline; cursor:pointer; font-weight:bold;">View Reject Reason</span>`;
+                      }
+
+                      container.innerHTML += `
+                          <div class="history-row" style="border-left-color: ${color};">
+                              <div>
+                                  <span style="font-size:14px; font-weight:900;">🪙 ${t.amount}</span><br>
+                                  <span style="color:#666; font-size:10px; letter-spacing:0.5px;">Click WhatsApp for support</span>
+                                  ${rejectBtn}
+                              </div>
+                              <div class="status-badge" style="${badgeStyle}">${t.status.toUpperCase()}</div>
+                          </div>
+                      `;
+                  });
+              });
+        }
+
+        window.onload = function() {
+            setupHeader();
+            loadSubAdminMethods();
+            loadTxHistory();
+        }
+    </script>
+</body>
+</html>

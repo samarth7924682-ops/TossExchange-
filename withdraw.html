@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Withdraw Coins - TOSS EXCH</title>
+    <style>
+        :root { --theme-dark: #121418; --red: #d32f2f; --bg: #eceff4; --green: #2e7d32; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* Fixed Sticky Global Index Header */
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-text { font-size: 20px; font-weight: bold; cursor: pointer; color: white; text-decoration: none; }
+        .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
+        .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; }
+
+        .user-dropdown { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; min-width: 150px; }
+        .user-dropdown a { padding: 10px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; }
+
+        .container { padding: 15px; max-width: 500px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid var(--red); margin-bottom: 15px; }
+        
+        /* Updated Input Design */
+        label { font-weight: bold; font-size: 12px; color: #444; display: block; margin-bottom: 4px; }
+        input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; font-weight: bold; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--red); box-shadow: 0 0 5px rgba(211, 47, 47, 0.2); }
+        
+        /* Updated Submit Button Design */
+        .btn-action { 
+            width: 100%; padding: 12px; 
+            background: linear-gradient(135deg, #d32f2f, #b71c1c); 
+            border: none; border-radius: 6px; color: white; 
+            font-weight: 900; cursor: pointer; text-transform: uppercase; 
+            font-size: 14px; transition: all 0.3s ease; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15); 
+            letter-spacing: 0.5px;
+        }
+        .btn-action:active { transform: translateY(2px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-action:disabled { background: #999; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        /* History Strips Styles */
+        .history-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; font-size: 12px; font-weight: bold; border-left: 5px solid var(--accent);}
+        .status-badge { font-size: 10px; padding: 3px 6px; border-radius: 3px; color: white; }
+
+        /* Floating WhatsApp Button */
+        .whatsapp-float-btn {
+            position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 54px; height: 54px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none;
+            display: none; 
+        }
+
+        /* Popup Modal Styles */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); text-align: center; border-top: 5px solid #d32f2f; }
+        .close-btn { color: #aaa; float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
+        .modal-title { font-size: 18px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
+        .modal-body { font-size: 14px; color: #333; margin-bottom: 20px; word-wrap: break-word; }
+        .btn-close-modal { background-color: #333; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="premium-header">
+        <div class="header-top">
+            <div class="logo-text" onclick="window.location.href='index.html'">TOSS EXCH</div>
+            <div style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="toggleMenu(event)">⋮</div>
+        </div>
+        <div class="header-info">
+            <div class="badge">🪙 <span id="top-bal">0.00</span></div>
+            <div class="badge" id="top-user" onclick="toggleMenu(event)">User</div>
+            <div class="badge">Exp: <span id="top-exp">0</span></div>
+        </div>
+        
+        <div id="dropdown-menu" class="user-dropdown">
+            <a href="history.html">📜 Betting History</a>
+            <a href="change-pass.html">🔑 Change Password</a>
+            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3 style="margin-top:0; color:var(--theme-dark); border-bottom:1px solid #eee; padding-bottom:8px; font-size: 16px;">💸 Request Withdrawal</h3>
+            
+            <label>UPI ID (Google Pay, PhonePe, Paytm):</label>
+            <input type="text" id="withdraw-upi" placeholder="UPI ID ">
+
+            <label>Enter Amount to Withdraw:</label>
+            <input type="number" id="withdraw-amt" placeholder="MIN WITHDRAWAL 100">
+            
+            <button class="btn-action" id="sub-btn" onclick="submitWithdrawal()">SUBMIT REQUEST </button>
+        </div>
+
+        <h4 style="color:#222; margin-bottom: 8px; padding-left: 2px;">⏳ Recent Withdrawals Logs</h4>
+        <div id="history-container"></div>
+    </div>
+
+    <a href="#" id="wa-support-btn" target="_blank" class="whatsapp-float-btn">💬</a>
+
+    <!-- Reason Modal -->
+    <div id="reasonModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="modal-title">Reason for Rejection</div>
+            <div class="modal-body" id="modal-reason-text"></div>
+            <button class="btn-close-modal" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const session = localStorage.getItem('userSession');
+        if(!session) window.location.href = "index.html";
+        const user = JSON.parse(session);
+        document.getElementById('top-user').innerText = user.username;
+
+        let currentBalance = 0;
+        let currentSubAdminId = null;
+
+        // Dropdown Logic
+        function toggleMenu(e) { e.stopPropagation(); const menu = document.getElementById('dropdown-menu'); menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex'; }
+        window.onclick = function(e) { 
+            document.getElementById('dropdown-menu').style.display = 'none'; 
+            if (e.target == document.getElementById('reasonModal')) {
+                closeModal();
+            }
+        }
+        function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
+
+        // 1. Live Header Balance, SubAdmin ID & Auto-fill UPI
+        db.collection("users").doc(user.id).onSnapshot(d => {
+            if(d.exists) {
+                const data = d.data();
+                currentBalance = data.balance || 0;
+                currentSubAdminId = data.linkedSubAdminId;
+                document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
+                
+                const upiInput = document.getElementById('withdraw-upi');
+                if(data.upiId && upiInput.value === "") {
+                    upiInput.value = data.upiId;
+                }
+
+                if (currentSubAdminId) {
+                    loadWhatsAppSettings(currentSubAdminId);
+                }
+            }
+        });
+
+        // 2. Live Exposure Sync
+        db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(snap => {
+            let matchPnL = {}; snap.forEach(doc => {
+                let b = doc.data(); if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                let bAmt = parseFloat(b.amount || 0), bOdds = parseFloat(b.odds || 0), winAmt = bAmt * (bOdds / 100);
+                if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= bAmt; } 
+                else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= bAmt; }
+            });
+            let totalExp = 0; for(let mId in matchPnL) { let worst = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB); if(worst < 0) totalExp += Math.abs(worst); }
+            document.getElementById('top-exp').innerText = Math.floor(totalExp);
+        });
+
+        // WhatsApp Setter Logic
+        async function loadWhatsAppSettings(subAdminId) {
+            const waBtn = document.getElementById('wa-support-btn');
+            try {
+                const saDoc = await db.collection("admins").doc(subAdminId).get();
+                if(saDoc.exists && saDoc.data().whatsapp) {
+                    waBtn.href = `https://wa.me/${saDoc.data().whatsapp}?text=Hello%20Admin,%20my%20username%20is%20${user.username}`;
+                    waBtn.style.display = 'flex'; 
+                }
+            } catch (e) { console.log(e); }
+        }
+
+        // 3. Automated Withdrawal (Immediate Cut & Telegram)
+        async function submitWithdrawal() {
+            let upi = document.getElementById('withdraw-upi').value.trim();
+            let amt = parseFloat(document.getElementById('withdraw-amt').value);
+            let btn = document.getElementById('sub-btn');
+            
+            if(!upi) { 
+                window.showMsg("Please enter your UPI ID!", "error"); 
+                return; 
+            }
+            if(isNaN(amt) || amt < 100) { 
+                window.showMsg("Minimum withdrawal amount is 100 Coins!", "error"); 
+                return; 
+            }
+            
+            if(currentBalance < amt) {
+                window.showMsg(`Insufficient Coins! Aapke wallet me sirf 🪙 ${Math.floor(currentBalance)} coins hain.`, "error");
+                return;
+            }
+
+            // PENDING CHECK
+            const pendingCheck = await db.collection("transactions").where("userId", "==", user.id).where("type", "==", "withdraw").where("status", "==", "pending").get();
+            if(!pendingCheck.empty) { 
+                window.showMsg("You already have an active pending withdrawal request!", "error"); 
+                return; 
+            }
+
+            // Removed confirm() popup. Action executes directly now.
+            btn.innerText = "Processing... ⏳";
+            btn.disabled = true;
+
+            try {
+                const batch = db.batch();
+                
+                // 1. Transaction create karna
+                const txnRef = db.collection("transactions").doc();
+                batch.set(txnRef, {
+                    userId: user.id,
+                    username: user.username,
+                    linkedSubAdminId: currentSubAdminId, 
+                    amount: amt,
+                    upi: upi,
+                    type: 'withdraw',
+                    status: 'pending',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // 2. User ka UPI save karna aur INSTANT BALANCE CUT karna
+                const userRef = db.collection("users").doc(user.id);
+                batch.update(userRef, { 
+                    upiId: upi,
+                    balance: firebase.firestore.FieldValue.increment(-amt)
+                });
+
+                await batch.commit();
+                
+                // Telegram Alert using generalized function from app.js
+                await window.sendTelegramNotification(currentSubAdminId, "Withdrawal", user.username, amt);
+
+                // Stylish Toast Notification
+                window.showMsg("Withdrawal Request Submitted Successfully!", "success");
+                
+                // Delay karke reload karna taaki user popup dekh sake
+                setTimeout(() => {
+                    window.location.reload(); 
+                }, 2000);
+
+            } catch(e) {
+                window.showMsg("Error processing request. Check connection.", "error");
+                btn.innerText = "SUBMIT REQUEST 🚀";
+                btn.disabled = false;
+            }
+        }
+
+        function showRejectReason(reason) {
+            document.getElementById('modal-reason-text').innerText = reason || "No reason provided.";
+            document.getElementById('reasonModal').style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById('reasonModal').style.display = "none";
+        }
+
+        // 4. Load Withdrawal History Logs
+        function loadTxHistory() {
+            db.collection("transactions")
+              .where("userId", "==", user.id)
+              .where("type", "==", "withdraw")
+              .onSnapshot(snap => {
+                  const container = document.getElementById('history-container');
+                  container.innerHTML = "";
+                  
+                  if(snap.empty) {
+                      container.innerHTML = "<p style='font-size:12px; color:#777;'>No past records available.</p>";
+                      return;
+                  }
+                  
+                  let htmlList = [];
+                  snap.forEach(doc => htmlList.push(doc.data()));
+                  htmlList.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+                  htmlList.forEach(t => {
+                      let color = '', badgeStyle = '';
+                      if (t.status === 'approved') { 
+                          color = '#2e7d32'; 
+                          badgeStyle = 'background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32;'; 
+                      } else if (t.status === 'rejected') { 
+                          color = '#d32f2f'; 
+                          badgeStyle = 'background: #ffebee; color: #d32f2f; border: 1px solid #d32f2f;'; 
+                      } else { 
+                          color = '#f57f17'; 
+                          badgeStyle = 'background: #fff8e1; color: #f57f17; border: 1px solid #f57f17;'; 
+                      }
+
+                      let receiptLink = "";
+                      if (t.status === 'approved' && t.adminProof) {
+                          receiptLink = `<br><a href="${t.adminProof}" target="_blank" style="font-size:10px; color:#0d47a1; font-weight:bold; text-decoration:none;">📄 View Payment Receipt</a>`;
+                      }
+
+                      let rejectBtn = "";
+                      if (t.status === 'rejected') {
+                          let r = t.rejectReason ? t.rejectReason.replace(/'/g, "\'") : "No reason provided.";
+                          rejectBtn = `<br><span onclick="showRejectReason('${r}')" style="font-size:10px; color:#d32f2f; text-decoration:underline; cursor:pointer; font-weight:bold;">View Reject Reason</span>`;
+                      }
+
+                      container.innerHTML += `
+                          <div class="history-row" style="border-left-color: ${color};">
+                              <div>
+                                  <span style="font-size:14px; font-weight:900;">🪙 ${t.amount}</span><br>
+                                  <span style="color:#666; font-size:10px; letter-spacing:0.5px;">UPI: ${t.upi}</span>
+                                  ${receiptLink}
+                                  ${rejectBtn}
+                              </div>
+                              <div class="status-badge" style="${badgeStyle}">${t.status.toUpperCase()}</div>
+                          </div>
+                      `;
+                  });
+              });
+        }
+
+        window.onload = loadTxHistory;
+    </script>
+</body>
+</html>

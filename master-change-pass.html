@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ TOSS EXCH - Master Change Password</title>
+    <style>
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        /* 🌟 PREMIUM MASTER HEADER 🌟 */
+        .sa-header { background: #121418; color: white; padding: 15px 10px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border-bottom: 3px solid var(--accent);}
+        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 1px; color: white; margin-left: 5px; cursor: pointer; display: flex; align-items: center; gap: 8px;}
+        .sa-badge { background: #222; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #444; color: var(--accent); text-transform: uppercase;}
+
+        .container { padding: 15px; max-width: 500px; margin: 0 auto; margin-top: 10px; }
+
+        .card { background: white; padding: 25px 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-top: 4px solid #f97316; }
+        h3 { margin-top: 0; font-size: 16px; color: #121418; border-bottom: 2px solid #eee; padding-bottom: 10px; font-weight: 900; text-transform: uppercase; }
+        
+        .input-group { margin-bottom: 18px; }
+        label { display: block; font-size: 12px; font-weight: 900; color: #444; margin-bottom: 6px; text-transform: uppercase;}
+        input { width: 100%; padding: 14px; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s; font-weight: bold;}
+        input:focus { border-color: #f97316; }
+
+        .btn-submit { background: #121418; color: var(--accent); border: none; padding: 15px; width: 100%; border-radius: 6px; font-weight: 900; font-size: 15px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
+        .btn-submit:active { transform: translateY(2px); box-shadow: none; }
+    </style>
+</head>
+<body>
+
+    <div class="sa-header">
+        <div class="sa-logo" onclick="window.location.href='master-dashboard.html'">
+            <span>⬅ BACK</span>
+        </div>
+        <div class="sa-badge">👑 MASTER ADMIN</div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>🔑 Change Master Password</h3>
+            <p style="font-size: 11px; color: #666; margin-top: -5px; margin-bottom: 20px; font-weight: bold;">
+                Password change hone ke baad aapko automatic logout kar diya jayega. Naya password safe rakhein.
+            </p>
+            
+            <div class="input-group">
+                <label>Current Password</label>
+                <input type="password" id="oldPass" placeholder="Enter current password">
+            </div>
+
+            <div class="input-group">
+                <label>New Password</label>
+                <input type="password" id="newPass" placeholder="Enter new password">
+            </div>
+
+            <div class="input-group">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirmPass" placeholder="Confirm new password">
+            </div>
+
+            <button class="btn-submit" onclick="changePass()" id="submitBtn">Update Password 🚀</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 🌟 STRICT SECURITY CHECK
+        const sessionStr = localStorage.getItem('adminSession');
+        let session = null;
+        if(sessionStr) {
+            try { session = JSON.parse(sessionStr); } catch(e) {}
+        }
+        if(!session || (session.role !== 'master' && session.id !== 'master_demo_id')) {
+            window.location.replace("master-login.html");
+        }
+
+        // 🌟 CHANGE PASSWORD LOGIC (exact match, Firestore-backed so change actually persists)
+        async function changePass() {
+            const oldPass = document.getElementById('oldPass').value.trim();
+            const newPass = document.getElementById('newPass').value.trim();
+            const confirmPass = document.getElementById('confirmPass').value.trim();
+            const btn = document.getElementById('submitBtn');
+
+            if(!oldPass || !newPass || !confirmPass) { 
+                alert("All fields are required!"); return; 
+            }
+            if(newPass !== confirmPass) { 
+                alert("New Passwords do not match!"); return; 
+            }
+            if(newPass.length < 6) { 
+                alert("Password must be at least 6 characters long!"); return; 
+            }
+
+            btn.innerText = "Updating... ⏳";
+            btn.disabled = true;
+
+            try {
+                const masterId = session.id || 'master_demo_id';
+                const doc = await db.collection("admins").doc(masterId).get();
+                
+                let realPass = "Master@123"; // Fallback default (matches master-login.html's default)
+                if(doc.exists && doc.data().password) {
+                    realPass = doc.data().password;
+                }
+
+                // Verify Old Password (exact, case-sensitive match)
+                if(oldPass === realPass) {
+                    // Update New Password in DB
+                    await db.collection("admins").doc(masterId).set({
+                        password: newPass
+                    }, { merge: true }); // merge: true se baaki data safe rahega
+
+                    alert("✅ Master Password changed successfully! Please login again with new password.");
+                    localStorage.removeItem('adminSession');
+                    window.location.replace("master-login.html");
+                } else {
+                    alert("❌ Incorrect Current Password!");
+                    btn.innerText = "Update Password 🚀";
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert("Error updating password. Check internet connection.");
+                btn.innerText = "Update Password 🚀";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

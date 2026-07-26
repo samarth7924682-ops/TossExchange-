@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Manage Users - SubAdmin</title>
+    <style>
+        :root { --primary: #1a365d; --green: #2e7d32; --red: #c62828; --bg: #f4f7f6; --accent: #ffb703; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 15px; font-size: 13px; }
+        
+        /* 🌟 PLAIN TOP NAV 🌟 */
+        .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #ddd; }
+        .nav-title { color: var(--primary); font-weight: 900; font-size: 18px; text-transform: uppercase; }
+        .nav-links a { color: var(--primary); text-decoration: none; font-size: 12px; font-weight: bold; padding: 6px 14px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.1s; }
+        .nav-links a:active { transform: scale(0.95); display: inline-block; }
+
+        /* Compact Card */
+        .card { background: white; border-radius: 4px; padding: 10px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+        h3 { margin: 0 0 8px 0; color: var(--primary); font-size: 13px; display: flex; justify-content: space-between;}
+        
+        /* Tiny Inputs */
+        input { width: 100%; padding: 6px 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; font-size: 12px;}
+        .btn-small { padding: 6px 10px; border: none; border-radius: 3px; font-size: 11px; cursor: pointer; font-weight: bold; color: white; margin-right: 3px; text-transform: uppercase; transition: 0.2s;}
+        .btn-small:active { transform: scale(0.95); }
+        
+        /* 🌟 SUPER THIN USER LIST STYLE 🌟 */
+        .user-card { background: white; padding: 6px 8px; border-radius: 4px; border: 1px solid #d1d5db; margin-bottom: 5px; }
+        .u-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .u-name { font-weight: 900; font-size: 13px; color: #111; }
+        .u-bal-exp { font-size: 10px; color: #555; text-align: right; line-height: 1.2;}
+        .u-bal-exp strong { color: var(--green); font-size: 12px;}
+        .exp-clickable { color: #d32f2f; font-weight: bold; cursor: pointer; text-decoration: underline; padding: 0 2px; }
+        
+        /* 🌟 THIN FULL-NAME BUTTONS (NO BACKGROUND COLORS) 🌟 */
+        .u-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .btn-thin { background: transparent; border: 1px solid #888; color: #222; font-weight: 800; font-size: 10px; padding: 3px 6px; border-radius: 3px; cursor: pointer; text-transform: uppercase; transition: 0.2s;}
+        .btn-thin:active { background: #e2e8f0; transform: scale(0.95); }
+
+        /* 🌟 MODERN CLEAN EXP POPUP MODAL 🌟 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-box { background: white; width: 90%; max-width: 350px; border-radius: 8px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: popIn 0.3s ease; }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .modal-header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+        .modal-title { font-weight: 900; color: var(--primary); font-size: 14px; text-transform: uppercase; }
+        .close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--red); font-weight: bold; padding: 0; margin: 0; line-height: 1; }
+        
+        /* 🌟 CLEAN THIN STRIPS 🌟 */
+        .exp-strip-wrap { max-height: 250px; overflow-y: auto; padding-right: 5px; }
+        .exp-detail-strip { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 11px; }
+        .exp-strip-title { font-weight: 800; color: #111; max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .exp-strip-data { display: flex; gap: 8px; font-weight: 900; text-align: right; }
+        .text-green { color: var(--green); }
+        .text-red { color: var(--red); }
+    </style>
+</head>
+<body>
+
+    <div class="top-nav">
+        <div class="nav-title">👑 Manage Users</div>
+        <div class="nav-links">
+            <a href="subadmin-dashboard.html">Dash</a>
+        </div>
+    </div>
+
+    <!-- Compact Create User with Default Password -->
+    <div class="card" style="max-width: 100%;">
+        <h3><span>➕ Add User</span> <span style="font-size:11px; color:var(--green);" id="sa-bal">Wallet: 0</span></h3>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="new-user" placeholder="Username">
+            <!-- 🌟 DEFAULT PASSWORD SET HERE 🌟 -->
+            <input type="text" id="new-pass" placeholder="Password" value="123456">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" id="new-bal" placeholder="Opening Balance">
+            <button class="btn-small" style="background:var(--green); width:100%; padding: 7px;" onclick="createNewUser()">CREATE</button>
+        </div>
+    </div>
+
+    <input type="text" id="search-bar" placeholder="🔍 Search User by Name..." onkeyup="filterUsers()" style="margin-bottom:10px; border: 1px solid #888;">
+
+    <div id="user-list">
+        <p style="text-align: center; color: #888;">Loading users...</p>
+    </div>
+
+    <!-- 🌟 EXPOSURE DETAILS POPUP 🌟 -->
+    <div class="modal-overlay" id="exp-modal" onclick="closeExpModal(event)">
+        <div class="modal-box" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title" id="exp-modal-title">USER EXPOSURE</div>
+                <button class="close-btn" onclick="closeExpModal(event)">×</button>
+            </div>
+            <div class="exp-strip-wrap" id="exp-modal-body">
+                <p style="text-align:center; color:#777; font-size:12px;">Loading Details...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // 🛡️ Security Check
+        const subAdminSession = localStorage.getItem('adminSession');
+        if(!subAdminSession) { window.location.replace("subadmin-login.html"); }
+        const subAdmin = JSON.parse(subAdminSession);
+        if(subAdmin.role !== 'subadmin') { window.location.replace("subadmin-login.html"); }
+        
+        let currentSubAdminBalance = 0;
+        let matchDict = {}; 
+
+        // Fetch Global Match Names First
+        db.collection("matches").get().then(snap => {
+            snap.forEach(doc => { matchDict[doc.id] = `${doc.data().teamA} vs ${doc.data().teamB}`; });
+        });
+
+        // Fetch SubAdmin Balance
+        db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
+            if(doc.exists) {
+                currentSubAdminBalance = doc.data().balance || 0;
+                document.getElementById('sa-bal').innerText = `Wallet: 🪙 ${Math.floor(currentSubAdminBalance)}`;
+            }
+        });
+
+        // 🌟 FAST LOADING LOGIC (PROMISE.ALL) 🌟
+        async function loadMyUsers() {
+            const list = document.getElementById('user-list');
+            list.innerHTML = "<p style='text-align: center; color: #888;'>Loading users...</p>";
+
+            const snap = await db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).get();
+            
+            if(snap.empty) {
+                list.innerHTML = "<p style='text-align:center; color:#888; font-size:12px;'>No users found.</p>";
+                return;
+            }
+
+            const userHtmlPromises = snap.docs.map(async (doc) => {
+                const u = doc.data();
+                const userId = doc.id;
+                
+                let totalExposure = 0;
+                const betSnap = await db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").get();
+                
+                let matchExpData = {}; 
+                
+                betSnap.forEach(bDoc => { 
+                    let b = bDoc.data();
+                    if(b.matchId && b.selection) {
+                        if(!matchExpData[b.matchId]) matchExpData[b.matchId] = {teamA: 0, teamB: 0};
+                        let profit = b.amount * ((b.odds || 98) / 100);
+                        if(b.selection === 'teamA') {
+                            matchExpData[b.matchId].teamA += profit; matchExpData[b.matchId].teamB -= b.amount;
+                        } else {
+                            matchExpData[b.matchId].teamB += profit; matchExpData[b.matchId].teamA -= b.amount;
+                        }
+                    } else {
+                        totalExposure += parseFloat(b.amount || 0); 
+                    }
+                });
+
+                for(let m in matchExpData) {
+                    let worst = Math.min(matchExpData[m].teamA, matchExpData[m].teamB);
+                    if(worst < 0) totalExposure += Math.abs(worst);
+                }
+
+                let isLocked = u.locked || false;
+                let lockBtnText = isLocked ? 'Unlock' : 'Lock';
+                let nameIcon = isLocked ? '🚫' : '👤';
+
+                // 🌟 THIN FULL NAME BUTTONS IMPLEMENTED BELOW 🌟
+                return `
+                    <div class="user-card" data-username="${u.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
+                        <div class="u-info">
+                            <span class="u-name">${nameIcon} ${u.username}</span>
+                            <div class="u-bal-exp">
+                                <strong>🪙 ${Math.floor(u.balance || 0)}</strong><br>
+                                Exp: <span class="exp-clickable" onclick="openExpModal('${userId}', '${u.username}')">${Math.floor(totalExposure)}</span>
+                            </div>
+                        </div>
+                        <div class="u-actions">
+                            <button class="btn-thin" onclick="manualTx('${userId}', 'deposit', '${u.username}')">Deposit</button>
+                            <button class="btn-thin" onclick="manualTx('${userId}', 'withdraw', '${u.username}')">Withdraw</button>
+                            <button class="btn-thin" onclick="viewHistory('${userId}', '${u.username}')">Statement</button>
+                            <button class="btn-thin" onclick="toggleLock('${userId}', ${isLocked}, '${u.username}')">${lockBtnText}</button>
+                            <button class="btn-thin" onclick="resetPass('${userId}', '${u.username}')">Password</button>
+                            <button class="btn-thin" onclick="delUser('${userId}', '${u.username}', ${u.balance || 0})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const resolvedHtmlArray = await Promise.all(userHtmlPromises);
+            list.innerHTML = resolvedHtmlArray.join('');
+        }
+
+        // 🌟 LOCK / UNLOCK USER LOGIC 🌟
+        async function toggleLock(userId, currentStatus, username) {
+            const newStatus = !currentStatus;
+            const actionText = newStatus ? "LOCK" : "UNLOCK";
+            if(confirm(`Are you sure you want to ${actionText} user '${username}'?`)) {
+                try {
+                    await db.collection("users").doc(userId).update({ locked: newStatus });
+                    loadMyUsers();
+                } catch(e) {
+                    alert("Error updating lock status!");
+                }
+            }
+        }
+
+        // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
+        async function delUser(id, username, balance) { 
+            if(confirm(`🚨 WARNING: Are you sure you want to permanently delete user '${username}'?\n\n💰 Their remaining balance of 🪙${Math.floor(balance)} will be REFUNDED to your Admin Wallet.`)) {
+                try {
+                    const batch = db.batch();
+                    batch.delete(db.collection("users").doc(id));
+                    if (balance > 0) {
+                        batch.update(db.collection("admins").doc(subAdmin.id), { 
+                            balance: firebase.firestore.FieldValue.increment(balance) 
+                        });
+                    }
+                    await batch.commit();
+                    alert(`✅ User Deleted! 🪙${Math.floor(balance)} refunded to your wallet.`);
+                    loadMyUsers();
+                } catch(e) {
+                    alert("Error deleting user!");
+                }
+            }
+        }
+
+        // 🌟 HISTORY REDIRECT 🌟
+        function viewHistory(userId, username) {
+            window.location.href = `history.html?id=${userId}&name=${username}`;
+        }
+
+        // Single-Line Exp Modal
+        async function openExpModal(userId, username) {
+            document.getElementById('exp-modal-title').innerText = `Exp: ${username}`;
+            document.getElementById('exp-modal-body').innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">Loading Details...</p>';
+            document.getElementById('exp-modal').style.display = 'flex';
+
+            const betSnap = await db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").get();
+            let html = "";
+            let matchExpData = {};
+            let othersExp = 0;
+
+            if(betSnap.empty) {
+                document.getElementById('exp-modal-body').innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">No active bets.</p>';
+                return;
+            }
+
+            betSnap.forEach(bDoc => {
+                let b = bDoc.data();
+                if(b.matchId && matchDict[b.matchId]) {
+                    if(!matchExpData[b.matchId]) matchExpData[b.matchId] = {teamA: 0, teamB: 0};
+                    let profit = b.amount * ((b.odds || 98) / 100);
+                    if(b.selection === 'teamA') {
+                        matchExpData[b.matchId].teamA += profit; matchExpData[b.matchId].teamB -= b.amount;
+                    } else {
+                        matchExpData[b.matchId].teamB += profit; matchExpData[b.matchId].teamA -= b.amount;
+                    }
+                } else {
+                    othersExp += parseFloat(b.amount || 0);
+                }
+            });
+
+            for(let mId in matchExpData) {
+                let m = matchExpData[mId];
+                let worst = Math.min(m.teamA, m.teamB);
+                
+                if(worst < 0) { 
+                    let matchName = matchDict[mId];
+                    let teams = matchName.split(' vs ');
+                    
+                    let colorA = m.teamA >= 0 ? "text-green" : "text-red";
+                    let signA = m.teamA > 0 ? "+" : "";
+                    let colorB = m.teamB >= 0 ? "text-green" : "text-red";
+                    let signB = m.teamB > 0 ? "+" : "";
+
+                    let teamAShort = teams[0].substring(0, 3).toUpperCase();
+                    let teamBShort = teams[1].substring(0, 3).toUpperCase();
+
+                    html += `
+                        <div class="exp-detail-strip">
+                            <div class="exp-strip-title">🏏 ${matchName}</div>
+                            <div class="exp-strip-data">
+                                <span class="${colorA}">${teamAShort}: ${signA}${m.teamA.toFixed(0)}</span>
+                                <span class="${colorB}">${teamBShort}: ${signB}${m.teamB.toFixed(0)}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            if(othersExp > 0) {
+                html += `
+                    <div class="exp-detail-strip">
+                        <div class="exp-strip-title">🎰 Others (Casino)</div>
+                        <div class="exp-strip-data">
+                            <span class="text-red">Risk: -${othersExp.toFixed(0)}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('exp-modal-body').innerHTML = html || '<p style="text-align:center; color:#777; font-size:12px;">No active exposure.</p>';
+        }
+
+        function closeExpModal(e) {
+            if (e.target.id === 'exp-modal' || e.target.classList.contains('close-btn')) {
+                document.getElementById('exp-modal').style.display = 'none';
+            }
+        }
+
+        // Manual Deposit/Withdrawal
+        async function manualTx(userId, type, username) {
+            const amt = prompt(`Enter ${type} amount for ${username}:`);
+            if(!amt || isNaN(amt) || amt <= 0) return;
+            const val = parseFloat(amt);
+            
+            if(type === 'deposit' && currentSubAdminBalance < val) {
+                alert("❌ Insufficient balance in your Admin Wallet!");
+                return;
+            }
+
+            try {
+                const batch = db.batch();
+                
+                const userRef = db.collection("users").doc(userId);
+                batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : -val) });
+
+                const adminRef = db.collection("admins").doc(subAdmin.id);
+                batch.update(adminRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? -val : val) });
+
+                const txRef = db.collection("transactions").doc();
+                batch.set(txRef, {
+                    userId: userId,
+                    username: username,
+                    linkedSubAdminId: subAdmin.id,
+                    type: type, 
+                    amount: val, 
+                    status: 'approved', 
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    remark: 'Manual by Admin'
+                });
+
+                await batch.commit();
+                alert(`✅ Transaction Successful! ${val} coins updated.`);
+                loadMyUsers();
+            } catch(e) { alert("Error: " + e.message); }
+        }
+
+        // Reset Password
+        async function resetPass(userId, username) {
+            const newPass = prompt(`Enter new password for ${username}:`, "Abcd@1234");
+            if(!newPass) return;
+            try {
+                await db.collection("users").doc(userId).update({ 
+                    password: newPass,
+                    passwordChanged: false 
+                });
+                alert(`✅ Password for ${username} updated successfully!`);
+            } catch(e) { alert("Error updating password."); }
+        }
+
+        // Create User
+        async function createNewUser() {
+            const username = document.getElementById('new-user').value.trim();
+            const password = document.getElementById('new-pass').value.trim();
+            const balance = Math.floor(parseFloat(document.getElementById('new-bal').value) || 0);
+            
+            if(!username || !password) { alert("Username and Password are required!"); return; }
+            if(balance > currentSubAdminBalance) { alert("❌ Insufficient Wallet Balance!"); return; }
+            
+            try {
+                const check = await db.collection("users").where("username", "==", username).get();
+                if(!check.empty) { alert("Username already exists!"); return; }
+
+                const batch = db.batch();
+                const newUserRef = db.collection("users").doc();
+                batch.set(newUserRef, {
+                    username, 
+                    password, 
+                    balance,
+                    locked: false,
+                    passwordChanged: false, 
+                    linkedSubAdminId: subAdmin.id,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                if(balance > 0) {
+                    const adminRef = db.collection("admins").doc(subAdmin.id);
+                    batch.update(adminRef, { balance: firebase.firestore.FieldValue.increment(-balance) });
+                }
+
+                await batch.commit();
+                alert("✅ User Created Successfully!");
+                document.getElementById('new-user').value = '';
+                
+                // 🌟 RESTORING DEFAULT PASSWORD AFTER CREATION 🌟
+                document.getElementById('new-pass').value = '123456';
+                document.getElementById('new-bal').value = '';
+                loadMyUsers();
+            } catch(e) { alert("Error creating user."); }
+        }
+
+        // Search
+        function filterUsers() {
+            const term = document.getElementById('search-bar').value.toLowerCase();
+            const cards = document.querySelectorAll('.user-card');
+            cards.forEach(card => {
+                const uname = card.getAttribute('data-username');
+                card.style.display = uname.includes(term) ? 'block' : 'none';
+            });
+        }
+
+        loadMyUsers();
+    </script>
+</body>
+</html>

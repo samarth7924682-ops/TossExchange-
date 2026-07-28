@@ -374,8 +374,9 @@
 
         function renderTable(dataArray) {
             const tbody = document.getElementById('ledger-body');
-            tbody.innerHTML = "";
             if(dataArray.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; font-weight:bold;'>No Records Found</td></tr>"; return; }
+
+            let rowsHtml = [];
 
             dataArray.forEach((item, index) => {
                 let d = item.dateObj;
@@ -392,7 +393,7 @@
 
                 let balColor = Number(item.histBalance || 0) >= 0 ? "var(--green)" : "var(--red)";
 
-                tbody.innerHTML += `
+                rowsHtml.push(`
                     <tr>
                         <td>${index + 1}</td>
                         <td>${dateStr}</td>
@@ -401,8 +402,10 @@
                         <td style="color:${balColor}; font-weight:900; font-size:13px;">${Number(item.histBalance || 0).toFixed(2)}</td>
                         <td class="text-remark">${item.remark}</td>
                     </tr>
-                `;
+                `);
             });
+
+            tbody.innerHTML = rowsHtml.join('');
         }
 
         document.addEventListener("DOMContentLoaded", () => {

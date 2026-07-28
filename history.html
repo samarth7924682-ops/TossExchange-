@@ -127,19 +127,7 @@
         
         let matchDictionary = {};
         let masterLedgerData = []; 
-        let lockedWithdrawals = 0;
-        let activeExposure = 0;
 
-        // ⚡ INSTANT CACHE LOAD ⚡ (Phase 1: Hybrid Sync)
-        let cachedLedger = localStorage.getItem('fastLedger_' + user.id);
-        if(cachedLedger) {
-            try {
-                masterLedgerData = JSON.parse(cachedLedger);
-                masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
-                renderTable(masterLedgerData);
-            } catch(e) { console.error("Cache error", e); }
-        }
-        
         window.toggleMenu = function(menuId, e) { 
             e.stopPropagation(); 
             const menus = ['user-dropdown', 'exp-dropdown'];
@@ -152,10 +140,12 @@
                 }
             });
         }
+        
         window.onclick = function() { 
             document.getElementById('user-dropdown').style.display = 'none'; 
             document.getElementById('exp-dropdown').style.display = 'none'; 
         }
+        
         function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
 
         window.buildExposureDropdown = async function(userId) {
@@ -213,168 +203,32 @@
             window.buildExposureDropdown(user.id);
         }
 
-        async function fetchMatchNames() {
-            const snap = await db.collection("matches").get();
-            snap.forEach(doc => { 
-                let d = doc.data();
-                matchDictionary[doc.id] = { title: `${d.teamA} vs ${d.teamB}`, teamA: d.teamA, teamB: d.teamB }; 
-            });
-            loadCombinedLedger();
-        }
-
-        // 🗑️ Helper function to silently delete old records without freezing the app
-        function silentDeleteOldDoc(ref) {
-            setTimeout(() => { ref.delete().catch(() => {}); }, 100);
-        }
-
+        // ⚡ FAST 1-SECOND CACHE LOAD ⚡
         async function loadCombinedLedger() {
-            let freshLedgerData = [];
-            lockedWithdrawals = 0;
-            activeExposure = 0;
-
-            // 🕒 10-DAY AUTO-DELETE THRESHOLD
-            const tenDaysAgo = new Date();
-            tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-
-            // Fetch Transactions
-            const txnSnap = await db.collection("transactions").where("userId", "==", user.id).get();
-            txnSnap.forEach(doc => {
-                let t = doc.data();
-                let docDate = t.timestamp ? t.timestamp.toDate() : new Date();
-                
-                if (docDate < tenDaysAgo) {
-                    silentDeleteOldDoc(doc.ref);
-                    return; // Skip adding to UI logic
-                }
-
-                if(t.status === 'approved') {
-                    let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : 'Approved Withdrawal');
-                    freshLedgerData.push({ dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
-                } else if (t.status === 'pending' && t.type === 'withdraw') {
-                    lockedWithdrawals += parseFloat(t.amount) || 0;
-                }
-            });
-
-            // Fetch Bets
-            const betSnap = await db.collection("bets").where("userId", "==", user.id).get();
-            let matchGroups = {};
-
-            betSnap.forEach(doc => {
-                let b = doc.data();
-                let docDate = b.timestamp ? b.timestamp.toDate() : new Date();
-                
-                if (docDate < tenDaysAgo && b.status !== 'pending') {
-                    silentDeleteOldDoc(doc.ref);
-                    return; 
-                }
-
-                if(!matchGroups[b.matchId]) {
-                    matchGroups[b.matchId] = { bets: [], status: 'pending', dateObj: docDate, netResult: 0 };
-                }
-                matchGroups[b.matchId].bets.push(b);
-                if(['won', 'lost', 'cancelled'].includes(b.status)) matchGroups[b.matchId].status = 'settled';
-            });
-
-            for (let mId in matchGroups) {
-                let group = matchGroups[mId];
-                let mInfo = matchDictionary[mId] || { title: "Toss Match", teamA: "Team A", teamB: "Team B" };
-                
-                if (group.status === 'settled') {
-                    let isCancelled = false;
-                    let finalTeamBetOn = "";
-                    
-                    group.bets.forEach(b => {
-                        let bAmt = parseFloat(b.amount) || 0;
-                        if (b.status === 'won') {
-                            group.netResult += bAmt * ((parseFloat(b.odds) || 98) / 100);
-                            finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
-                        } else if (b.status === 'lost') {
-                            group.netResult -= bAmt;
-                            finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
-                        } else if (b.status === 'cancelled') {
-                            isCancelled = true;
-                        }
-                    });
-                    
-                    if (isCancelled) {
-                        freshLedgerData.push({ dateObj: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
-                    } else if (group.netResult !== 0) {
-                        let isWin = group.netResult > 0;
-                        let resultText = isWin ? 'Won' : 'Lost';
-                        let color = isWin ? 'var(--green)' : 'var(--red)';
-                        freshLedgerData.push({ dateObj: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
-                    }
-                } else {
-                    let pnlA = 0, pnlB = 0;
-                    group.bets.forEach(b => {
-                        let bAmt = parseFloat(b.amount) || 0;
-                        let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
-                        if(b.selection === 'teamA') { pnlA += winAmt; pnlB -= bAmt; }
-                        else { pnlB += winAmt; pnlA -= bAmt; }
-                    });
-                    let worst = Math.min(pnlA, pnlB);
-                    if (worst < 0) { activeExposure += Math.abs(worst); }
-                }
+            // Step 1: Purana Cache Turant Load Karo (Bina rukaawat)
+            let cachedLedger = localStorage.getItem('fastLedger_' + user.id);
+            if(cachedLedger) {
+                try {
+                    masterLedgerData = JSON.parse(cachedLedger);
+                    masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
+                    renderTable(masterLedgerData);
+                } catch(e) { console.error("Cache parsing error", e); }
             }
 
-            // Fetch Aviator
-            const aviatorSnap = await db.collection("aviator_history").where("userId", "==", user.id).get();
-            aviatorSnap.forEach(doc => {
-                let a = doc.data();
-                let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
-                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
+            // Step 2: Background me fresh data sync hone ke liye Request bhejo (Taki naya bet/deposit dikhe)
+            if (window.runBackgroundSync) {
+                await window.runBackgroundSync();
                 
-                let pnl = parseFloat(a.winAmount || 0) > 0 ? (parseFloat(a.winAmount) - parseFloat(a.betAmount)) : -parseFloat(a.betAmount); 
-                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
-                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
-            });
-
-            // Fetch OverOut
-            const overoutSnap = await db.collection("overout_history").where("userId", "==", user.id).get();
-            overoutSnap.forEach(doc => {
-                let o = doc.data();
-                let docDate = o.timestamp ? o.timestamp.toDate() : new Date();
-                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
-
-                let pnl = parseFloat(o.winAmount || 0) > 0 ? (parseFloat(o.winAmount) - parseFloat(o.betAmount)) : -parseFloat(o.betAmount); 
-                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
-                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
-            });
-
-            // Fetch CoinFlip
-            const coinflipSnap = await db.collection("coinflip_history").where("userId", "==", user.id).get();
-            coinflipSnap.forEach(doc => {
-                let c = doc.data();
-                let docDate = c.timestamp ? c.timestamp.toDate() : new Date();
-                if (docDate < tenDaysAgo) { silentDeleteOldDoc(doc.ref); return; }
-
-                let pnl = parseFloat(c.winAmount || 0) > 0 ? (parseFloat(c.winAmount) - parseFloat(c.betAmount)) : -parseFloat(c.betAmount); 
-                if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
-                else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
-            });
-
-            freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
-            
-            const userDoc = await db.collection("users").doc(user.id).get();
-            let runningBal = (parseFloat(userDoc.data().balance) || 0) + activeExposure + lockedWithdrawals;
-
-            // Perfect balance math mapping backwards through the 10 days
-            freshLedgerData.forEach((item) => {
-                item.histBalance = runningBal; 
-               if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
-                    runningBal -= item.amount; 
-                } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
-                    runningBal += item.amount; 
+                // Step 3: Naya Sync hua data uthao aur chupchap screen update kardo
+                let freshCache = localStorage.getItem('fastLedger_' + user.id);
+                if(freshCache) {
+                    try {
+                        masterLedgerData = JSON.parse(freshCache);
+                        masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
+                        renderTable(masterLedgerData);
+                    } catch(e) { console.error("Fresh cache error", e); }
                 }
-            });
-
-            masterLedgerData = freshLedgerData;
-            
-            // 🔥 UPDATE CACHE SEAMLESSLY
-            localStorage.setItem('fastLedger_' + user.id, JSON.stringify(masterLedgerData));
-            
-            // Optional: Only re-render if we didn't render from cache, OR re-render to inject new data silently
-            renderTable(masterLedgerData);
+            }
         }
 
         function applyFilters() {
@@ -433,7 +287,7 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             setupHeader(); 
-            fetchMatchNames();
+            loadCombinedLedger(); // Yaha ab koi bhari loading nahi hogi!
         });
     </script>
 </body>

@@ -315,6 +315,18 @@
                     `;
                 }
 
+                // EDIT WITHDRAWAL PROOF FUNCTIONALITY
+                if (tx.status === 'approved' && tx.type === 'withdraw') {
+                    rejectInfo += `
+                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                            <label style="color: #1e88e5; text-decoration: underline; cursor: pointer;">
+                                ✏️ Change Proof
+                                <input type="file" style="display:none;" accept="image/*" onchange="editWithdrawProof('${tx.id}', event)">
+                            </label>
+                        </div>
+                    `;
+                }
+
                 list.innerHTML += `
                     <div class="slim-strip" style="border-left-color: ${statusColor}; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; flex-direction: row;">
                         <div style="flex: 1.2; text-align: left; display: flex; flex-direction: column; overflow:hidden;">
@@ -361,6 +373,8 @@
                         
                         let extraInfo = "";
                         let actionButtons = "";
+                        // TIME FORMATTING
+                        let timeStr = tx.timestamp ? tx.timestamp.toDate().toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', hour12: true}) : 'Just now';
 
                         if(tx.type === 'deposit') {
                             extraInfo = `<div style="font-size:11px; color:#555; margin-top:4px;">UTR: ${tx.utr}</div>
@@ -388,6 +402,7 @@
                                 <div style="flex:1; min-width: 150px;">
                                     <b style="color:var(--primary); font-size:14px;">${tx.username}</b> 
                                     <span style="color:#666; font-weight:bold; font-size:11px;">(${tx.type.toUpperCase()}: 🪙 ${tx.amount})</span>
+                                    <div style="font-size: 10.5px; color: #888; font-weight: bold; margin-top: 2px;">🕒 ${timeStr}</div>
                                     ${extraInfo}
                                 </div>
                                 <div style="display:flex; gap:5px; align-items:center;">
@@ -443,6 +458,7 @@
             
             let depUpdateData = { 
                 status: 'approved',
+                linkedSubAdminId: subAdmin.id, // FORCE LINKING
                 rejectReason: firebase.firestore.FieldValue.delete(),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -501,6 +517,7 @@
             
             batch.update(db.collection("transactions").doc(txId), { 
                 status: 'rejected',
+                linkedSubAdminId: subAdmin.id, // FORCE LINKING
                 rejectReason: reason.trim(),
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
@@ -559,6 +576,7 @@
             
             let updateData = { 
                 status: status,
+                linkedSubAdminId: subAdmin.id, // FORCE LINKING
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
             if (status === 'rejected' && rejectReason !== "") {
@@ -619,6 +637,7 @@
                 batch.update(db.collection("transactions").doc(txId), { 
                     status: 'approved', 
                     adminProof: proofUrl,
+                    linkedSubAdminId: subAdmin.id, // FORCE LINKING
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(amount) });
@@ -628,6 +647,38 @@
                 alert(" Withdrawal Approved!"); 
             } catch(e) {
                 alert("Upload failed. Check internet."); btn.innerText = "Upload & Approve"; btn.disabled = false;
+            }
+        }
+
+        // ✅ EDIT/CHANGE WITHDRAWAL PROOF FUNCTION
+        async function editWithdrawProof(txId, event) {
+            const fileInput = event.target;
+            if(!fileInput.files || fileInput.files.length === 0) return;
+            
+            if(!confirm("Are you sure you want to change the payment screenshot for this withdrawal?")) {
+                fileInput.value = "";
+                return;
+            }
+
+            const label = fileInput.parentElement;
+            const originalText = label.innerHTML;
+            label.innerText = "⏳ Uploading...";
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: formData });
+                const jsonRes = await res.json();
+                const proofUrl = jsonRes.data.url;
+
+                await db.collection("transactions").doc(txId).update({
+                    adminProof: proofUrl
+                });
+                
+                alert("✅ Screenshot changed successfully!"); 
+            } catch(e) {
+                alert("❌ Upload failed. Check internet."); 
+                label.innerHTML = originalText;
             }
         }
 

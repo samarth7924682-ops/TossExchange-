@@ -732,18 +732,6 @@ function triggerWinPopup(winAmt, mult) {
             drawFrame(true, globalState.cp, globalState.elapsed);
 
             if (lastState !== 'CRASHED') {
-                if (betState === 'WAITING_NEXT_ROUND') {
-                    betState = 'IN_PLAY'; 
-                    if (user.isDemo) {
-                        realBalance -= myBetAmount;
-                        user.balance = realBalance;
-                        localStorage.setItem('userSession', JSON.stringify(user));
-                        document.getElementById('balanceText').innerText = Math.floor(realBalance).toFixed(2);
-                    } else {
-                        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) });
-                    }
-                }
-
                 recentMultipliers.push(globalState.cp);
                 if(recentMultipliers.length > 20) recentMultipliers.shift();
                 updateRecentHistoryUI(); updateFakeBets(globalState.cp);

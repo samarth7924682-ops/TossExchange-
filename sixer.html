@@ -235,21 +235,37 @@
     const sequenceData = [];
     let accumulatedTime = 0;
 
-    for (let i = 0; i < 10000; i++) {
+        for (let i = 0; i < 10000; i++) {
         let r = rng();
         let mult;
         
-        if (r < 0.12) mult = 1.00;
-        else if (r < 0.17) mult = 1.01 + rng() * 0.19;
-        else if (r < 0.57) mult = 1.20 + rng() * 0.30;
-        else if (r < 0.87) mult = 1.50 + rng() * 0.50;
-        else if (r < 0.94) mult = 2.00 + rng() * 3.00;
-        else if (r < 0.97) mult = 5.00 + rng() * 5.00;
-        else if (r < 0.985) mult = 10.00 + rng() * 10.00;
-        else if (r < 0.996) mult = 30.00 + rng() * 10.00;
-        else mult = 40.00 + rng() * 60.00;
+        // NAYA LOGIC (100% = 100 rounds setup)
+        if (r < 0.20) {
+            // 20% chances (20 rounds): Exactly 1.00x par crash
+            mult = 1.00;
+        } 
+        else if (r < 0.40) {
+            // 20% chances (20 rounds): 1.01x se 1.50x ke beech
+            mult = 1.01 + rng() * 0.49;
+        } 
+        else if (r < 0.62) {
+            // 22% chances (22 rounds): 1.50x se 2.50x ke beech
+            mult = 1.50 + rng() * 1.00;
+        } 
+        else if (r < 0.85) {
+            // 23% chances (23 rounds): 2.00x se 3.00x ke beech
+            mult = 2.00 + rng() * 1.00;
+        } 
+        else if (r < 0.95) {
+            // 10% chances (10 rounds): 3.00x se 10.00x ke beech
+            mult = 3.00 + rng() * 7.00;
+        } 
+        else {
+            // Bachi hui 5% chances (5 rounds): 10.00x se 100.00x ke beech
+            mult = 10.00 + rng() * 90.00;
+        }
 
-        mult = parseFloat(mult.toFixed(2));
+        mult = parseFloat(mult.toFixed(2));  
         masterSequence.push(mult);
 
         // 1.00x rounds ka asli growth-rate 0 hota hai (log(1)=0), isliye unke liye

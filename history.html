@@ -6,7 +6,6 @@
     <title>⚡ TOSS EXCH - Account Statement</title>
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">    
     <style>
-        /* CSS Same as Original */
         :root { --theme-dark: #121418; --green: #008000; --red: #ff0000; --accent: #ffb703; --bg: #eceff4; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
         .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
@@ -93,7 +92,7 @@
                     </tr>
                 </thead>
                 <tbody id="ledger-body">
-                    <tr><td colspan="6" style="padding: 20px; color: #777;">Loading Records... ⏳</td></tr>
+                    <tr><td colspan="6" style="padding: 20px; color: #777;">Loading Live Records... ⏳</td></tr>
                 </tbody>
             </table>
         </div>
@@ -203,31 +202,152 @@
             window.buildExposureDropdown(user.id);
         }
 
-        // ⚡ FAST 1-SECOND CACHE LOAD ⚡
-        async function loadCombinedLedger() {
-            // Step 1: Purana Cache Turant Load Karo (Bina rukaawat)
-            let cachedLedger = localStorage.getItem('fastLedger_' + user.id);
-            if(cachedLedger) {
-                try {
-                    masterLedgerData = JSON.parse(cachedLedger);
-                    masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
-                    renderTable(masterLedgerData);
-                } catch(e) { console.error("Cache parsing error", e); }
-            }
+        // ⚡ FAST LIVE FIREBASE FETCHING (Promise.all) ⚡
+        async function fetchLiveHistory() {
+            try {
+                // Pehle check karein agar aaj ka background cleanup nahi hua, toh background me laga de
+                if (window.runBackgroundCleanup) window.runBackgroundCleanup(user.id);
 
-            // Step 2: Background me fresh data sync hone ke liye Request bhejo (Taki naya bet/deposit dikhe)
-            if (window.runBackgroundSync) {
-                await window.runBackgroundSync();
+                const uid = user.id;
                 
-                // Step 3: Naya Sync hua data uthao aur chupchap screen update kardo
-                let freshCache = localStorage.getItem('fastLedger_' + user.id);
-                if(freshCache) {
-                    try {
-                        masterLedgerData = JSON.parse(freshCache);
-                        masterLedgerData.forEach(item => item.dateObj = new Date(item.dateObj));
-                        renderTable(masterLedgerData);
-                    } catch(e) { console.error("Fresh cache error", e); }
+                // Saara data Firebase se ek saath parallel load karo
+                const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, matchSnap, userDoc] = await Promise.all([
+                    db.collection("transactions").where("userId", "==", uid).get(),
+                    db.collection("bets").where("userId", "==", uid).get(),
+                    db.collection("aviator_history").where("userId", "==", uid).get(),
+                    db.collection("overout_history").where("userId", "==", uid).get(),
+                    db.collection("coinflip_history").where("userId", "==", uid).get(),
+                    db.collection("matches").get(),
+                    db.collection("users").doc(uid).get()
+                ]);
+
+                if (!userDoc.exists) {
+                    document.getElementById('ledger-body').innerHTML = "<tr><td colspan='6' style='padding:20px; color:var(--red); font-weight:bold;'>User data not found.</td></tr>";
+                    return;
                 }
+
+                matchSnap.forEach(m => {
+                    let d = m.data();
+                    matchDictionary[m.id] = { title: `${d.teamA} vs ${d.teamB}`, teamA: d.teamA, teamB: d.teamB };
+                });
+
+                let freshLedgerData = [];
+                let lockedWithdrawals = 0;
+                let activeExposure = 0;
+
+                // Process Transactions
+                txnSnap.forEach(doc => {
+                    let t = doc.data();
+                    let docDate = t.timestamp ? t.timestamp.toDate() : new Date();
+
+                    if (t.status === 'approved') {
+                        let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : 'Approved Withdrawal');
+                        freshLedgerData.push({ dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
+                    } else if (t.status === 'pending' && t.type === 'withdraw') {
+                        lockedWithdrawals += parseFloat(t.amount) || 0;
+                    }
+                });
+
+                // Process Bets (Matches)
+                let matchGroups = {};
+                betSnap.forEach(doc => {
+                    let b = doc.data();
+                    let docDate = b.timestamp ? b.timestamp.toDate() : new Date();
+                    if (b.status === 'pending') return; 
+
+                    if (!matchGroups[b.matchId]) {
+                        matchGroups[b.matchId] = { bets: [], status: 'pending', dateObj: docDate, netResult: 0 };
+                    }
+                    matchGroups[b.matchId].bets.push(b);
+                    if (['won', 'lost', 'cancelled'].includes(b.status)) matchGroups[b.matchId].status = 'settled';
+                });
+
+                for (let mId in matchGroups) {
+                    let group = matchGroups[mId];
+                    let mInfo = matchDictionary[mId] || { title: "Toss Match", teamA: "Team A", teamB: "Team B" };
+                    
+                    if (group.status === 'settled') {
+                        let isCancelled = false, finalTeamBetOn = "";
+                        group.bets.forEach(b => {
+                            let bAmt = parseFloat(b.amount) || 0;
+                            if (b.status === 'won') {
+                                group.netResult += bAmt * ((parseFloat(b.odds) || 98) / 100);
+                                finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
+                            } else if (b.status === 'lost') {
+                                group.netResult -= bAmt;
+                                finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
+                            } else if (b.status === 'cancelled') {
+                                isCancelled = true;
+                            }
+                        });
+                        
+                        if (isCancelled) {
+                            freshLedgerData.push({ dateObj: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
+                        } else if (group.netResult !== 0) {
+                            let isWin = group.netResult > 0;
+                            let resultText = isWin ? 'Won' : 'Lost';
+                            let color = isWin ? 'var(--green)' : 'var(--red)';
+                            freshLedgerData.push({ dateObj: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
+                        }
+                    } else {
+                        let pnlA = 0, pnlB = 0;
+                        group.bets.forEach(b => {
+                            let bAmt = parseFloat(b.amount) || 0;
+                            let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
+                            if (b.selection === 'teamA') { pnlA += winAmt; pnlB -= bAmt; }
+                            else { pnlB += winAmt; pnlA -= bAmt; }
+                        });
+                        let worst = Math.min(pnlA, pnlB);
+                        if (worst < 0) { activeExposure += Math.abs(worst); }
+                    }
+                }
+
+                // Process Games
+                aviatorSnap.forEach(doc => {
+                    let a = doc.data();
+                    let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
+                    let pnl = parseFloat(a.winAmount || 0) > 0 ? (parseFloat(a.winAmount) - parseFloat(a.betAmount)) : -parseFloat(a.betAmount); 
+                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
+                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
+                });
+
+                overoutSnap.forEach(doc => {
+                    let o = doc.data();
+                    let docDate = o.timestamp ? o.timestamp.toDate() : new Date();
+                    let pnl = parseFloat(o.winAmount || 0) > 0 ? (parseFloat(o.winAmount) - parseFloat(o.betAmount)) : -parseFloat(o.betAmount); 
+                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
+                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
+                });
+
+                coinflipSnap.forEach(doc => {
+                    let c = doc.data();
+                    let docDate = c.timestamp ? c.timestamp.toDate() : new Date();
+                    let pnl = parseFloat(c.winAmount || 0) > 0 ? (parseFloat(c.winAmount) - parseFloat(c.betAmount)) : -parseFloat(c.betAmount); 
+                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+                });
+
+                // Sort by Date (Newest First)
+                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
+                
+                // Calculate Running Balance Top to Bottom
+                let runningBal = (parseFloat(userDoc.data().balance) || 0) + activeExposure + lockedWithdrawals;
+
+                freshLedgerData.forEach((item) => {
+                    item.histBalance = runningBal; 
+                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
+                        runningBal -= item.amount; 
+                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
+                        runningBal += item.amount; 
+                    }
+                });
+
+                masterLedgerData = freshLedgerData;
+                renderTable(masterLedgerData);
+
+            } catch (e) {
+                console.log("Live fetching error:", e);
+                document.getElementById('ledger-body').innerHTML = "<tr><td colspan='6' style='padding:20px; font-weight:bold; color:var(--red);'>Failed to load data. Please refresh.</td></tr>";
             }
         }
 
@@ -255,7 +375,7 @@
         function renderTable(dataArray) {
             const tbody = document.getElementById('ledger-body');
             tbody.innerHTML = "";
-            if(dataArray.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; font-weight:bold;'>No Records Found for past 10 Days</td></tr>"; return; }
+            if(dataArray.length === 0) { tbody.innerHTML = "<tr><td colspan='6' style='padding:20px; font-weight:bold;'>No Records Found</td></tr>"; return; }
 
             dataArray.forEach((item, index) => {
                 let d = item.dateObj;
@@ -287,7 +407,7 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             setupHeader(); 
-            loadCombinedLedger(); // Yaha ab koi bhari loading nahi hogi!
+            fetchLiveHistory(); 
         });
     </script>
 </body>

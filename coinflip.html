@@ -3,396 +3,287 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚡ TOSS EXCH - Coin Flip</title>
+<title>⚡ TOSS EXCH - Live Coin Flip</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap');
 
-  :root{
-    --bg-deep:#0f172a;
-    --bg-mid:#1e293b;
-    --gold:#f2c14e;
-    --gold-soft:#f7d878;
-    --gold-dark:#b48505;
-    --cream:#f5f0ff;
-    --red:#e05a5a;
-    --green:#4fcf8f;
+  :root {
+    --bg-deep: #030305;
+    --bg-mid: #0f0c1b;
+    --gold: #f2c14e;
+    --gold-soft: #f7d878;
+    --gold-dark: #b48505;
+    --cream: #f5f0ff;
+    --red: #ff4757;
+    --green: #2ed573;
+    --glass: rgba(20, 15, 35, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.08);
   }
 
-  *{box-sizing:border-box;margin:0;padding:0;}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body{
-    min-height:100vh;
-    background: radial-gradient(ellipse at 50% -10%, var(--bg-mid), var(--bg-deep) 70%);
-    font-family:'Inter',sans-serif;
-    color:var(--cream);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    padding:15px;
-  }
-
-  /* Compact Premium Card */
-  .card-frame{
-    width:100%;
-    max-width:380px; 
-    border-radius:24px;
-    background: #1e293b;
-    border:1px solid #334155;
-    box-shadow:0 15px 40px rgba(0,0,0,0.6);
-    padding:20px 16px 22px;
-  }
-
-  .topbar{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:10px;
-  }
-
-  .brand{
-    display:flex;
-    align-items:center;
-    font-family:'Fraunces',serif;
-    font-weight:900;
-    font-size:18px;
-    color:var(--gold-soft);
-    letter-spacing: 0.5px;
-  }
-
-  /* 🌟 Mini Spinning Coin Logo 🌟 */
-  .coin-icon-wrapper {
-    position: relative; width: 28px; height: 28px; margin-right: 8px;
-    background: radial-gradient(circle, #ffe066, #f2c14e); border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-weight: 900; color: #3a2a00;
-    border: 2px solid #fff; box-shadow: 0 0 8px rgba(242,193,78,0.8);
-    animation: miniFlip 2s linear infinite; font-size: 13px;
-  }
-  @keyframes miniFlip { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
-
-  .coin-counter{
-    font-family:'JetBrains Mono',monospace;
-    font-weight:700;
-    font-size:13px;
-    background:rgba(0,0,0,0.3);
-    border:1px solid #475569;
-    padding:6px 12px;
-    border-radius:999px;
-    max-width: 150px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .coin-counter b{color:var(--gold);}
-
-  .stage{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    height:140px; 
-    perspective:1000px;
-    margin:5px 0 15px;
-  }
-
-  /* Compact 3D Coin */
-  .coin{
-    width:105px;
-    height:105px;
-    position:relative;
-    transform-style:preserve-3d;
-    transition:transform 1.5s cubic-bezier(.2,.9,.3,1);
-  }
-  .coin-face{
-    position:absolute;
-    inset:0;
-    border-radius:50%;
-    display:flex;
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at 50% -20%, #1a153a, var(--bg-deep) 70%);
+    font-family: 'Inter', sans-serif;
+    color: var(--cream);
+    display: flex;
     flex-direction: column;
-    align-items:center;
-    justify-content:center;
-    font-family:'Fraunces',serif;
-    font-weight:900;
-    backface-visibility:hidden;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-    border: 5px double rgba(255,255,255,0.4);
-  }
-  .coin-face.heads {
-    background: radial-gradient(circle at 35% 30%, #fff7d6 0%, #f2c14e 50%, #b48505 100%);
-    color: #4a3600;
-    font-size: 32px;
-  }
-  .coin-face.heads::after {
-    content: '★ HEADS ★'; font-size: 9px; font-family: 'Inter'; font-weight: bold; margin-top: 2px; color: #614600;
-  }
-  .coin-face.tails {
-    background: radial-gradient(circle at 35% 30%, #ffffff 0%, #cbd5e1 50%, #64748b 100%);
-    color: #1e293b;
-    font-size: 32px;
-    transform: rotateY(180deg);
-  }
-  .coin-face.tails::after {
-    content: '★ TAILS ★'; font-size: 9px; font-family: 'Inter'; font-weight: bold; margin-top: 2px; color: #334155;
+    align-items: center;
+    padding-bottom: 20px;
+    overflow-x: hidden;
   }
 
-  .section-label{
-    font-family:'JetBrains Mono',monospace;
-    font-size:10px;
-    letter-spacing:1.5px;
-    text-transform:uppercase;
-    color:rgba(245,240,255,0.5);
-    margin:10px 0 8px;
-    text-align:center;
+  /* 🌟 PREMIUM TOAST MSG 🌟 */
+  .toast-msg {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(255, 71, 87, 0.95); color: white; padding: 12px 24px;
+    border-radius: 12px; font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    font-weight: 900; z-index: 9999; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.5);
+    opacity: 0; transition: opacity 0.3s ease-in-out, top 0.3s; pointer-events: none;
+    letter-spacing: 1px;
+  }
+  .toast-msg.show { opacity: 1; top: 40px; }
+
+  /* 🌟 HEADER 🌟 */
+  .premium-header {
+    width: 100%; background: rgba(10, 8, 20, 0.9); backdrop-filter: blur(10px);
+    padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  .header-brand {
+    font-family: 'Fraunces', serif; font-weight: 900; font-size: 18px; color: var(--gold-soft);
+    display: flex; align-items: center; gap: 8px; text-decoration: none; text-shadow: 0 0 10px rgba(247, 216, 120, 0.3);
+  }
+  .header-bal {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--gold-dark); padding: 6px 12px;
+    border-radius: 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+    box-shadow: 0 0 10px rgba(180, 133, 5, 0.3);
+  }
+  .header-bal b { color: var(--gold); }
+
+  /* 🌟 GLOBAL HISTORY STRIP (LAST ROUNDS) 🌟 */
+  .global-history-strip {
+    width: 100%; background: rgba(0, 0, 0, 0.6); padding: 8px 15px;
+    display: flex; gap: 8px; overflow-x: auto; border-bottom: 1px solid var(--glass-border);
+    scroll-behavior: smooth;
+  }
+  .global-history-strip::-webkit-scrollbar { display: none; }
+  .gh-item {
+    min-width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; 
+    justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 900;
+    flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  .gh-item.heads { background: rgba(242, 193, 78, 0.15); color: var(--gold); border: 1px solid var(--gold); }
+  .gh-item.tails { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border: 1px solid #64748b; }
+  .gh-item.new-result { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+  @keyframes popIn { 0% { transform: scale(0.1); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+  .game-container { width: 100%; max-width: 400px; padding: 15px; margin-top: 5px; }
+
+  /* 🌟 STATUS BAR 🌟 */
+  .status-bar {
+    background: linear-gradient(90deg, rgba(242,193,78,0.1), rgba(180,133,5,0.2), rgba(242,193,78,0.1));
+    border: 1px solid var(--gold-dark); border-radius: 12px; padding: 12px;
+    text-align: center; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(242,193,78,0.1);
+    position: relative; overflow: hidden;
+  }
+  .status-text {
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; color: var(--gold-soft);
+    text-transform: uppercase; letter-spacing: 1px; z-index: 2; position: relative;
+  }
+  .progress-bg {
+    position: absolute; top: 0; left: 0; height: 100%; width: 100%;
+    background: rgba(242,193,78,0.2); transform-origin: left; z-index: 1; transition: transform 0.1s linear;
   }
 
-  .pick-row{
-    display:flex;
-    gap:8px;
-    margin-bottom:12px;
+  /* 🌟 STAGE & COIN WITH ILLUSION BEAMS 🌟 */
+  .stage {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    height: 160px; perspective: 1000px; margin-bottom: 20px; position: relative;
+    border-radius: 20px; overflow: hidden; background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.03);
   }
-  .pick-btn{
-    flex:1;
-    padding:12px 8px;
-    border-radius:12px;
-    border:2px solid #475569;
-    background:rgba(255,255,255,0.05);
-    color:var(--cream);
-    font-family:'Inter',sans-serif;
-    font-weight:700;
-    font-size:14px;
-    cursor:pointer;
-    transition:all 0.15s ease;
+  /* Rotating Light Beams Background */
+  .stage::before {
+    content: ''; position: absolute; width: 350px; height: 350px;
+    background: repeating-conic-gradient(
+      transparent 0deg, rgba(242, 193, 78, 0.15) 15deg, transparent 30deg
+    );
+    animation: spinBeams 15s linear infinite; border-radius: 50%; z-index: 1;
   }
-  .pick-btn.selected{
-    border-color:var(--gold);
-    background:rgba(242,193,78,0.15);
-    color:var(--gold-soft);
+  /* Center Fade overlay */
+  .stage::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at center, transparent 20%, rgba(3,3,5,0.9) 75%);
+    z-index: 1;
+  }
+  @keyframes spinBeams { 100% { transform: rotate(360deg); } }
+
+  .coin {
+    width: 90px; height: 90px; position: relative; transform-style: preserve-3d; z-index: 5;
+  }
+  .coin-face {
+    position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-weight: 900;
+    backface-visibility: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.8), inset 0 0 15px rgba(255,255,255,0.5);
+    border: 5px double rgba(255,255,255,0.6);
+  }
+  .coin-face.heads { background: radial-gradient(circle at 30% 30%, #fff7d6 0%, #f2c14e 40%, #b48505 100%); color: #4a3600; font-size: 32px; }
+  .coin-face.tails { background: radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 40%, #64748b 100%); color: #0f172a; font-size: 32px; transform: rotateY(180deg); }
+
+  /* 🌟 MASSIVE AVIATOR STYLE FLOATING AMOUNT 🌟 */
+  .floating-amount {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace; text-align: center;
+    opacity: 0; pointer-events: none; z-index: 100; width: 100%;
+  }
+  .floating-amount.show-bet {
+    bottom: 5px; opacity: 1; color: var(--gold-soft); font-size: 14px; font-weight: 800;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8); transition: 0.3s;
+  }
+  .floating-amount.pop-win {
+    bottom: 30px; animation: aviatorMassiveWin 2.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    color: #2ed573; font-size: 64px; font-weight: 900; letter-spacing: 2px;
+    text-shadow: 0 0 25px rgba(46, 213, 115, 1), 0 0 50px rgba(46, 213, 115, 0.8), 0 8px 15px rgba(0,0,0,1);
+  }
+  .floating-amount.pop-lose {
+    bottom: 30px; animation: aviatorMassiveLose 2.2s forwards;
+    color: #ff4757; font-size: 48px; font-weight: 900;
+    text-shadow: 0 0 20px rgba(255, 71, 87, 0.9), 0 6px 12px rgba(0,0,0,1);
   }
 
-  /* 🌟 Gold Chips Setup 🌟 */
-  .chip-row{
-    display:flex;
-    justify-content:center;
-    gap:10px;
-    margin-bottom:12px;
+  @keyframes aviatorMassiveWin {
+    0% { opacity: 0; transform: translate(-50%, 20px) scale(0.3); }
+    15% { opacity: 1; transform: translate(-50%, -60px) scale(1.6); } 
+    25% { opacity: 1; transform: translate(-50%, -45px) scale(1.1); } 
+    85% { opacity: 1; transform: translate(-50%, -45px) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -90px) scale(0.9); }
   }
-  .chip{
-    width:50px;height:50px;
-    border-radius:50%;
-    border:2px dashed rgba(242,193,78,0.6); 
-    background:radial-gradient(circle at 35% 30%, #f7d878, var(--gold-dark)); 
-    color:#241a00; 
-    font-family:'JetBrains Mono',monospace;
-    font-weight:900;
-    font-size:13px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    transition: 0.15s ease;
+  @keyframes aviatorMassiveLose {
+    0% { opacity: 0; transform: translate(-50%, -30px) scale(0.5); }
+    15% { opacity: 1; transform: translate(-50%, -15px) scale(1.2); }
+    85% { opacity: 1; transform: translate(-50%, -15px) scale(1.2); }
+    100% { opacity: 0; transform: translate(-50%, 30px) scale(0.8); }
   }
-  .chip:active{transform:scale(0.93); box-shadow: 0 0 10px rgba(242,193,78,0.5);}
 
-  .bet-line{
-    text-align:center;
-    font-family:'JetBrains Mono',monospace;
-    font-size:13px;
-    margin-bottom:10px;
+  /* 🌟 BETTING PANEL 🌟 */
+  .bet-panel {
+    background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border);
+    border-radius: 20px; padding: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.5);
   }
-  .bet-line b{color:var(--gold-soft);}
-
-  .clear-link{
-    display:block;
-    text-align:center;
-    font-size:11px;
-    color:rgba(245,240,255,0.5);
-    text-decoration:underline;
-    margin:-4px 0 12px;
-    cursor:pointer;
-    background:none;
-    border:none;
-    font-family:'Inter',sans-serif;
+  .pick-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .pick-btn {
+    flex: 1; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.5); color: var(--cream); font-family: 'Inter', sans-serif;
+    font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s;
   }
+  .pick-btn.selected { border-color: var(--gold); background: linear-gradient(145deg, rgba(242,193,78,0.2), rgba(180,133,5,0.1)); color: var(--gold-soft); box-shadow: 0 4px 15px rgba(242,193,78,0.2); }
   
-
-  .flip-btn{
-    width:100%;
-    padding:14px;
-    border-radius:12px;
-    border:none;
-    background:linear-gradient(180deg, var(--gold-soft), var(--gold));
-    color:#241a00;
-    font-family:'Inter',sans-serif;
-    font-weight:800;
-    font-size:15px;
-    cursor:pointer;
-    transition:0.15s ease;
-    margin-top: auto; /* 🌟 Forces button to the bottom 🌟 */
+  .aviator-bet-box {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(0,0,0,0.7); border: 1px solid var(--gold-dark); border-radius: 12px;
+    padding: 8px; margin-bottom: 12px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.6);
   }
-  .flip-btn:active{transform:scale(0.98);}
-  .flip-btn:disabled{opacity:0.35; cursor:not-allowed;}
-
-  .divider{
-    height:1px;
-    background:linear-gradient(90deg, transparent, #334155, transparent);
-    margin:15px 0 12px;
-  }
-
-  .auto-row{
-    display:flex;
-    gap:8px;
-    margin-bottom:10px;
-  }
-  .auto-chip{
-    flex:1;
-    padding:10px 4px;
-    border-radius:10px;
-    border:2px solid #475569;
-    background:rgba(255,255,255,0.05);
-    color:var(--cream);
-    font-family:'JetBrains Mono',monospace;
-    font-weight:700;
-    font-size:12px;
-    text-align:center;
-    cursor:pointer;
-  }
-  .auto-chip.selected{
-    border-color:var(--gold);
-    background:rgba(242,193,78,0.15);
-    color:var(--gold-soft);
-  }
-
-  .auto-status{
-    text-align:center;
-    font-family:'JetBrains Mono',monospace;
-    font-size:11px;
-    color:rgba(245,240,255,0.6);
-    min-height:16px;
-    margin-bottom:10px;
-  }
-  .auto-status b{color:var(--gold-soft);}
-
-  .auto-btn{
-    width:100%;
-    padding:14px;
-    border-radius:12px;
-    border:2px solid var(--gold-dark);
-    background:rgba(242,193,78,0.15);
-    color:var(--gold-soft);
-    font-family:'Inter',sans-serif;
-    font-weight:800;
-    font-size:14px;
-    cursor:pointer;
-    margin-top: auto; /* 🌟 Forces button to the bottom 🌟 */
-  }
-  .auto-btn:disabled{opacity:0.35; cursor:not-allowed;}
-  .auto-btn.stop-mode{ border-color:var(--red); background:rgba(224,90,90,0.18); color:#ffdada; }
-
-  .history-list{ display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; }
-  .history-empty{ text-align:center; font-size:11px; color:rgba(245,240,255,0.4); padding:12px 0; }
-  .history-item{ display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:8px; background:rgba(255,255,255,0.04); border-left:3px solid transparent; font-family:'JetBrains Mono',monospace; font-size:11.5px; }
-  .history-item.win{ border-left-color:var(--green); }
-  .history-item.lose{ border-left-color:var(--red); }
-  .history-left{ display:flex; align-items:center; gap:8px; }
-  .history-side{ text-transform:capitalize; color:var(--cream); }
-  .history-outcome-tag{ font-size:9px; padding:2px 6px; border-radius:4px; }
-  .history-outcome-tag.win{ background:rgba(79,207,143,0.2); color:var(--green); }
-  .history-outcome-tag.lose{ background:rgba(224,90,90,0.2); color:var(--red); }
-  .history-delta.win{ color:var(--green); font-weight:700; }
-  .history-delta.lose{ color:var(--red); font-weight:700; }
-
-  .tab-row{ display:flex; gap:6px; margin:10px 0 4px; background:rgba(0,0,0,0.3); padding:4px; border-radius:12px; }
-  .tab-btn{ flex:1; padding:10px 8px; border-radius:8px; border:none; background:transparent; color:rgba(245,240,255,0.55); font-family:'Inter',sans-serif; font-weight:700; font-size:13px; cursor:pointer; }
-  .tab-btn.active{ background:linear-gradient(180deg, var(--gold-soft), var(--gold)); color:#241a00; }
+  .bet-action-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; padding: 10px 14px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+  .bet-action-btn:active { transform: scale(0.95); }
+  .bet-amount-display { flex: 1; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 900; color: var(--gold-soft); }
   
-  /* 🌟 FIXED TAB PANEL HEIGHT LOGIC 🌟 */
-  .tab-panel{ 
-    display:none; 
-    min-height: 350px; 
-    flex-direction: column;
-  }
-  .tab-panel.active{ display:flex; }
+  .chip-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 15px; }
+  .chip { width: 45px; height: 45px; border-radius: 50%; border: 2px dashed rgba(242,193,78,0.8); background: radial-gradient(circle at 35% 30%, #f7d878, var(--gold-dark)); color: #241a00; font-family: 'JetBrains Mono', monospace; font-weight: 900; font-size: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+  .chip:active { transform: scale(0.9); }
   
-  .coin-counter.pulse { animation: counterPulse 0.3s ease; }
-@keyframes counterPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .place-bet-btn {
+    width: 100%; padding: 16px; border-radius: 14px; border: none; color: #1a1500;
+    font-family: 'Inter', sans-serif; font-weight: 900; font-size: 15px; text-transform: uppercase;
+    letter-spacing: 1px; cursor: pointer; transition: 0.2s;
+    background: linear-gradient(135deg, var(--green), #20bf6b); box-shadow: 0 6px 20px rgba(46, 213, 115, 0.4);
+  }
+  .place-bet-btn.next-round { background: linear-gradient(135deg, var(--gold-soft), var(--gold)); box-shadow: 0 6px 20px rgba(242,193,78,0.4); }
+  
+  /* 🌟 HISTORY PANEL 🌟 */
+  .history-panel { margin-top: 20px; width: 100%; background: rgba(0,0,0,0.4); border-radius: 16px; padding: 12px; border: 1px solid var(--glass-border); }
+  .history-title { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(255,255,255,0.5); text-align: center; margin-bottom: 10px; letter-spacing: 1px; }
+  .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 130px; overflow-y: auto; padding-right: 4px; }
+  .history-list::-webkit-scrollbar { width: 3px; }
+  .history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+  
+  .history-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border-left: 3px solid transparent; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .history-item.win { border-left-color: var(--green); }
+  .history-item.lose { border-left-color: var(--red); }
+  .h-left { display: flex; gap: 10px; align-items: center; }
+  .h-side { color: var(--cream); font-weight: bold; text-transform: uppercase; }
+  .h-tag { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
+  .h-tag.win { background: rgba(46, 213, 115, 0.15); color: var(--green); }
+  .h-tag.lose { background: rgba(255, 71, 87, 0.15); color: var(--red); }
+  .h-right { font-weight: 900; font-size: 12px; }
+  .h-right.win { color: var(--green); }
+  .h-right.lose { color: var(--red); }
+  .history-empty { text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; padding: 10px 0; }
 
 </style>
 </head>
 <body>
 
-<div class="card-frame">
-  <div class="topbar">
-    <div class="brand" onclick="window.location.href='index.html'" style="cursor: pointer;">
-        <div class="coin-icon-wrapper">🪙</div> 
-        COIN FLIP
-    </div>
-    <div class="coin-counter">🪙 <b id="coins">0.00</b></div>
+<div id="toastMsg" class="toast-msg">PLEASE ENTER AMOUNT!</div>
+
+<div class="premium-header">
+  <a href="index.html" class="header-brand">🪙 TOSS EXCH</a>
+  <div class="header-bal">🪙 <b id="coins">0.00</b></div>
+</div>
+
+<!-- GLOBAL HEADER HISTORY (Aviator Style Strip) -->
+<div class="global-history-strip" id="globalHistoryStrip">
+  <!-- JavaScript fill karega yaha past rounds -->
+</div>
+
+<div class="game-container">
+  
+  <div class="status-bar">
+    <div class="progress-bg" id="progressBar"></div>
+    <div class="status-text" id="statusText">WAITING FOR NEXT ROUND...</div>
   </div>
 
   <div class="stage" id="mainStage">
-    <div class="coin" id="coinEl">
+    <div class="coin" id="coin1">
       <div class="coin-face heads">H</div>
       <div class="coin-face tails">T</div>
     </div>
+    <!-- FLOATING AMOUNT ANIMATION -->
+    <div id="floatingAmount" class="floating-amount"></div>
   </div>
 
-  <div class="tab-row">
-    <button class="tab-btn active" id="tabManualBtn">Manual Play</button>
-    <button class="tab-btn" id="tabAutoBtn">Auto Play</button>
-  </div>
-
-  <div class="tab-panel active" id="manualPanel">
-    <div class="section-label">Pick a side</div>
+  <div class="bet-panel">
     <div class="pick-row">
-      <button class="pick-btn selected" id="pickHeads" data-side="heads">Heads</button>
-      <button class="pick-btn" id="pickTails" data-side="tails">Tails</button>
+      <button class="pick-btn selected" id="pickHeads" data-side="heads">HEADS</button>
+      <button class="pick-btn" id="pickTails" data-side="tails">TAILS</button>
     </div>
 
-    <div class="section-label">Select Coin</div>
+    <div class="aviator-bet-box">
+      <button class="bet-action-btn" id="btnReset">RESET</button>
+      <div class="bet-amount-display" id="betAmount">0.00</div>
+      <button class="bet-action-btn" id="btnAll">ALL</button>
+    </div>
+
     <div class="chip-row" id="chipRow">
       <div class="chip" data-val="10">10</div>
       <div class="chip" data-val="50">50</div>
       <div class="chip" data-val="100">100</div>
       <div class="chip" data-val="500">500</div>
+      <div class="chip" data-val="1000">1K</div>
     </div>
-    <div class="bet-line">Bet: <b id="betAmount">0</b> coins</div>
-    <button class="clear-link" id="clearBet">clear bet</button>
 
-    <button class="flip-btn" id="flipBtn" disabled>Start</button>
+    <button class="place-bet-btn" id="mainBetBtn">PLACE BET</button>
   </div>
 
-  <div class="tab-panel" id="autoPanel">
-    <div class="section-label" style="margin-top:0;">Pick a side</div>
-    <div class="pick-row">
-      <button class="pick-btn selected" id="pickHeadsAuto" data-side="heads">Heads</button>
-      <button class="pick-btn" id="pickTailsAuto" data-side="tails">Tails</button>
+  <!-- MY HISTORY SECTION -->
+  <div class="history-panel">
+    <div class="history-title">MY RECENT HISTORY</div>
+    <div class="history-list" id="myHistoryList">
+      <div class="history-empty">No history yet...</div>
     </div>
-
-    <div class="section-label">Select Coin</div>
-    <div class="chip-row" id="autoChipRow">
-      <div class="chip" data-val="10">10</div>
-      <div class="chip" data-val="50">50</div>
-      <div class="chip" data-val="100">100</div>
-      <div class="chip" data-val="500">500</div>
-    </div>
-    <div class="bet-line">Bet: <b id="autoBetAmount">0</b> coins</div>
-    <button class="clear-link" id="clearAutoBet">clear bet</button>
-
-    <div class="section-label">Select Round</div>
-    <div class="auto-row" id="autoRow">
-      <div class="auto-chip" data-rounds="5">5x</div>
-      <div class="auto-chip" data-rounds="10">10x</div>
-      <div class="auto-chip" data-rounds="25">25x</div>
-      <div class="auto-chip" data-rounds="50">50x</div>
-    </div>
-    <div class="auto-status" id="autoStatus">Pick coin and rounds, then start</div>
-    <button class="auto-btn" id="autoBtn" disabled>Start AutoBet</button>
   </div>
 
-  <div class="divider"></div>
-
-  <div class="section-label">History</div>
-  <div class="history-list" id="historyList">
-    <div class="history-empty">No flips yet</div>
-  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -401,319 +292,371 @@
 
 <script>
 (function(){
-  // 🌟 FIREBASE AUTH & BALANCE SYNC 🌟
+  // 🌟 FIREBASE AUTH & BALANCE SYNC
   const sessionStr = localStorage.getItem('userSession');
   if(!sessionStr) window.location.href = "index.html";
   const userSession = JSON.parse(sessionStr);
 
+  // ----------------------------------------------------
+  // PERFECT DEVICE SYNC SYSTEM (Same as Aviator)
+  // ----------------------------------------------------
+  let serverTimeOffset = 0;
+
+  async function syncServerTime() {
+      try {
+          const beforeReq = Date.now();
+          const syncDocId = (userSession && userSession.id) ? userSession.id : "demo_" + Math.floor(Math.random()*1000000);
+          const ref = db.collection("_timeSync").doc(syncDocId);
+          await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+          const snap = await ref.get();
+          const afterReq = Date.now();
+
+          const serverMs = snap.data().t.toMillis();
+          const roundTrip = afterReq - beforeReq;
+          const estimatedServerNow = serverMs + (roundTrip / 2);
+
+          serverTimeOffset = estimatedServerNow - afterReq;
+      } catch(e) {
+          console.log("Time sync failed, using local time", e);
+          serverTimeOffset = 0;
+      }
+  }
+
+  function getTrueTime() {
+      return Date.now() + serverTimeOffset;
+  }
+
   let realBalance = 0;
-  let bet = 0;
-  let pickedSide = 'heads';
-  let flipping = false;
-  let totalRotation = 0;
-
-  let history = []; 
-  let selectedRounds = null;
-  let autoBetStake = 0;
-  let autoPlaying = false;
-  let autoRemaining = 0;
-  let autoStake = 0;
-  let autoWinCount = 0;
-  let autoLossCount = 0;
-
-  const coinsEl = document.getElementById('coins');
-  const betAmountEl = document.getElementById('betAmount');
-  const flipBtn = document.getElementById('flipBtn');
-  const coinEl = document.getElementById('coinEl');
-  const pickHeads = document.getElementById('pickHeads');
-  const pickTails = document.getElementById('pickTails');
-  const pickHeadsAuto = document.getElementById('pickHeadsAuto');
-  const pickTailsAuto = document.getElementById('pickTailsAuto');
-  const chipRow = document.getElementById('chipRow');
-  const clearBet = document.getElementById('clearBet');
-  const autoChipRow = document.getElementById('autoChipRow');
-  const autoBetAmountEl = document.getElementById('autoBetAmount');
-  const clearAutoBet = document.getElementById('clearAutoBet');
-  const autoRow = document.getElementById('autoRow');
-  const autoBtn = document.getElementById('autoBtn');
-  const autoStatus = document.getElementById('autoStatus');
-  const historyList = document.getElementById('historyList');
   
-  // --- DEMO BYPASS: BALANCE SYNC ---
   if (userSession.isDemo) {
       realBalance = parseFloat(userSession.balance || 1500);
-      coinsEl.textContent = Math.floor(realBalance).toFixed(2);
-      updateFlipBtn();
-      updateAutoBtn();
+      document.getElementById('coins').textContent = Math.floor(realBalance).toFixed(2);
   } else {
-      // Real-time Balance Listener
       db.collection("users").doc(userSession.id).onSnapshot(doc => {
           if(doc.exists) {
               realBalance = parseFloat(doc.data().balance || 0);
-              coinsEl.textContent = Math.floor(realBalance).toFixed(2);
-              updateFlipBtn();
-              updateAutoBtn();
+              document.getElementById('coins').textContent = Math.floor(realBalance).toFixed(2);
           }
       });
   }
 
-  document.getElementById('tabManualBtn').addEventListener('click', ()=>{
-    document.getElementById('tabManualBtn').className = 'tab-btn active'; document.getElementById('tabAutoBtn').className = 'tab-btn';
-    document.getElementById('manualPanel').className = 'tab-panel active'; document.getElementById('autoPanel').className = 'tab-panel';
-  });
-  document.getElementById('tabAutoBtn').addEventListener('click', ()=>{
-    document.getElementById('tabAutoBtn').className = 'tab-btn active'; document.getElementById('tabManualBtn').className = 'tab-btn';
-    document.getElementById('autoPanel').className = 'tab-panel active'; document.getElementById('manualPanel').className = 'tab-panel';
-  });
+  // 🌟 BULLETPROOF LOUD AUDIO SETUP
+  const bgAudio = new Audio('background.mp3');
+  bgAudio.loop = true; 
+  bgAudio.volume = 1.0; 
 
-  function updateFlipBtn(){ flipBtn.disabled = flipping || autoPlaying || bet <= 0 || bet > realBalance; }
+  const resultAudio = new Audio('result.mp3');
+  resultAudio.volume = 1.0; 
 
-  function updateAutoBtn(){
-    if(autoPlaying){
-      autoBtn.disabled = false; autoBtn.textContent = 'Stop AutoBet'; autoBtn.className = 'auto-btn stop-mode';
-    } else {
-      autoBtn.textContent = 'Start AutoBet'; autoBtn.className = 'auto-btn';
-      autoBtn.disabled = flipping || autoBetStake <= 0 || autoBetStake > realBalance || !selectedRounds;
-    }
+  bgAudio.addEventListener('ended', function() {
+      this.currentTime = 0; this.play().catch(e=>{});
+  }, false);
+
+  let isBgAudioStarted = false;
+  function forceStartBgMusic() {
+      if (isBgAudioStarted) return;
+      bgAudio.play().then(() => {
+          isBgAudioStarted = true;
+          document.removeEventListener('click', forceStartBgMusic);
+          document.removeEventListener('touchstart', forceStartBgMusic);
+      }).catch(err => console.log("Waiting..."));
   }
+  document.addEventListener('click', forceStartBgMusic);
+  document.addEventListener('touchstart', forceStartBgMusic);
 
-  function setPickedSide(side){
-    pickedSide = side;
-    if(side === 'heads'){
-      pickHeads.className = 'pick-btn selected'; pickTails.className = 'pick-btn';
-      pickHeadsAuto.className = 'pick-btn selected'; pickTailsAuto.className = 'pick-btn';
-    } else {
-      pickTails.className = 'pick-btn selected'; pickHeads.className = 'pick-btn';
-      pickTailsAuto.className = 'pick-btn selected'; pickHeadsAuto.className = 'pick-btn';
-    }
-  }
+  // 🌟 SYNCHRONIZED ENGINE (12-Second Loop)
+  const CYCLE_TIME = 12000; 
+  const PHASE_BET = 4000;
+  const PHASE_SPIN = 6000; 
+  const PHASE_RESULT = 2000;
 
-  pickHeads.addEventListener('click', ()=>{ if(flipping || autoPlaying) return; setPickedSide('heads'); });
-  pickTails.addEventListener('click', ()=>{ if(flipping || autoPlaying) return; setPickedSide('tails'); });
-  pickHeadsAuto.addEventListener('click', ()=>{ if(flipping || autoPlaying) return; setPickedSide('heads'); });
-  pickTailsAuto.addEventListener('click', ()=>{ if(flipping || autoPlaying) return; setPickedSide('tails'); });
-
-  chipRow.querySelectorAll('.chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      if(flipping || autoPlaying) return;
-      const val = parseFloat(chip.dataset.val);
-      if(val > realBalance - bet) return;
-      bet += val; betAmountEl.textContent = bet.toFixed(2); updateFlipBtn();
-    });
-  });
-
-  clearBet.addEventListener('click', ()=>{
-    if(flipping || autoPlaying) return;
-    bet = 0; betAmountEl.textContent = 0; updateFlipBtn();
-  });
-
-  autoChipRow.querySelectorAll('.chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      if(flipping || autoPlaying) return;
-      const val = parseFloat(chip.dataset.val);
-      if(val > realBalance - autoBetStake) return;
-      autoBetStake += val; autoBetAmountEl.textContent = autoBetStake.toFixed(2); updateAutoBtn();
-    });
-  });
-
-  clearAutoBet.addEventListener('click', ()=>{
-    if(flipping || autoPlaying) return;
-    autoBetStake = 0; autoBetAmountEl.textContent = 0; updateAutoBtn();
-  });
-
-  autoRow.querySelectorAll('.auto-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      if(flipping || autoPlaying) return;
-      selectedRounds = parseInt(chip.dataset.rounds);
-      autoRow.querySelectorAll('.auto-chip').forEach(c=>c.classList.remove('selected'));
-      chip.classList.add('selected'); updateAutoBtn();
-    });
-  });
-
-  function addHistory(side, betAmt, outcome, won, delta){
-    history.unshift({side, betAmt, outcome, won, delta});
-    if(history.length > 8) history.pop();
-    renderHistory();
-  }
-
-  function renderHistory(){
-    if(history.length === 0){
-      historyList.innerHTML = '<div class="history-empty">No flips yet</div>'; return;
-    }
-    historyList.innerHTML = history.map(h=>{
-      const cls = h.won ? 'win' : 'lose';
-      const sign = h.won ? '+' : '-';
-      return `<div class="history-item ${cls}">
-        <div class="history-left">
-          <span class="history-side">${h.side}</span>
-          <span class="history-outcome-tag ${cls}">${h.outcome.toUpperCase()}</span>
-        </div>
-        <div>
-          <span style="opacity:0.5;margin-right:6px;">bet ${h.betAmt}</span>
-          <span class="history-delta ${cls}">${sign}${Math.abs(h.delta).toFixed(2)}</span>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-
-// SOUND EFFECTS
-  let audioCtx = null;
-  function getAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if(audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
-  document.addEventListener('pointerdown', function unlock(){ getAudioCtx(); document.removeEventListener('pointerdown', unlock); }, { once:true });
+  let currentRoundId = 0;
+  let gamePhase = 'WAITING'; 
+  let hasProcessedResult = false;
+  let hasStartedSpin = false;
+  let hasPlayedResultAudio = false; 
+  let isInitialLoad = true;
   
-  function playRollSound(durationMs){
-    try{ const ctx = getAudioCtx(); const now = ctx.currentTime; const dur = durationMs / 1000; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'triangle'; osc.frequency.setValueAtTime(180, now); const cycles = Math.floor(dur / 0.09); for(let i=0;i<cycles;i++){ osc.frequency.setValueAtTime(i % 2 === 0 ? 260 : 140, now + i*0.09); } gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(0.08, now + 0.05); gain.gain.setValueAtTime(0.08, now + dur - 0.15); gain.gain.exponentialRampToValueAtTime(0.0001, now + dur); osc.connect(gain).connect(ctx.destination); osc.start(now); osc.stop(now + dur); }catch(e){}
-  }
-  function playWinSound(){
-    try{ const ctx = getAudioCtx(); const now = ctx.currentTime; const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5]; notes.forEach((f, i)=>{ const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine'; osc.frequency.value = f; const start = now + i*0.075; gain.gain.setValueAtTime(0.0001, start); gain.gain.exponentialRampToValueAtTime(0.13, start + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.4); osc.connect(gain).connect(ctx.destination); osc.start(start); osc.stop(start + 0.42); }); }catch(e){}
-  }
-  function playLoseSound(){
-    try{ const ctx = getAudioCtx(); const now = ctx.currentTime; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(90, now + 0.45); gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(0.11, now + 0.03); gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5); osc.connect(gain).connect(ctx.destination); osc.start(now); osc.stop(now + 0.5); }catch(e){}
-  }
+  let totalRotation1 = 0;
+  let pickedSide = 'heads';
+  let inputBetAmount = 0;
+  
+  let activeBet = null; 
+  let queuedBet = null; 
+  let currentRoundResult = null; 
+  
+  // HISTORY PERSISTENCE
+  const TOSS_HISTORY_KEY = `tossHistory_${userSession.id}`;
+  let myHistoryData = [];
+  const savedHist = localStorage.getItem(TOSS_HISTORY_KEY);
+  if(savedHist) myHistoryData = JSON.parse(savedHist);
 
-  // 🌟 CORE FLIP LOGIC (Live DB Deduction & 1/7 Rigged Win) 🌟
-  async function runFlip(side, stake){
-    flipping = true; updateFlipBtn();
+  let globalRecentRounds = [];
 
-    // --- DEMO BYPASS: DEDUCT BALANCE ---
-    if (userSession.isDemo) {
-        realBalance -= stake;
-        userSession.balance = realBalance;
-        localStorage.setItem('userSession', JSON.stringify(userSession));
-        coinsEl.textContent = Math.floor(realBalance).toFixed(2);
-    } else {
-        await db.collection("users").doc(userSession.id).update({
-            balance: firebase.firestore.FieldValue.increment(-stake)
-        });
-    }
+  const statusText = document.getElementById('statusText');
+  const progressBar = document.getElementById('progressBar');
+  const coin1 = document.getElementById('coin1');
+  const floatingAmount = document.getElementById('floatingAmount');
+  const betAmountEl = document.getElementById('betAmount');
+  const mainBetBtn = document.getElementById('mainBetBtn');
+  const myHistoryList = document.getElementById('myHistoryList');
+  const globalHistoryStrip = document.getElementById('globalHistoryStrip');
 
-    // 🛑 RIGGED WIN RATE LOGIC: 7 me se 1 baar win (approx 14.28%)
-    const isWin = Math.random() < (1 / 7); 
-    const outcome = isWin ? side : (side === 'heads' ? 'tails' : 'heads');
+  renderHistory();
 
-    const extraSpins = 6 + Math.floor(Math.random()*2);
-    const targetOffset = outcome === 'heads' ? 0 : 180;
-    totalRotation += extraSpins * 360 + (targetOffset - (totalRotation % 360));
-    coinEl.style.transform = `rotateY(${totalRotation}deg)`;
-
-    playRollSound(1400);
-
-    return new Promise((resolve) => {
-        setTimeout(async () => {
-            const won = outcome === side;
-            
-            if(won){
-                // --- DEMO BYPASS: ADD WIN AMOUNT ---
-                if (userSession.isDemo) {
-                    realBalance += (stake * 2);
-                    userSession.balance = realBalance;
-                    localStorage.setItem('userSession', JSON.stringify(userSession));
-                    coinsEl.textContent = Math.floor(realBalance).toFixed(2);
-                } else {
-                    await db.collection("users").doc(userSession.id).update({
-                        balance: firebase.firestore.FieldValue.increment(stake * 2)
-                    });
-                }
-                playWinSound();
-                flyCoinsToBalance(5);
-            } else {
-                playLoseSound();
-            }
-            
-            // 🌟 FLY COIN ILLUSION (Jeetne par animation) 🌟
-            function flyCoinsToBalance(count){
-                const stageEl = document.getElementById('mainStage');
-                const stageRect = stageEl.getBoundingClientRect();
-                const targetRect = document.querySelector('.coin-counter').getBoundingClientRect();
-                const startX = stageRect.left + stageRect.width/2;
-                const startY = stageRect.top + stageRect.height/2;
-                const endX = targetRect.left + targetRect.width/2;
-                const endY = targetRect.top + targetRect.height/2;
-
-                const total = Math.min(Math.max(count, 3), 8);
-                for(let i=0;i<total;i++){
-                  setTimeout(()=>{
-                    const coinDiv = document.createElement('div');
-                    coinDiv.className = 'fly-coin';
-                    coinDiv.style.position = 'fixed';
-                    coinDiv.style.width = '30px'; coinDiv.style.height = '30px';
-                    coinDiv.style.borderRadius = '50%';
-                    coinDiv.style.background = 'radial-gradient(circle at 35% 30%, #f7d878, #b48505)';
-                    coinDiv.style.zIndex = '9999';
-                    coinDiv.style.pointerEvents = 'none';
-                    
-                    const jitterX = (Math.random()-0.5)*40;
-                    const jitterY = (Math.random()-0.5)*40;
-                    coinDiv.style.left = (startX + jitterX - 15) + 'px';
-                    coinDiv.style.top = (startY + jitterY - 15) + 'px';
-                    
-                    document.body.appendChild(coinDiv);
-                    
-                    // Animation
-                    const anim = coinDiv.animate([
-                        { transform: 'translate(0,0) scale(0.7)', opacity: 1 },
-                        { transform: `translate(${endX-startX-jitterX}px, ${endY-startY-jitterY}px) scale(0.1)`, opacity: 0 }
-                    ], { duration: 800, easing: 'cubic-bezier(.25,.5,.35,1)' });
-                    
-                    anim.onfinish = () => {
-                        coinDiv.remove();
-                        document.querySelector('.coin-counter').classList.add('pulse');
-                        setTimeout(()=>document.querySelector('.coin-counter').classList.remove('pulse'), 300);
-                    };
-                  }, i*100);
-                }
-            }
-     
-            // --- DEMO BYPASS: SAVE TO HISTORY ---
-            if (!userSession.isDemo) {
-                await db.collection("coinflip_history").add({
-                    userId: userSession.id,
-                    betAmount: stake,
-                    winAmount: won ? (stake * 2) : 0,
-                    sidePicked: side,
-                    outcome: outcome,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            }
-
-            addHistory(side, stake, outcome, won, won ? stake : stake); // UI history array
-            flipping = false;
-            resolve({won, outcome});
-        }, 1500);
-    });
+  function showToastMsg(msg) {
+      const toast = document.getElementById('toastMsg');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
-  flipBtn.addEventListener('click', async ()=>{
-    if(flipping || autoPlaying || bet <= 0 || bet > realBalance) return;
-    const stake = bet; const side = pickedSide;
-    bet = 0; betAmountEl.textContent = 0; updateFlipBtn();
-    await runFlip(side, stake); updateFlipBtn(); updateAutoBtn();
+  // Pre-calculate last 15 rounds based on seed for initial header strip
+  function initializeGlobalHistory(currentId) {
+      globalRecentRounds = [];
+      for (let i = 15; i > 0; i--) {
+          let pastId = currentId - i;
+          let seed = pastId * 987654321;
+          seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+          const absSeed = Math.abs(seed);
+          globalRecentRounds.push((absSeed % 2 === 0) ? 'heads' : 'tails');
+      }
+      renderGlobalHistory(false);
+  }
+
+  function renderGlobalHistory(animateLast = false) {
+      globalHistoryStrip.innerHTML = globalRecentRounds.map((res, index) => {
+          let animateClass = (animateLast && index === globalRecentRounds.length - 1) ? 'new-result' : '';
+          return `<div class="gh-item ${res} ${animateClass}">${res === 'heads' ? 'H' : 'T'}</div>`;
+      }).join('');
+      // Auto-scroll to latest
+      globalHistoryStrip.scrollLeft = globalHistoryStrip.scrollWidth;
+  }
+
+  // 🌟 80/20 HYBRID LOAD BALANCER LOGIC (PERFECTLY SYNCED)
+  async function fetchRoundResult(roundId) {
+      let seed = roundId * 987654321;
+      seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
+      const absSeed = Math.abs(seed);
+      const isRigged = (absSeed % 100) < 20; 
+
+      if (!isRigged) {
+          currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
+      } else {
+          if (userSession.isDemo) {
+              if (activeBet) currentRoundResult = activeBet.side === 'heads' ? 'tails' : 'heads';
+              else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
+          } else {
+              try {
+                  const doc = await db.collection("round_bets").doc(roundId.toString()).get();
+                  let headsTotal = doc.exists ? (doc.data().heads || 0) : 0;
+                  let tailsTotal = doc.exists ? (doc.data().tails || 0) : 0;
+                  
+                  if (headsTotal > tailsTotal) currentRoundResult = 'tails'; 
+                  else if (tailsTotal > headsTotal) currentRoundResult = 'heads'; 
+                  else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails'; 
+              } catch(e) {
+                  currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
+              }
+          }
+      }
+  }
+
+  // MAIN SYNC LOOP
+  function gameLoop() {
+      const now = getTrueTime();
+      const elapsedTotal = now % CYCLE_TIME;
+      const newRoundId = Math.floor(now / CYCLE_TIME);
+
+      if (newRoundId !== currentRoundId) {
+          currentRoundId = newRoundId;
+          hasProcessedResult = false;
+          hasStartedSpin = false;
+          hasPlayedResultAudio = false; 
+          floatingAmount.className = 'floating-amount'; 
+          
+          if (isInitialLoad) {
+              initializeGlobalHistory(currentRoundId);
+              isInitialLoad = false;
+          }
+
+          if (queuedBet) { activeBet = queuedBet; queuedBet = null; } 
+          else { activeBet = null; }
+      }
+
+      if (elapsedTotal < PHASE_BET) {
+          gamePhase = 'BETTING';
+          updateUIForBetting(PHASE_BET - elapsedTotal);
+          floatingAmount.className = 'floating-amount'; 
+          
+      } else if (elapsedTotal < (PHASE_BET + PHASE_SPIN)) {
+          gamePhase = 'SPINNING';
+          
+          if (!hasStartedSpin) {
+              hasStartedSpin = true;
+              currentRoundResult = null; 
+
+              fetchRoundResult(currentRoundId).then(() => {
+                  const extraSpins = 8 + (currentRoundId % 3); 
+                  const targetOffset = currentRoundResult === 'heads' ? 0 : 180;
+                  totalRotation1 += extraSpins * 360 + (targetOffset - (totalRotation1 % 360));
+                  const spinDuration = (PHASE_SPIN / 1000) - 0.3; 
+                  coin1.style.transition = `transform ${spinDuration}s cubic-bezier(0.175, 0.885, 0.32, 1.275)`;
+                  coin1.style.transform = `rotateY(${totalRotation1}deg)`;
+              });
+          }
+          
+          updateUIForSpinning();
+
+          if (elapsedTotal >= (PHASE_BET + PHASE_SPIN - 2000) && !hasPlayedResultAudio) {
+              hasPlayedResultAudio = true;
+              resultAudio.currentTime = 0; resultAudio.play().catch(e => {});
+          }
+          
+          if (activeBet && !hasProcessedResult) {
+              floatingAmount.textContent = `₹${activeBet.amount} ON ${activeBet.side.toUpperCase()}`;
+              floatingAmount.className = 'floating-amount show-bet';
+          }
+
+      } else {
+          gamePhase = 'RESULT';
+          
+          if (!hasProcessedResult && currentRoundResult) {
+              showResult(currentRoundResult);
+              processWinnings(currentRoundResult);
+              
+              // UPDATE GLOBAL HEADER HISTORY LIVE
+              globalRecentRounds.push(currentRoundResult);
+              if (globalRecentRounds.length > 20) globalRecentRounds.shift();
+              renderGlobalHistory(true);
+
+              hasProcessedResult = true;
+          }
+      }
+      
+      updateButtonStates();
+      requestAnimationFrame(gameLoop);
+  }
+
+  function updateUIForBetting(timeLeft) {
+      const seconds = (timeLeft / 1000).toFixed(1);
+      statusText.textContent = `PLACE YOUR BETS (${seconds}s)`;
+      statusText.style.color = 'var(--green)';
+      progressBar.style.transform = `scaleX(${timeLeft / PHASE_BET})`;
+      progressBar.style.background = 'rgba(46, 213, 115, 0.2)';
+  }
+
+  function updateUIForSpinning() {
+      statusText.textContent = `COIN IS SPINNING...`;
+      statusText.style.color = 'var(--gold-soft)';
+      progressBar.style.transform = `scaleX(1)`;
+      progressBar.style.background = 'rgba(242,193,78,0.3)';
+  }
+
+  function showResult(outcome) {
+      // NOTE: Removed synthetic shuu beep sound here
+      statusText.textContent = `RESULT: ${outcome.toUpperCase()}`;
+      statusText.style.color = outcome === 'heads' ? 'var(--gold)' : 'var(--cream)';
+      progressBar.style.transform = `scaleX(0)`;
+  }
+
+  function updateButtonStates() {
+      if (activeBet && gamePhase === 'BETTING') {
+          mainBetBtn.textContent = `₹${activeBet.amount} PLACED ON ${activeBet.side.toUpperCase()}`;
+          mainBetBtn.className = "place-bet-btn cancel";
+      } else if (queuedBet && gamePhase !== 'BETTING') {
+          mainBetBtn.textContent = `₹${queuedBet.amount} WAITING (${queuedBet.side.toUpperCase()})`;
+          mainBetBtn.className = "place-bet-btn next-round";
+      } else {
+          mainBetBtn.textContent = (gamePhase === 'BETTING') ? "PLACE BET" : "BET FOR NEXT ROUND";
+          mainBetBtn.className = (gamePhase === 'BETTING') ? "place-bet-btn" : "place-bet-btn next-round";
+      }
+  }
+
+  mainBetBtn.addEventListener('click', async () => {
+      if (inputBetAmount <= 0) { showToastMsg("PLEASE ENTER AMOUNT!"); return; }
+      if (inputBetAmount > realBalance) { showToastMsg("INSUFFICIENT BALANCE!"); return; }
+      if (activeBet && gamePhase === 'BETTING') return; 
+      if (queuedBet && gamePhase !== 'BETTING') return;
+      
+      const betData = { side: pickedSide, amount: inputBetAmount };
+      
+      if (userSession.isDemo) {
+          realBalance -= inputBetAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
+      } else {
+          await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(-inputBetAmount) });
+          const targetRoundId = gamePhase === 'BETTING' ? currentRoundId : currentRoundId + 1;
+          await db.collection("round_bets").doc(targetRoundId.toString()).set({
+              [pickedSide]: firebase.firestore.FieldValue.increment(inputBetAmount)
+          }, { merge: true });
+      }
+
+      if (gamePhase === 'BETTING') activeBet = betData; else queuedBet = betData;
+      inputBetAmount = 0; betAmountEl.textContent = "0.00";
   });
 
-  async function autoPlayLoop(){
-    while(autoPlaying && autoRemaining > 0 && autoStake <= realBalance){
-      autoStatus.innerHTML = `Auto Playing: <b>${autoRemaining}</b> rounds left`;
-      await runFlip(pickedSide, autoStake);
-      autoRemaining--;
-      if(!autoPlaying) break;
-    }
-    autoPlaying = false; autoBetStake = 0; autoBetAmountEl.textContent = 0; selectedRounds = null;
-    autoRow.querySelectorAll('.auto-chip').forEach(c=>c.classList.remove('selected'));
-    autoStatus.textContent = 'Auto Play Finished / Stopped';
-    updateFlipBtn(); updateAutoBtn();
+  async function processWinnings(outcome) {
+      if (!activeBet) return;
+      const won = activeBet.side === outcome;
+      const winAmount = won ? (activeBet.amount * 2) : 0;
+      
+      floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${activeBet.amount.toFixed(2)}`;
+      floatingAmount.className = `floating-amount ${won ? 'pop-win' : 'pop-lose'}`;
+      
+      if (won) {
+          if (userSession.isDemo) {
+              realBalance += winAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
+          } else {
+              await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmount) });
+          }
+      }
+
+      if (!userSession.isDemo) {
+          db.collection("coinflip_history").add({
+              userId: userSession.id, betAmount: activeBet.amount, winAmount: winAmount,
+              sidePicked: activeBet.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+      }
+      
+      addToHistory(activeBet.side, activeBet.amount, outcome, won);
+      activeBet = null; 
   }
 
-  autoBtn.addEventListener('click', () => {
-    if(!autoPlaying){
-      if(flipping || autoBetStake <= 0 || autoBetStake > realBalance || !selectedRounds) return;
-      autoPlaying = true; autoRemaining = selectedRounds; autoStake = autoBetStake;
-      updateAutoBtn(); autoPlayLoop();
-    } else {
-      autoPlaying = false; autoStatus.textContent = 'Stopping...'; updateAutoBtn();
-    }
-  });
+  function addToHistory(side, amount, outcome, won) {
+      myHistoryData.unshift({ side, amount, outcome, won });
+      if (myHistoryData.length > 10) myHistoryData.pop();
+      localStorage.setItem(TOSS_HISTORY_KEY, JSON.stringify(myHistoryData));
+      renderHistory();
+  }
 
+  function renderHistory() {
+      if (myHistoryData.length === 0) { myHistoryList.innerHTML = `<div class="history-empty">No history yet...</div>`; return; }
+      myHistoryList.innerHTML = myHistoryData.map(h => {
+          const cls = h.won ? 'win' : 'lose';
+          const sign = h.won ? '+' : '-';
+          const amt = h.won ? (h.amount * 2) : h.amount;
+          return `<div class="history-item ${cls}">
+            <div class="h-left"><span class="h-side">${h.side}</span><span class="h-tag ${cls}">${h.outcome.toUpperCase()}</span></div>
+            <div class="h-right ${cls}"><span style="color:#aaa; font-size:9px; margin-right:6px;">BET ${h.amount}</span>${sign}₹${amt}</div>
+          </div>`;
+      }).join('');
+  }
+
+  document.getElementById('pickHeads').addEventListener('click', () => { pickedSide = 'heads'; document.getElementById('pickHeads').classList.add('selected'); document.getElementById('pickTails').classList.remove('selected'); });
+  document.getElementById('pickTails').addEventListener('click', () => { pickedSide = 'tails'; document.getElementById('pickTails').classList.add('selected'); document.getElementById('pickHeads').classList.remove('selected'); });
+  document.getElementById('chipRow').querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+          const val = parseFloat(chip.dataset.val);
+          if (val > realBalance - inputBetAmount) { showToastMsg("INSUFFICIENT BALANCE!"); return; }
+          inputBetAmount += val; betAmountEl.textContent = inputBetAmount.toFixed(2);
+      });
+  });
+  document.getElementById('btnReset').addEventListener('click', () => { inputBetAmount = 0; betAmountEl.textContent = "0.00"; });
+  document.getElementById('btnAll').addEventListener('click', () => { inputBetAmount = Math.floor(realBalance); betAmountEl.textContent = inputBetAmount.toFixed(2); });
+
+  syncServerTime().then(() => {
+      requestAnimationFrame(gameLoop);
+  });
 })();
 </script>
 </body>

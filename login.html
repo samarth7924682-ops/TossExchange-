@@ -193,7 +193,16 @@
                     const doc = snap.docs[0];
                     const userData = doc.data();
 
-                    if (userData.locked) { alert("Account Locked!"); btn.innerText = "Login ➜"; return; }
+                    if (userData.locked) {
+                        if (userData.linkedSubAdminId) {
+                            const saDoc = await db.collection("admins").doc(userData.linkedSubAdminId).get();
+                            const saLocked = saDoc.exists ? (saDoc.data().locked || false) : true;
+                            alert(saLocked ? "🔒 Account Locked By Upline" : "🔒 Account Locked By Your Admin. Contact Your Admin.");
+                        } else {
+                            alert("🔒 Account Locked By Your Admin. Contact Your Admin.");
+                        }
+                        btn.innerText = "Login ➜"; return;
+                    }
 
                     if (userData.passwordChanged === true) {
                         localStorage.setItem('userSession', JSON.stringify({id: doc.id, username: userData.username}));

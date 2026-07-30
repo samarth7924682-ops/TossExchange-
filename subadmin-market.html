@@ -114,8 +114,16 @@
             let pnlEl = document.getElementById('sa-pnl');
             pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
             pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+            }
+            function getRelativeDateLabel(ms) {
+            if(!ms) return "UNKNOWN DATE";
+            const d = new Date(ms); const today = new Date(); const tmrw = new Date(); tmrw.setDate(today.getDate() + 1);
+            if(d.toDateString() === today.toDateString()) return "TODAY";
+            if(d.toDateString() === tmrw.toDateString()) return "TOMORROW";
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            return `${d.getDate()} ${months[d.getMonth()]}`;
         }
-
+        
         // 🌟 FINAL EXACT NET VOLUME (BOOK) LOGIC 🌟
         async function initLiveMarket() {
             // Get all downline users
@@ -157,10 +165,13 @@
                         }
                     });
 
-                    // Render UI
-                    matchSnap.forEach(doc => {
-                        const m = doc.data();
-                        const book = saBook[doc.id] || { teamA: 0, teamB: 0 };
+                    // Render UI (sorted by match time - increasing order)
+                    let sortedMatches = [];
+                    matchSnap.forEach(doc => sortedMatches.push({ id: doc.id, ...doc.data() }));
+                    sortedMatches.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+
+                    sortedMatches.forEach(m => {
+                        const book = saBook[m.id] || { teamA: 0, teamB: 0 };
                         
                         let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
                         let signA = book.teamA > 0 ? "+" : ""; 
@@ -171,6 +182,7 @@
                         listVolume.innerHTML += `
                             <div class="slim-strip">
                                 <div class="match-title">🏏 ${m.teamA} vs ${m.teamB}</div>
+                                <div style="font-size:11px; font-weight:bold; color:#666; margin-bottom:6px;">📅 ${getRelativeDateLabel(m.tossTimeMs)} • ${m.tossTimeMs ? new Date(m.tossTimeMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</div>
                                 <div class="volume-stats">
                                     <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
                                         <span style="font-weight:bold; font-size:13px;">${m.teamA}:</span> 

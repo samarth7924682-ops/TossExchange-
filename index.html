@@ -282,12 +282,37 @@
                     
                 } else {
                     db.collection("users").doc(user.id).onSnapshot(d => {
-                        if(d.exists) {
-                            const userData = d.data();
-                            const balEl = document.getElementById('top-bal');
-                            if(balEl) balEl.innerText = Math.floor(userData.balance || 0).toFixed(2);
-                            realAdminWhatsApp = userData.adminNumber || userData.subadminNumber || "";
-                            waWrapper.style.display = 'flex';
+                        if(!d.exists) {
+                            alert("⚠️ Your account has been deleted. Logging out.");
+                            localStorage.removeItem('userSession');
+                            window.location.replace('login.html');
+                            return;
+                        }
+                        const userData = d.data();
+                        const balEl = document.getElementById('top-bal');
+                        if(balEl) balEl.innerText = Math.floor(userData.balance || 0).toFixed(2);
+                        realAdminWhatsApp = userData.adminNumber || userData.subadminNumber || "";
+                        waWrapper.style.display = 'flex';
+
+                        if(userData.locked) {
+                            if(userData.linkedSubAdminId) {
+                                db.collection("admins").doc(userData.linkedSubAdminId).get().then(saDoc => {
+                                    const saLocked = saDoc.exists ? (saDoc.data().locked || false) : true;
+                                    alert(saLocked ? "🔒 Account Locked By Upline" : "🔒 Account Locked By Your Admin. Contact Your Admin.");
+                                    localStorage.removeItem('userSession');
+                                    window.location.replace('login.html');
+                                });
+                            } else {
+                                alert("🔒 Account Locked By Your Admin. Contact Your Admin.");
+                                localStorage.removeItem('userSession');
+                                window.location.replace('login.html');
+                            }
+                        }
+                            } else {
+                                alert("🔒 Account Locked by SubAdmin!");
+                                localStorage.removeItem('userSession');
+                                window.location.replace('login.html');
+                            }
                         }
                     });
 

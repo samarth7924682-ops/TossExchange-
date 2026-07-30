@@ -184,7 +184,7 @@
             btn.innerText = "Please Wait...";
 
             try {
-                let snap = await db.collection("users").where("username", "==", cleanU).where("password", "==", p).get();
+                let snap = await db.collection("users").where("usernameLower", "==", cleanU).where("password", "==", p).get();
                 if(snap.empty) {
                     snap = await db.collection("users").where("username", "==", rawU.trim()).where("password", "==", p).get();
                 }

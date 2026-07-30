@@ -130,18 +130,20 @@
 
         // Create SubAdmin (Username + Opening Balance + editable pre-filled password, duplicate check)
         async function createNewSubAdmin() {
-            const username = document.getElementById('new-user').value.trim();
+            const username = document.getElementById('new-user').value.trim().replace(/\s+/g, '');
             const password = document.getElementById('new-pass').value.trim() || "Subadmin@1234";
             const balance = Math.floor(parseFloat(document.getElementById('new-bal').value) || 0);
 
             if(!username) { alert("Username is required!"); return; }
+            if(/\s/.test(username)) { alert("❌ Username me space allowed nahi hai!"); return; }
 
             try {
-                const check = await db.collection("admins").where("username", "==", username).get();
+                const usernameLower = username.toLowerCase();
+                const check = await db.collection("admins").where("usernameLower", "==", usernameLower).get();
                 if(!check.empty) { alert("⚠️ Username already exists! Please choose a different username."); return; }
 
                 await db.collection("admins").add({
-                    username, password, role: 'subadmin', balance, locked: false
+                    username, usernameLower, password, role: 'subadmin', balance, locked: false
                 });
 
                 alert(` SubAdmin Created!\nUsername: ${username}\nPassword: ${password}`);

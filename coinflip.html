@@ -199,7 +199,12 @@
     letter-spacing: 1px; cursor: pointer; transition: 0.2s;
     background: linear-gradient(135deg, var(--green), #20bf6b); box-shadow: 0 6px 20px rgba(46, 213, 115, 0.4);
   }
-  .place-bet-btn.next-round { background: linear-gradient(135deg, var(--gold-soft), var(--gold)); box-shadow: 0 6px 20px rgba(242,193,78,0.4); }
+  .place-bet-btn.cancel { background: linear-gradient(135deg, var(--red), #ff6b81); box-shadow: 0 6px 20px rgba(255, 71, 87, 0.4); color: white; }
+  
+  /* Added disabled styling to handle cursor when faded out */
+  .place-bet-btn:disabled {
+      cursor: not-allowed !important;
+  }
   
   /* 🌟 HISTORY PANEL 🌟 */
   .history-panel { margin-top: 20px; width: 100%; background: rgba(0,0,0,0.4); border-radius: 16px; padding: 12px; border: 1px solid var(--glass-border); }
@@ -364,9 +369,9 @@
   document.addEventListener('click', forceStartBgMusic);
   document.addEventListener('touchstart', forceStartBgMusic);
 
-  // 🌟 SYNCHRONIZED ENGINE (12-Second Loop)
-  const CYCLE_TIME = 12000; 
-  const PHASE_BET = 4000;
+  // 🌟 SYNCHRONIZED ENGINE (15-Second Loop for 7s Betting)
+  const CYCLE_TIME = 15000; 
+  const PHASE_BET = 7000;
   const PHASE_SPIN = 6000; 
   const PHASE_RESULT = 2000;
 
@@ -382,7 +387,6 @@
   let inputBetAmount = 0;
   
   let activeBet = null; 
-  let queuedBet = null; 
   let currentRoundResult = null; 
   
   // HISTORY PERSISTENCE
@@ -433,35 +437,34 @@
       globalHistoryStrip.scrollLeft = globalHistoryStrip.scrollWidth;
   }
 
-  // 🌟 80/20 HYBRID LOAD BALANCER LOGIC (PERFECTLY SYNCED)
+  // 🌟 70/30 HYBRID LOAD BALANCER LOGIC (70% Fair, 30% Rigged)
   async function fetchRoundResult(roundId) {
       let seed = roundId * 987654321;
       seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
       const absSeed = Math.abs(seed);
-      const isRigged = (absSeed % 100) < 20; 
+      
+      // 🔥 30% TIME RIGGED (Load based), 70% FAIR (Random) 🔥
+      const isRigged = (absSeed % 100) < 30; 
 
-      if (!isRigged) {
+      if (!isRigged || userSession.isDemo) {
           currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
       } else {
-          if (userSession.isDemo) {
-              if (activeBet) currentRoundResult = activeBet.side === 'heads' ? 'tails' : 'heads';
-              else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
-          } else {
-              try {
-                  const doc = await db.collection("round_bets").doc(roundId.toString()).get();
-                  let headsTotal = doc.exists ? (doc.data().heads || 0) : 0;
-                  let tailsTotal = doc.exists ? (doc.data().tails || 0) : 0;
-                  
-                  if (headsTotal > tailsTotal) currentRoundResult = 'tails'; 
-                  else if (tailsTotal > headsTotal) currentRoundResult = 'heads'; 
-                  else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails'; 
-              } catch(e) {
-                  currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
-              }
+          try {
+              const doc = await db.collection("round_bets").doc(roundId.toString()).get();
+              let headsTotal = doc.exists ? (doc.data().heads || 0) : 0;
+              let tailsTotal = doc.exists ? (doc.data().tails || 0) : 0;
+              
+              if (headsTotal > tailsTotal) currentRoundResult = 'tails'; 
+              else if (tailsTotal > headsTotal) currentRoundResult = 'heads'; 
+              else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails'; 
+          
+      } catch(e) {
+              currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
           }
       }
   }
 
+          
   // MAIN SYNC LOOP
   function gameLoop() {
       const now = getTrueTime();
@@ -480,8 +483,8 @@
               isInitialLoad = false;
           }
 
-          if (queuedBet) { activeBet = queuedBet; queuedBet = null; } 
-          else { activeBet = null; }
+          // Active bet ko reset kar diya gaya hai, No next round bets allowed
+          activeBet = null; 
       }
 
       if (elapsedTotal < PHASE_BET) {
@@ -561,23 +564,35 @@
   }
 
   function updateButtonStates() {
-      if (activeBet && gamePhase === 'BETTING') {
-          mainBetBtn.textContent = `₹${activeBet.amount} PLACED ON ${activeBet.side.toUpperCase()}`;
-          mainBetBtn.className = "place-bet-btn cancel";
-      } else if (queuedBet && gamePhase !== 'BETTING') {
-          mainBetBtn.textContent = `₹${queuedBet.amount} WAITING (${queuedBet.side.toUpperCase()})`;
-          mainBetBtn.className = "place-bet-btn next-round";
+      if (gamePhase === 'BETTING') {
+          if (activeBet) {
+              mainBetBtn.textContent = `₹${activeBet.amount} PLACED ON ${activeBet.side.toUpperCase()}`;
+              mainBetBtn.className = "place-bet-btn cancel";
+              mainBetBtn.disabled = true;
+              mainBetBtn.style.opacity = "0.9";
+          } else {
+              mainBetBtn.textContent = "PLACE BET";
+              mainBetBtn.className = "place-bet-btn";
+              mainBetBtn.disabled = false;
+              mainBetBtn.style.opacity = "1";
+          }
       } else {
-          mainBetBtn.textContent = (gamePhase === 'BETTING') ? "PLACE BET" : "BET FOR NEXT ROUND";
-          mainBetBtn.className = (gamePhase === 'BETTING') ? "place-bet-btn" : "place-bet-btn next-round";
+          // Fade out the button during SPIN and RESULT phases
+          mainBetBtn.textContent = "PLACE BETS";
+          mainBetBtn.className = "place-bet-btn";
+          mainBetBtn.disabled = true;
+          mainBetBtn.style.opacity = "0.4"; // Opacity fade kar di hai
       }
   }
 
   mainBetBtn.addEventListener('click', async () => {
+      if (gamePhase !== 'BETTING') {
+          showToastMsg("PLEASE WAIT FOR THE NEXT ROUND!");
+          return;
+      }
       if (inputBetAmount <= 0) { showToastMsg("PLEASE ENTER AMOUNT!"); return; }
       if (inputBetAmount > realBalance) { showToastMsg("INSUFFICIENT BALANCE!"); return; }
-      if (activeBet && gamePhase === 'BETTING') return; 
-      if (queuedBet && gamePhase !== 'BETTING') return;
+      if (activeBet) return; 
       
       const betData = { side: pickedSide, amount: inputBetAmount };
       
@@ -585,13 +600,13 @@
           realBalance -= inputBetAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
       } else {
           await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(-inputBetAmount) });
-          const targetRoundId = gamePhase === 'BETTING' ? currentRoundId : currentRoundId + 1;
+          const targetRoundId = currentRoundId;
           await db.collection("round_bets").doc(targetRoundId.toString()).set({
               [pickedSide]: firebase.firestore.FieldValue.increment(inputBetAmount)
           }, { merge: true });
       }
 
-      if (gamePhase === 'BETTING') activeBet = betData; else queuedBet = betData;
+      activeBet = betData;
       inputBetAmount = 0; betAmountEl.textContent = "0.00";
   });
 

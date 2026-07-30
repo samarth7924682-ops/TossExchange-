@@ -101,11 +101,12 @@
     <script src="app.js"></script>
 
     <script>
+    (function(){
         // 🛡️ Security Check
         const subAdminSession = localStorage.getItem('adminSession');
-        if(!subAdminSession) { window.location.replace("subadmin-login.html"); }
+        if(!subAdminSession) { window.location.replace("subadmin-login.html"); return; }
         const subAdmin = JSON.parse(subAdminSession);
-        if(subAdmin.role !== 'subadmin') { window.location.replace("subadmin-login.html"); }
+        if(subAdmin.role !== 'subadmin') { window.location.replace("subadmin-login.html"); return; }
         
         let currentSubAdminBalance = 0;
         let matchDict = {}; 
@@ -370,16 +371,21 @@
             const balance = Math.floor(parseFloat(document.getElementById('new-bal').value) || 0);
             
             if(!username || !password) { alert("Username and Password are required!"); return; }
+            if(/\s/.test(username)) { alert("❌ Username me space allowed nahi hai!"); return; }
             if(balance > currentSubAdminBalance) { alert("❌ Insufficient Wallet Balance!"); return; }
             
+            const usernameLower = username.toLowerCase();
+
             try {
-                const check = await db.collection("users").where("username", "==", username).get();
-                if(!check.empty) { alert("Username already exists!"); return; }
+                // 🌟 Case-insensitive duplicate check (checks ACROSS all subadmins) 🌟
+                const check = await db.collection("users").where("usernameLower", "==", usernameLower).get();
+                if(!check.empty) { alert("❌ Username already exists! (Naam already kisi subadmin ne bana rakha hai)"); return; }
 
                 const batch = db.batch();
                 const newUserRef = db.collection("users").doc();
                 batch.set(newUserRef, {
                     username, 
+                    usernameLower,
                     password, 
                     balance,
                     locked: false,
@@ -415,6 +421,7 @@
         }
 
         loadMyUsers();
+        })();
     </script>
 </body>
 </html>

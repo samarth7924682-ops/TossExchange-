@@ -125,7 +125,7 @@
 
             try {
                 const snap = await db.collection("admins")
-                                     .where("username", "==", cleanU)
+                                     .where("usernameLower", "==", cleanU)
                                      .where("password", "==", cleanP)
                                      .where("role", "==", "subadmin")
                                      .get();

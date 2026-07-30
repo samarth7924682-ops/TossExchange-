@@ -50,7 +50,7 @@
         const MASTER_DOC_ID = "master_demo_id";
 
         async function login() {
-            let u = document.getElementById('user').value.trim();
+            let u = document.getElementById('user').value.trim().replace(/\s+/g, '');
             let p = document.getElementById('pass').value.trim();
 
             const btn = document.getElementById('loginBtn');

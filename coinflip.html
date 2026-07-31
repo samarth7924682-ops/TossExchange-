@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚡ TOSS EXCH - Live Coin Flip</title>
+<title>⚡ TOSS EXCH- Live Coin Flip</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap');
 
@@ -24,7 +24,10 @@
 
   body {
     min-height: 100vh;
-    background: radial-gradient(circle at 50% -20%, #1a153a, var(--bg-deep) 70%);
+    /* Romantic-themed background added as per active context */
+    background: url('105312.jpg') no-repeat center center fixed, radial-gradient(circle at 50% -20%, #1a153a, var(--bg-deep) 70%);
+    background-size: cover;
+    background-blend-mode: overlay;
     font-family: 'Inter', sans-serif;
     color: var(--cream);
     display: flex;
@@ -62,23 +65,6 @@
   }
   .header-bal b { color: var(--gold); }
 
-  /* 🌟 GLOBAL HISTORY STRIP (LAST ROUNDS) 🌟 */
-  .global-history-strip {
-    width: 100%; background: rgba(0, 0, 0, 0.6); padding: 8px 15px;
-    display: flex; gap: 8px; overflow-x: auto; border-bottom: 1px solid var(--glass-border);
-    scroll-behavior: smooth;
-  }
-  .global-history-strip::-webkit-scrollbar { display: none; }
-  .gh-item {
-    min-width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; 
-    justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 900;
-    flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-  }
-  .gh-item.heads { background: rgba(242, 193, 78, 0.15); color: var(--gold); border: 1px solid var(--gold); }
-  .gh-item.tails { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border: 1px solid #64748b; }
-  .gh-item.new-result { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-  @keyframes popIn { 0% { transform: scale(0.1); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-
   .game-container { width: 100%; max-width: 400px; padding: 15px; margin-top: 5px; }
 
   /* 🌟 STATUS BAR 🌟 */
@@ -101,7 +87,7 @@
   .stage {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     height: 160px; perspective: 1000px; margin-bottom: 20px; position: relative;
-    border-radius: 20px; overflow: hidden; background: rgba(0,0,0,0.2);
+    border-radius: 20px; overflow: hidden; background: rgba(0,0,0,0.4); /* Slightly darkened for image background */
     border: 1px solid rgba(255,255,255,0.03);
   }
   /* Rotating Light Beams Background */
@@ -207,7 +193,7 @@
   }
   
   /* 🌟 HISTORY PANEL 🌟 */
-  .history-panel { margin-top: 20px; width: 100%; background: rgba(0,0,0,0.4); border-radius: 16px; padding: 12px; border: 1px solid var(--glass-border); }
+  .history-panel { margin-top: 20px; width: 100%; background: rgba(0,0,0,0.6); border-radius: 16px; padding: 12px; border: 1px solid var(--glass-border); }
   .history-title { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(255,255,255,0.5); text-align: center; margin-bottom: 10px; letter-spacing: 1px; }
   .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 130px; overflow-y: auto; padding-right: 4px; }
   .history-list::-webkit-scrollbar { width: 3px; }
@@ -233,13 +219,8 @@
 <div id="toastMsg" class="toast-msg">PLEASE ENTER AMOUNT!</div>
 
 <div class="premium-header">
-  <a href="index.html" class="header-brand">🪙 TOSS EXCH</a>
+  <a href="index.html" class="header-brand">🪙 HEAD / TAIL</a>
   <div class="header-bal">🪙 <b id="coins">0.00</b></div>
-</div>
-
-<!-- GLOBAL HEADER HISTORY (Aviator Style Strip) -->
-<div class="global-history-strip" id="globalHistoryStrip">
-  <!-- JavaScript fill karega yaha past rounds -->
 </div>
 
 <div class="game-container">
@@ -380,7 +361,6 @@
   let hasProcessedResult = false;
   let hasStartedSpin = false;
   let hasPlayedResultAudio = false; 
-  let isInitialLoad = true;
   
   let totalRotation1 = 0;
   let pickedSide = 'heads';
@@ -395,8 +375,6 @@
   const savedHist = localStorage.getItem(TOSS_HISTORY_KEY);
   if(savedHist) myHistoryData = JSON.parse(savedHist);
 
-  let globalRecentRounds = [];
-
   const statusText = document.getElementById('statusText');
   const progressBar = document.getElementById('progressBar');
   const coin1 = document.getElementById('coin1');
@@ -404,7 +382,6 @@
   const betAmountEl = document.getElementById('betAmount');
   const mainBetBtn = document.getElementById('mainBetBtn');
   const myHistoryList = document.getElementById('myHistoryList');
-  const globalHistoryStrip = document.getElementById('globalHistoryStrip');
 
   renderHistory();
 
@@ -415,39 +392,21 @@
       setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
-  // Pre-calculate last 15 rounds based on seed for initial header strip
-  function initializeGlobalHistory(currentId) {
-      globalRecentRounds = [];
-      for (let i = 15; i > 0; i--) {
-          let pastId = currentId - i;
-          let seed = pastId * 987654321;
-          seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
-          const absSeed = Math.abs(seed);
-          globalRecentRounds.push((absSeed % 2 === 0) ? 'heads' : 'tails');
-      }
-      renderGlobalHistory(false);
-  }
-
-  function renderGlobalHistory(animateLast = false) {
-      globalHistoryStrip.innerHTML = globalRecentRounds.map((res, index) => {
-          let animateClass = (animateLast && index === globalRecentRounds.length - 1) ? 'new-result' : '';
-          return `<div class="gh-item ${res} ${animateClass}">${res === 'heads' ? 'H' : 'T'}</div>`;
-      }).join('');
-      // Auto-scroll to latest
-      globalHistoryStrip.scrollLeft = globalHistoryStrip.scrollWidth;
-  }
-
-  // 🌟 70/30 HYBRID LOAD BALANCER LOGIC (70% Fair, 30% Rigged)
+ // 🌟 70/30 HYBRID LOAD BALANCER LOGIC (UNPREDICTABLE FAIR ROUNDS)
   async function fetchRoundResult(roundId) {
-      let seed = roundId * 987654321;
-      seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
-      const absSeed = Math.abs(seed);
+      // 🔥 Pattern-Breaker Math (Trigonometric Chaos) to completely destroy H/T streaks
+      let chaos1 = Math.sin(roundId * 12.9898 + 78.233) * 43758.5453;
+      let randVal1 = chaos1 - Math.floor(chaos1); // 0.0 to 1.0 random value
       
+      let chaos2 = Math.sin(roundId * 93.234 + 12.345) * 55555.5555;
+      let randVal2 = chaos2 - Math.floor(chaos2); // Another completely different random value for Coin Toss
+
       // 🔥 30% TIME RIGGED (Load based), 70% FAIR (Random) 🔥
-      const isRigged = (absSeed % 100) < 30; 
+      const isRigged = (randVal1 * 100) < 30; 
 
       if (!isRigged || userSession.isDemo) {
-          currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
+          // Unpredictable Decider for Fair Rounds
+          currentRoundResult = (randVal2 < 0.5) ? 'heads' : 'tails';
       } else {
           try {
               const doc = await db.collection("round_bets").doc(roundId.toString()).get();
@@ -456,15 +415,13 @@
               
               if (headsTotal > tailsTotal) currentRoundResult = 'tails'; 
               else if (tailsTotal > headsTotal) currentRoundResult = 'heads'; 
-              else currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails'; 
-          
-      } catch(e) {
-              currentRoundResult = (absSeed % 2 === 0) ? 'heads' : 'tails';
+              else currentRoundResult = (randVal2 < 0.5) ? 'heads' : 'tails'; 
+          } catch(e) {
+              currentRoundResult = (randVal2 < 0.5) ? 'heads' : 'tails';
           }
       }
   }
 
-          
   // MAIN SYNC LOOP
   function gameLoop() {
       const now = getTrueTime();
@@ -477,11 +434,6 @@
           hasStartedSpin = false;
           hasPlayedResultAudio = false; 
           floatingAmount.className = 'floating-amount'; 
-          
-          if (isInitialLoad) {
-              initializeGlobalHistory(currentRoundId);
-              isInitialLoad = false;
-          }
 
           // Active bet ko reset kar diya gaya hai, No next round bets allowed
           activeBet = null; 
@@ -528,11 +480,6 @@
               showResult(currentRoundResult);
               processWinnings(currentRoundResult);
               
-              // UPDATE GLOBAL HEADER HISTORY LIVE
-              globalRecentRounds.push(currentRoundResult);
-              if (globalRecentRounds.length > 20) globalRecentRounds.shift();
-              renderGlobalHistory(true);
-
               hasProcessedResult = true;
           }
       }
@@ -550,7 +497,7 @@
   }
 
   function updateUIForSpinning() {
-      statusText.textContent = `COIN IS SPINNING...`;
+      statusText.textContent = ` SPINNING`;
       statusText.style.color = 'var(--gold-soft)';
       progressBar.style.transform = `scaleX(1)`;
       progressBar.style.background = 'rgba(242,193,78,0.3)';

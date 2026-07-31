@@ -194,24 +194,33 @@
     let serverTimeOffset = 0;
 
     async function syncServerTime() {
-        try {
-            const beforeReq = Date.now();
-            const syncDocId = (user && user.id) ? user.id : "demo_" + Math.floor(Math.random()*1000000);
-            const ref = db.collection("_timeSync").doc(syncDocId);
-            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
-            const snap = await ref.get();
-            const afterReq = Date.now();
+    try {
+        const beforeReq = Date.now();
+        const syncDocId = (user && user.id) ? user.id : "demo_" + Math.floor(Math.random()*1000000);
+        const ref = db.collection("_timeSync").doc(syncDocId);
+        await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+        const snap = await ref.get();
+        const afterReq = Date.now();
 
-            const serverMs = snap.data().t.toMillis();
-            const roundTrip = afterReq - beforeReq;
-            const estimatedServerNow = serverMs + (roundTrip / 2);
+        const serverMs = snap.data().t.toMillis();
+        const roundTrip = afterReq - beforeReq;
 
-            serverTimeOffset = estimatedServerNow - afterReq;
-        } catch(e) {
-            console.log("Time sync failed, using local time", e);
-            serverTimeOffset = 0;
+        // Agar network slow tha (bada roundtrip), to ye sample skip karo — galat offset set nahi hoga
+        if (roundTrip > 1500) {
+            console.log("Time sync skipped: high latency", roundTrip);
+            return;
         }
+
+        const estimatedServerNow = serverMs + (roundTrip / 2);
+        serverTimeOffset = estimatedServerNow - afterReq;
+    } catch(e) {
+        // Purana offset hi rakho, 0 pe reset mat karo — warna phone galat time pe chala jayega
+        console.log("Time sync failed, keeping previous offset", e);
     }
+}
+
+// Har 15 second me dobara sync — clock drift/galat sync se safe rahega
+setInterval(syncServerTime, 15000);
 
     window.getTrueTime = function() {
         return Date.now() + serverTimeOffset;

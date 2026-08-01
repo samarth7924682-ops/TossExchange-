@@ -249,31 +249,32 @@ setInterval(syncServerTime, 15000);
         let r = rng();
         let mult;
         
-                // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
-        if (r < 0.06) {
-            // 6% chances: Exact 1.00x par crash
+                        // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
+        if (r < 0.10) {
+            // 10% chances: Exact 1.00x par crash
             mult = 1.00; 
         } 
-        else if (r < 0.26) { // 0.06 + 0.20
-            // 20% chances: 1.00x se 1.10x ke beech (1.00 + 0.10 = 1.10)
-            mult = 1.00 + rng() * 0.10; 
+        else if (r < 0.30) { // 0.10 + 0.20
+            // 20% chances: 1.00x se 1.50x ke beech (1.00 + 0.50 = 1.50)
+            mult = 1.00 + rng() * 0.50; 
         } 
-        else if (r < 0.47) { // 0.26 + 0.21
-            // 21% chances: 1.10x se 1.50x ke beech (1.10 + 0.40 = 1.50)
-            mult = 1.10 + rng() * 0.40;
+        else if (r < 0.54) { // 0.30 + 0.24
+            // 24% chances: 1.10x se 2.00x ke beech (1.10 + 0.90 = 2.00)
+            mult = 1.10 + rng() * 0.90;
         } 
-        else if (r < 0.72) { // 0.47 + 0.25
-            // 25% chances: 1.50x se 2.00x ke beech (1.50 + 0.50 = 2.00)
+        else if (r < 0.84) { // 0.54 + 0.30
+            // 30% chances: 1.50x se 2.00x ke beech (1.50 + 0.50 = 2.00)
             mult = 1.50 + rng() * 0.50;
         } 
-        else if (r < 0.95) { // 0.72 + 0.23
-            // 23% chances: 2.00x se 2.99x ke beech (2.00 + 0.99 = 2.99)
-            mult = 2.00 + rng() * 0.99;
+        else if (r < 0.94) { // 0.84 + 0.10
+            // 10% chances: 1.90x se 2.99x ke beech (1.90 + 1.09 = 2.99)
+            mult = 1.90 + rng() * 1.09;
         } 
-        else { // 0.95 + 0.05 = 1.00
-            // 5% chances: 3.00x se 4.80x ke beech (3.00 + 1.80 = 4.80)
-            mult = 3.00 + rng() * 1.80; 
+        else { // 0.94 + 0.06 = 1.00
+            // 6% chances: 3.00x se 10.00x ke beech (3.00 + 7.00 = 10.00)
+            mult = 3.00 + rng() * 7.00; 
         }
+        
    
         
    

@@ -255,7 +255,7 @@ setInterval(syncServerTime, 15000);
         let r = rng();
         let mult;
         
-                                    // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
+                                            // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
         // Randomness ki wajah se ye serial me nahi chalega, har baar alag range aayegi
         if (r < 0.10) {
             // 10% chances: Exact 1.00x par crash
@@ -269,8 +269,12 @@ setInterval(syncServerTime, 15000);
             // 15% chances: 1.10x se 1.50x ke beech (1.10 + 0.40 = 1.50)
             mult = 1.10 + rng() * 0.40; 
         } 
-        else if (r < 0.745) { // 0.375 + 0.37
-            // 37% chances: 1.01x se 2.00x ke beech (1.01 + 0.99 = 2.00)
+        else if (r < 0.425) { // 0.375 + 0.05
+            // 5% chances: 1.50x se 1.98x ke beech (1.50 + 0.48 = 1.98)
+            mult = 1.50 + rng() * 0.48; 
+        } 
+        else if (r < 0.745) { // 0.425 + 0.32
+            // 32% chances: 1.01x se 2.00x ke beech (1.01 + 0.99 = 2.00)
             mult = 1.01 + rng() * 0.99; 
         } 
         else if (r < 0.845) { // 0.745 + 0.10
@@ -289,7 +293,7 @@ setInterval(syncServerTime, 15000);
             // 0.5% chances: 10.01x se 50.00x ke beech (10.01 + 39.99 = 50.00)
             mult = 10.01 + rng() * 39.99;
         }
-        
+          
         
         
         

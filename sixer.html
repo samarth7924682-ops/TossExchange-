@@ -249,26 +249,34 @@ setInterval(syncServerTime, 15000);
         let r = rng();
         let mult;
         
-                                
-                           // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
-        if (r < 0.15) {
-            // 15% chances: Exact 1.00x par crash
+            // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
+        // Randomness ki wajah se ye serial me nahi chalega, har baar alag range aayegi
+        if (r < 0.22) {
+            // 22% chances: Exact 1.00x par crash
             mult = 1.00; 
         } 
-        else if (r < 0.24) { // 0.15 + 0.09
-            // 9% chances: 1.70x se 2.49x ke beech (1.70 + 0.79 = 2.49)
-            mult = 1.70 + rng() * 0.79; 
+        else if (r < 0.37) { // 0.22 + 0.15
+            // 15% chances: 1.10x se 1.50x ke beech (1.10 + 0.40 = 1.50)
+            mult = 1.10 + rng() * 0.40; 
         } 
-        else if (r < 0.82) { // 0.24 + 0.58
-            // 58% chances: 1.01x se 2.00x ke beech (1.01 + 0.99 = 2.00)
+        else if (r < 0.42) { // 0.37 + 0.05
+            // 5% chances: 1.50x se 1.98x ke beech (1.50 + 0.48 = 1.98)
+            mult = 1.50 + rng() * 0.48; 
+        } 
+        else if (r < 0.74) { // 0.42 + 0.32
+            // 32% chances: 1.01x se 2.00x ke beech (1.01 + 0.99 = 2.00)
             mult = 1.01 + rng() * 0.99; 
         } 
-        else if (r < 0.92) { // 0.82 + 0.10
+        else if (r < 0.84) { // 0.74 + 0.10
+            // 10% chances: 2.00x se 2.50x ke beech (2.00 + 0.50 = 2.50)
+            mult = 2.00 + rng() * 0.50; 
+        }
+        else if (r < 0.94) { // 0.84 + 0.10
             // 10% chances: 2.01x se 5.00x ke beech (2.01 + 2.99 = 5.00)
             mult = 2.01 + rng() * 2.99;
         } 
-        else if (r < 0.99) { // 0.92 + 0.07
-            // 7% chances: 5.01x se 10.00x ke beech (5.01 + 4.99 = 10.00)
+        else if (r < 0.99) { // 0.94 + 0.05
+            // 5% chances: 5.01x se 10.00x ke beech (5.01 + 4.99 = 10.00)
             mult = 5.01 + rng() * 4.99;
         } 
         else if (r < 0.995) { // 0.99 + 0.005
@@ -280,12 +288,7 @@ setInterval(syncServerTime, 15000);
             mult = 50.00 + rng() * 50.00; 
         }
         
-        
-        
-        
-        
-        
-        mult = parseFloat(mult.toFixed(2));  
+               mult = parseFloat(mult.toFixed(2));  
         masterSequence.push(mult);
 
         // 1.00x rounds ka asli growth-rate 0 hota hai (log(1)=0), isliye unke liye

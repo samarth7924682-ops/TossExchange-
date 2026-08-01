@@ -236,10 +236,11 @@ setInterval(syncServerTime, 15000);
         };
     }
     
-    const rng = LCG(786786);
+       const rng = LCG(786786);
     const SPEED_RATE = 0.1215; // thodi si slow speed
-    const TAKEOFF_MS = 1000; // waiting khatam hone ke baad plane 1 sec ruk kar (engine flame ke saath) udta hai
-    const ZERO_CRASH_FLY_MS = 900; // 1.00x wale round bhi ab thoda "udte" hue dikhenge, instant crash nahi
+    const TAKEOFF_MS = 2000; // FIX: Sab round me plane exactly 2 seconds rukega (engine flame)
+    const ZERO_CRASH_FLY_MS = 0; // FIX: 1.00x turant crash hoga taaki koi cashout na kar sake
+    
     const masterSequence = [];
     const sequenceData = [];
     let accumulatedTime = 0;
@@ -248,31 +249,44 @@ setInterval(syncServerTime, 15000);
         let r = rng();
         let mult;
         
-        // NAYA LOGIC (100% = 100 rounds setup)
+                // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
         if (r < 0.20) {
-            // 20% chances (20 rounds): Exactly 1.00x par crash
-            mult = 1.00;
+            // 20% chances: 1.00x se 1.10x ke beech
+            mult = 1.00 + rng() * 0.10; 
         } 
-        else if (r < 0.40) {
-            // 20% chances (20 rounds): 1.01x se 1.50x ke beech
-            mult = 1.01 + rng() * 0.49;
+        else if (r < 0.40) { // 0.20 + 0.20
+            // 20% chances: 1.10x se 1.50x ke beech
+            mult = 1.10 + rng() * 0.40;
         } 
-        else if (r < 0.62) {
-            // 22% chances (22 rounds): 1.50x se 2.50x ke beech
-            mult = 1.50 + rng() * 1.00;
+        else if (r < 0.60) { // 0.40 + 0.20
+            // 20% chances: 1.50x se 2.00x ke beech
+            mult = 1.50 + rng() * 0.50;
         } 
-        else if (r < 0.85) {
-            // 23% chances (23 rounds): 2.00x se 3.00x ke beech
-            mult = 2.00 + rng() * 1.00;
+        else if (r < 0.80) { // 0.60 + 0.20
+            // 20% chances: 2.00x se 2.99x ke beech
+            mult = 2.00 + rng() * 0.99;
         } 
-        else if (r < 0.95) {
-            // 10% chances (10 rounds): 3.00x se 10.00x ke beech
-            mult = 3.00 + rng() * 7.00;
+        else if (r < 0.85) { // 0.80 + 0.05
+            // 5% chances: 3.00x se 5.00x ke beech
+            mult = 3.00 + rng() * 2.00;
         } 
-        else {
-            // Bachi hui 5% chances (5 rounds): 10.00x se 100.00x ke beech
-            mult = 10.00 + rng() * 90.00;
+        else if (r < 0.90) { // 0.85 + 0.05
+            // 5% chances: 5.00x se 5.60x ke beech
+            mult = 5.00 + rng() * 0.60;
         }
+        else if (r < 0.93) { // 0.90 + 0.03
+            // 3% chances: 5.60x se 6.00x ke beech
+            mult = 5.60 + rng() * 0.40;
+        }
+        else if (r < 0.98) { // 0.93 + 0.05
+            // 5% chances: 6.00x se 10.00x ke beech
+            mult = 6.00 + rng() * 4.00;
+        }
+        else { // 0.98 + 0.02 = 1.00
+            // 2% chances: 20.00x se 100.00x ke beech
+            mult = 20.00 + rng() * 80.00;
+        }
+        
 
         mult = parseFloat(mult.toFixed(2));  
         masterSequence.push(mult);
@@ -349,11 +363,7 @@ setInterval(syncServerTime, 15000);
     const betInput = document.getElementById('betInput'); const autoBetToggle = document.getElementById('autoBetToggle');
     const autoCashoutToggle = document.getElementById('autoCashoutToggle'); const autoCashoutVal = document.getElementById('autoCashoutVal');
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let engineOsc = null, engineGain = null;
-    document.body.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); });
-
-    // 🎵 Background Music
+        // 🎵 Background Music (Aapka MP3)
     const bgMusic = new Audio('aviator-bg-music.mp3');
     bgMusic.loop = true;
     bgMusic.volume = 0.35;
@@ -365,17 +375,12 @@ setInterval(syncServerTime, 15000);
     });
     window.addEventListener('DOMContentLoaded', startBgMusic);
 
-    function startEngineSound() {
-        try {
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-            if(!engineOsc) {
-                engineOsc = audioCtx.createOscillator(); engineGain = audioCtx.createGain();
-                engineOsc.type = 'triangle'; engineOsc.frequency.setValueAtTime(60, audioCtx.currentTime); 
-                engineGain.gain.setValueAtTime(0, audioCtx.currentTime); engineGain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 1); 
-                engineOsc.connect(engineGain); engineGain.connect(audioCtx.destination); engineOsc.start();
-            }
-        } catch(e) {}
-    }
+    // FIX: "Hmmmm" (Engine) wala sound hamesha ke liye hata diya gaya hai.
+    // Functions ko khali chhod diya hai taaki loop me koi error na aaye.
+    function startEngineSound() { }
+    function updateEngineSound(mult) { }
+    function stopEngineSound() { }
+    
     function updateEngineSound(mult) { try { if(engineOsc) { let freq = 60 + (Math.log(mult) * 150); if(freq > 600) freq = 600; engineOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.2); } } catch(e) {} }
     function stopEngineSound() { try { if(engineGain) engineGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2); if(engineOsc) { engineOsc.stop(audioCtx.currentTime + 0.3); engineOsc = null; } } catch(e) {} }
 
@@ -851,16 +856,13 @@ function triggerWinPopup(winAmt, mult) {
         drawBackgroundOnly(elapsed);
         let w = canvas.clientWidth; let h = canvas.clientHeight;
         
-        let visualMult = currMult;
+                let visualMult = currMult;
         let showPlane = !isCrashed;
         let showTrail = !isCrashed;
 
-        if (!isCrashed && currMult === 1.00) {
-            // 1.00x round ke FLYING phase me plane ko thoda visually upar uthao —
-            // asli currentMult/payout hamesha 1.00 hi rehta hai (koi exploit nahi), sirf drawing badalti hai.
-            let t = Math.min(elapsed / ZERO_CRASH_FLY_MS, 1);
-            visualMult = 1.00 + (t * 0.14);
-        }
+        // FIX: Koi special rocket animation nahi. 
+        // 1.00x bhi ab 2.00x ya 5.00x ki tarah normal crash (gayab) hoga.
+        
 
         let finalProg = Math.min((visualMult - 1) / 0.50, 1); 
         let currentX = 20 + finalProg * (w - 80);

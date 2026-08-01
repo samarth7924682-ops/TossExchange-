@@ -236,7 +236,13 @@ setInterval(syncServerTime, 15000);
         };
     }
     
-       const rng = LCG(786786);
+               // NAYA LOGIC: Har ghante (Every Hour) naya unpredictable pattern banega!
+        // AI ya hacker koi bhi agla crash predict nahi kar payega.
+        let now = new Date();
+        // UTC time use kiya hai taaki duniya ke saare phones par crash ek sath ho
+        let dynamicSeed = now.getUTCFullYear() * 1000000 + (now.getUTCMonth() + 1) * 10000 + now.getUTCDate() * 100 + now.getUTCHours();
+        const rng = LCG(dynamicSeed);
+        
     const SPEED_RATE = 0.1215; // thodi si slow speed
     const TAKEOFF_MS = 2000; // FIX: Sab round me plane exactly 2 seconds rukega (engine flame)
     const ZERO_CRASH_FLY_MS = 0; // FIX: 1.00x turant crash hoga taaki koi cashout na kar sake
@@ -474,7 +480,7 @@ setInterval(syncServerTime, 15000);
     // ----------------------------------------------------
     // USER ACTIONS & CORE LOOP
     // ----------------------------------------------------
-    window.handleAction = function() {
+       window.handleAction = function() {
         let amt = parseInt(betInput.value);
 
         if (betState === 'IDLE') {
@@ -494,9 +500,16 @@ setInterval(syncServerTime, 15000);
             if(autoBetToggle.checked) autoBetToggle.checked = false;
         }
         else if (betState === 'IN_PLAY') {
+            // NAYA LOGIC: Takeoff (ruke hue) phase me 1.00x par Cashout Block karna hai
+            let currentState = getGlobalGameState().state;
+            if (currentState === 'TAKEOFF') {
+                console.log("Plane udne se pehle cashout allowed nahi hai!");
+                return; // Ye code ko wahin rok dega, aur cashout nahi hoga
+            }
             executeCashout(currentGlobalMultiplier);
         }
     }
+    
 
     function triggerCoinAnimation() {
         const btnRect = actionBtn.getBoundingClientRect(); 
@@ -655,13 +668,16 @@ function triggerWinPopup(winAmt, mult) {
             drawBackgroundOnly(globalState.elapsed);
             if (lastState !== 'WAITING') { if (autoBetToggle.checked && betState === 'IDLE') handleAction(); }
 
-        // --- TAKEOFF PHASE (waiting khatam, plane 1 sec ruk kar engine garam karta hai) ---
+                // --- TAKEOFF PHASE (waiting khatam, plane 1 sec ruk kar engine garam karta hai) ---
         } else if (globalState.state === 'TAKEOFF') {
+            currentGlobalMultiplier = 1.00; // FIX: Yahan exact 1.00 set karo taaki extra money win ka glitch theek ho jaye
+
             waitingScreen.style.display = 'none';
             multDisplay.style.display = 'block';
             multVal.style.color = 'var(--text-main)';
             multVal.style.fontSize = '85px';
             multVal.innerText = '1.00x';
+            
 
             if (lastState !== 'TAKEOFF') {
                 // Bet yahi lock hoti hai — round shuru ho chuka hai, ab cancel nahi ho sakta

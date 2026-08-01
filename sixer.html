@@ -249,42 +249,34 @@ setInterval(syncServerTime, 15000);
         let r = rng();
         let mult;
         
-                // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
-        if (r < 0.20) {
+                        // NAYA LOGIC: User Exact Distribution (Total Exactly 100%)
+        if (r < 0.02) {
+            // 2% chances: Exact 1.00x par crash
+            mult = 1.00; 
+        } 
+        else if (r < 0.22) { // 0.02 + 0.20
             // 20% chances: 1.00x se 1.10x ke beech
             mult = 1.00 + rng() * 0.10; 
         } 
-        else if (r < 0.40) { // 0.20 + 0.20
-            // 20% chances: 1.10x se 1.50x ke beech
+        else if (r < 0.43) { // 0.22 + 0.21
+            // 21% chances: 1.10x se 1.50x ke beech
             mult = 1.10 + rng() * 0.40;
         } 
-        else if (r < 0.60) { // 0.40 + 0.20
-            // 20% chances: 1.50x se 2.00x ke beech
+        else if (r < 0.68) { // 0.43 + 0.25
+            // 25% chances: 1.50x se 2.00x ke beech
             mult = 1.50 + rng() * 0.50;
         } 
-        else if (r < 0.80) { // 0.60 + 0.20
-            // 20% chances: 2.00x se 2.99x ke beech
+        else if (r < 0.91) { // 0.68 + 0.23
+            // 23% chances: 2.00x se 2.99x ke beech
             mult = 2.00 + rng() * 0.99;
         } 
-        else if (r < 0.85) { // 0.80 + 0.05
-            // 5% chances: 3.00x se 5.00x ke beech
-            mult = 3.00 + rng() * 2.00;
+        else if (r < 0.96) { // 0.91 + 0.05
+            // 5% chances: 3.00x se 4.80x ke beech
+            mult = 3.00 + rng() * 1.80; // 3.00 + 1.80 = 4.80
         } 
-        else if (r < 0.90) { // 0.85 + 0.05
-            // 5% chances: 5.00x se 5.60x ke beech
-            mult = 5.00 + rng() * 0.60;
-        }
-        else if (r < 0.93) { // 0.90 + 0.03
-            // 3% chances: 5.60x se 6.00x ke beech
-            mult = 5.60 + rng() * 0.40;
-        }
-        else if (r < 0.98) { // 0.93 + 0.05
-            // 5% chances: 6.00x se 10.00x ke beech
-            mult = 6.00 + rng() * 4.00;
-        }
-        else { // 0.98 + 0.02 = 1.00
-            // 2% chances: 20.00x se 100.00x ke beech
-            mult = 20.00 + rng() * 80.00;
+        else { // 0.96 + 0.04 = 1.00
+            // 4% chances: 20.00x se 100.00x ke beech
+            mult = 20.00 + rng() * 80.00; // 20.00 + 80.00 = 100.00
         }
         
 

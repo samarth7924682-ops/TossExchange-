@@ -438,11 +438,12 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             try {
                 const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
                 
-                if (betsSnap.empty) {
-                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName });
+                                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                     alert("Match closed! No pending bets found.");
                     return;
                 }
+                
 
                 const batch = db.batch();
                 let userBets = {}; 
@@ -486,8 +487,9 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                     });
                 }
                 
-                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName });
+                                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                 await batch.commit();
+                
                 alert("✅ Match Settled Perfectly!");
             } catch(e) {
                 console.error(e);
@@ -506,11 +508,12 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                 try {
                     const betsSnap = await db.collection("bets").where("matchId", "==", id).where("status", "==", "pending").get();
                     
-                    if (betsSnap.empty) {
-                        await db.collection("matches").doc(id).update({ status: 'cancelled' });
+                                        if (betsSnap.empty) {
+                        await db.collection("matches").doc(id).update({ status: 'cancelled', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                         alert("✅ Match Voided. No active bets found.");
                         return;
                     }
+                    
 
                     const batch = db.batch();
                     let userBets = {};
@@ -551,8 +554,9 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                         });
                     }
                     
-                    batch.update(db.collection("matches").doc(id), { status: 'cancelled' });
+                                        batch.update(db.collection("matches").doc(id), { status: 'cancelled', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                     await batch.commit();
+                    
                     alert("✅ Match Voided Successfully.");
                 } catch(e) {
                     alert("Error voiding match: " + e.message);

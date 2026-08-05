@@ -228,7 +228,12 @@
 
                 matchSnap.forEach(m => {
                     let d = m.data();
-                    matchDictionary[m.id] = { title: `${d.teamA} vs ${d.teamB}`, teamA: d.teamA, teamB: d.teamB };
+                    matchDictionary[m.id] = { 
+                        title: `${d.teamA} vs ${d.teamB}`, 
+                        teamA: d.teamA, 
+                        teamB: d.teamB,
+                        settledAt: d.settledAt ? d.settledAt.toDate() : null
+                    };
                 });
 
                 let freshLedgerData = [];
@@ -257,7 +262,11 @@
 
                     if (!matchGroups[b.matchId]) {
                         matchGroups[b.matchId] = { bets: [], status: 'pending', dateObj: docDate, netResult: 0 };
+                    } else if (docDate > matchGroups[b.matchId].dateObj) {
+                        // Agar user ne aur bets lagayi hain, toh latest (Last Bet) time update kar do
+                        matchGroups[b.matchId].dateObj = docDate;
                     }
+                    
                     matchGroups[b.matchId].bets.push(b);
                     if (['won', 'lost', 'cancelled'].includes(b.status)) matchGroups[b.matchId].status = 'settled';
                 });
@@ -267,27 +276,32 @@
                     let mInfo = matchDictionary[mId] || { title: "Toss Match", teamA: "Team A", teamB: "Team B" };
                     
                     if (group.status === 'settled') {
-                        let isCancelled = false, finalTeamBetOn = "";
+                        let isCancelled = false;
+                        let pnlA = 0, pnlB = 0;
+                        let settledDate = mInfo.settledAt || group.dateObj; // Use Settled Time for history sorting
+
                         group.bets.forEach(b => {
                             let bAmt = parseFloat(b.amount) || 0;
-                            if (b.status === 'won') {
-                                group.netResult += bAmt * ((parseFloat(b.odds) || 98) / 100);
-                                finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
-                            } else if (b.status === 'lost') {
-                                group.netResult -= bAmt;
-                                finalTeamBetOn = b.selection === 'teamA' ? mInfo.teamA : mInfo.teamB;
-                            } else if (b.status === 'cancelled') {
-                                isCancelled = true;
-                            }
+                            let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
+                            
+                            if (b.status === 'won') group.netResult += winAmt;
+                            else if (b.status === 'lost') group.netResult -= bAmt;
+                            else if (b.status === 'cancelled') isCancelled = true;
+
+                            if (b.selection === 'teamA') { pnlA += winAmt; pnlB -= bAmt; }
+                            else { pnlB += winAmt; pnlA -= bAmt; }
                         });
                         
+                        // Jis team par Net PnL highest tha, history mein wahi winning team aayegi
+                        let finalTeamBetOn = pnlA > pnlB ? mInfo.teamA : mInfo.teamB;
+                        
                         if (isCancelled) {
-                            freshLedgerData.push({ dateObj: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
+                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
                         } else if (group.netResult !== 0) {
                             let isWin = group.netResult > 0;
                             let resultText = isWin ? 'Won' : 'Lost';
                             let color = isWin ? 'var(--green)' : 'var(--red)';
-                            freshLedgerData.push({ dateObj: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
+                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
                         }
                     } else {
                         let pnlA = 0, pnlB = 0;
@@ -302,7 +316,7 @@
                     }
                 }
 
-                // Process Games
+               // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
                     let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
@@ -380,7 +394,18 @@
 
             dataArray.forEach((item, index) => {
                 let d = item.dateObj;
-                let dateStr = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + "<br><span style='font-size:10px;color:#777;'>" + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0') + "</span>";
+                
+                // Date formatting function
+                const formatD = (date) => date.getFullYear() + "-" + String(date.getMonth()+1).padStart(2,'0') + "-" + String(date.getDate()).padStart(2,'0') + " " + String(date.getHours()).padStart(2,'0') + ":" + String(date.getMinutes()).padStart(2,'0');
+                
+                let dateStr = "";
+                if (item.placedDate) {
+                    // Agar Toss Match hai, toh upar Settlement time aur niche Last Bet time
+                    dateStr = `<span style="font-weight:900;">${formatD(d)}</span><br><span style="font-size:10px; color:#1565c0; font-weight:bold; background:#e3f2fd; padding:1px 4px; border-radius:3px;">Last Bet: ${formatD(item.placedDate)}</span>`;
+                } else {
+                    // Baki transactions ke liye normal time
+                    dateStr = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + "<br><span style='font-size:10px;color:#777;'>" + String(d.getHours()).padStart(2,'0') + ":" + String(d.getMinutes()).padStart(2,'0') + "</span>";
+                }
                 
                 let credit = "-", debit = "-";
                 

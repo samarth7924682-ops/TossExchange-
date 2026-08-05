@@ -22,19 +22,33 @@
         .container { padding: 12px; max-width: 600px; margin: 0 auto; box-sizing: border-box; }
         .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         h3 { margin-top: 0; color: var(--theme-dark); border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 15px; }
-        
+
+        /* Payment Method Tabs */
+        .method-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+        .method-tab-btn {
+            flex: 1; text-align: center; padding: 10px 6px; background: #f0f1f3; border: 2px solid #e0e0e0;
+            border-radius: 6px; font-size: 12px; font-weight: 900; color: #555; cursor: pointer; transition: 0.2s;
+        }
+        .method-tab-btn.active { background: var(--theme-dark); color: #ffb703; border-color: var(--theme-dark); }
+        .method-tab-content { display: none; }
+        .method-tab-content.active { display: block; }
+
         /* Dynamic Methods Box - Sleek Design */
         .method-strip { background: #f8f9fa; border: 1px solid #ddd; border-left: 4px solid var(--accent); padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
         .method-type { font-size: 10px; background: #333; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: bold; width: fit-content; text-transform: uppercase; }
         .method-val { font-size: 14px; font-weight: 900; color: #d32f2f; word-break: break-all; }
-        
-        /* Chhota QR Code */
-        .qr-img { width: 150px; height: 150px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; margin-top: 4px; display: block; background: #fff; }
+        .method-sub { font-size: 11px; color: #555; font-weight: 700; }
 
-        /* Action Buttons for UPI */
-        .upi-actions { display: flex; gap: 8px; margin-top: 5px; }
-        .btn-copy { background: #444; color: white; border: none; padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        .btn-pay-app { background: var(--green); color: white; text-decoration: none; padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; }
+        /* Chhota QR Code */
+        .qr-img { width: 160px; height: 160px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; margin-top: 4px; display: block; background: #fff; }
+
+        /* Action Buttons */
+        .method-actions { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+        .btn-copy { background: #444; color: white; border: none; padding: 7px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .btn-pay-app { background: var(--green); color: white; text-decoration: none; padding: 7px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; border: none; cursor: pointer; }
+        .btn-download { background: #1565c0; color: white; border: none; padding: 7px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+
+        .no-method-msg { color: #999; font-weight: bold; font-size: 12px; text-align: center; padding: 15px 0; }
 
         /* Sleek Inputs */
         label { display: block; font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
@@ -90,6 +104,9 @@
     <div class="container">
         <div class="card">
             <h3>🏦 Send Payment Here</h3>
+
+            <div class="method-tabs" id="method-tabs" style="display:none;"></div>
+
             <div id="dynamic-methods-box">
                 <p style="color:#777; font-size:12px; text-align:center; font-weight:bold;">Loading SubAdmin Details... ⏳</p>
             </div>
@@ -158,13 +175,147 @@
             });
         }
 
-        // Copy UPI Function
+        // Copy Plain Text (UPI ID)
         function copyUPI(upiId) {
             navigator.clipboard.writeText(upiId).then(() => {
                 window.showMsg("UPI ID Copied!", "success");
             }).catch(err => {
                 console.error("Copy failed", err);
             });
+        }
+
+        // Copy Full Bank Details as formatted text
+        function copyBank(accNum, ifsc, accName, bankName) {
+            const text = `Account Number: ${accNum}\nIFSC Code: ${ifsc}\nAccount Holder: ${accName}\nBank Name: ${bankName}`;
+            navigator.clipboard.writeText(text).then(() => {
+                window.showMsg("Bank Details Copied!", "success");
+            }).catch(err => {
+                console.error("Copy failed", err);
+            });
+        }
+
+        // Force-download QR image (handles cross-origin image URLs via blob)
+        async function downloadQR(url) {
+            try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = "payment-qr.png";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(blobUrl);
+            } catch(e) {
+                // Fallback: open in new tab if blob download fails (e.g. CORS block)
+                window.open(url, '_blank');
+            }
+        }
+
+        // ==========================================
+        // Payment Method Tabs (UPI / QR / Bank)
+        // Only tabs which admin has actually configured are shown.
+        // ==========================================
+        let groupedMethods = { UPI: [], QR: [], BANK: [] };
+
+        function renderMethodTabs() {
+            const tabsBox = document.getElementById('method-tabs');
+            const displayBox = document.getElementById('dynamic-methods-box');
+            tabsBox.innerHTML = "";
+
+            const tabDefs = [
+                { key: 'UPI', label: '💳 UPI ID' },
+                { key: 'QR', label: '📷 QR Code' },
+                { key: 'BANK', label: '🏦 Bank Details' }
+            ];
+
+            const availableTabs = tabDefs.filter(t => groupedMethods[t.key].length > 0);
+
+            if(availableTabs.length === 0) {
+                tabsBox.style.display = 'none';
+                displayBox.innerHTML = "<p class='no-method-msg'>❌ No active payment methods set by your admin.</p>";
+                return;
+            }
+
+            tabsBox.style.display = 'flex';
+            availableTabs.forEach((t, i) => {
+                tabsBox.innerHTML += `<div class="method-tab-btn ${i === 0 ? 'active' : ''}" id="tab-btn-${t.key}" onclick="switchMethodTab('${t.key}')">${t.label}</div>`;
+            });
+
+            renderMethodContent();
+            switchMethodTab(availableTabs[0].key);
+        }
+
+        function renderMethodContent() {
+            const displayBox = document.getElementById('dynamic-methods-box');
+            displayBox.innerHTML = "";
+
+            // UPI Tab Content
+            let upiHTML = `<div class="method-tab-content" id="tab-content-UPI">`;
+            groupedMethods.UPI.forEach(m => {
+                upiHTML += `
+                    <div class="method-strip">
+                        <span class="method-type">UPI ID</span>
+                        <div class="method-val">${m.detail}</div>
+                        <div class="method-actions">
+                            <button class="btn-copy" onclick="copyUPI('${m.detail}')">📋 Copy</button>
+                            <a href="upi://pay?pa=${encodeURIComponent(m.detail)}&pn=Admin&cu=INR" class="btn-pay-app">⚡ Pay via App</a>
+                        </div>
+                    </div>`;
+            });
+            upiHTML += `</div>`;
+            displayBox.innerHTML += upiHTML;
+
+            // QR Tab Content
+            let qrHTML = `<div class="method-tab-content" id="tab-content-QR">`;
+            groupedMethods.QR.forEach(m => {
+                qrHTML += `
+                    <div class="method-strip" style="align-items:center;">
+                        <span class="method-type">QR SCANNER</span>
+                        <img src="${m.detail}" class="qr-img">
+                        <div class="method-actions">
+                            <button class="btn-download" onclick="downloadQR('${m.detail}')">⬇️ Download QR</button>
+                        </div>
+                    </div>`;
+            });
+            qrHTML += `</div>`;
+            displayBox.innerHTML += qrHTML;
+
+            // Bank Tab Content
+            let bankHTML = `<div class="method-tab-content" id="tab-content-BANK">`;
+            groupedMethods.BANK.forEach(m => {
+                const accNum = m.detail.accountNumber || 'N/A';
+                const ifsc = m.detail.ifsc || 'N/A';
+                const accName = m.detail.accountHolder || 'N/A';
+                const bankName = m.detail.bankName || 'N/A';
+                // Pseudo-VPA attempt so a UPI app can be triggered directly from bank details.
+                const pseudoVpa = `${accNum}@${ifsc}.ifsc.npci`;
+                bankHTML += `
+                    <div class="method-strip">
+                        <span class="method-type">BANK TRANSFER</span>
+                        <div class="method-val">${bankName}</div>
+                        <div class="method-sub">A/C No: ${accNum}</div>
+                        <div class="method-sub">IFSC: ${ifsc}</div>
+                        <div class="method-sub">Holder Name: ${accName}</div>
+                        <div class="method-actions">
+                            <button class="btn-copy" onclick="copyBank('${accNum}','${ifsc}','${accName}','${bankName}')">📋 Copy</button>
+                            <a href="upi://pay?pa=${encodeURIComponent(pseudoVpa)}&pn=${encodeURIComponent(accName)}&cu=INR" class="btn-pay-app">⚡ Pay via App</a>
+                        </div>
+                    </div>`;
+            });
+            bankHTML += `</div>`;
+            displayBox.innerHTML += bankHTML;
+        }
+
+        function switchMethodTab(key) {
+            document.querySelectorAll('.method-tab-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.method-tab-content').forEach(el => el.classList.remove('active'));
+
+            const btn = document.getElementById(`tab-btn-${key}`);
+            const content = document.getElementById(`tab-content-${key}`);
+            if(btn) btn.classList.add('active');
+            if(content) content.classList.add('active');
         }
 
         // 1. Load SubAdmin Payment Methods & WhatsApp
@@ -185,30 +336,17 @@
                                 waBtn.style.display = 'flex'; 
                             }
 
-                            if(adminDoc.data().paymentMethods && adminDoc.data().paymentMethods.length > 0) {
-                                displayBox.innerHTML = ""; 
-                                const methods = adminDoc.data().paymentMethods;
-                                methods.forEach(m => {
-                                    let innerHTML = `<div class="method-strip">`;
-                                    if(m.type === 'UPI') {
-                                        innerHTML += `
-                                            <span class="method-type">UPI ID</span>
-                                            <div class="method-val">${m.detail}</div>
-                                            <div class="upi-actions">
-                                                <button class="btn-copy" onclick="copyUPI('${m.detail}')">📋 Copy</button>
-                                                <a href="upi://pay?pa=${m.detail}&pn=Admin&cu=INR" class="btn-pay-app">⚡ Pay via App</a>
-                                            </div>`;
-                                    } else if(m.type === 'QR') {
-                                        innerHTML += `
-                                            <span class="method-type">QR SCANNER</span>
-                                            <img src="${m.detail}" class="qr-img">`;
-                                    }
-                                    innerHTML += `</div>`;
-                                    displayBox.innerHTML += innerHTML;
-                                });
-                            } else {
-                                displayBox.innerHTML = "<p style='color:red; font-weight:bold; font-size:12px; text-align:center;'>❌ No active payment methods set by your admin.</p>";
-                            }
+                            const methods = (adminDoc.data().paymentMethods || []).filter(m => m.enabled !== false);
+
+                            // Group methods by type; only types with 1+ entries will get a tab.
+                            groupedMethods = { UPI: [], QR: [], BANK: [] };
+                            methods.forEach(m => {
+                                if(m.type === 'UPI') groupedMethods.UPI.push(m);
+                                else if(m.type === 'QR') groupedMethods.QR.push(m);
+                                else if(m.type === 'BANK') groupedMethods.BANK.push(m);
+                            });
+
+                            renderMethodTabs();
                         }
                     } else {
                         displayBox.innerHTML = "<p style='color:red; font-weight:bold; font-size:12px; text-align:center;'>❌ Error: No SubAdmin linked to this account.</p>";

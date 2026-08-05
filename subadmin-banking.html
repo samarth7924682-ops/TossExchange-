@@ -9,17 +9,39 @@
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid var(--primary); }
         h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h4.section-title { margin: 0 0 12px 0; font-size: 13px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .input-group { margin-bottom: 15px; }
         .input-group label { display: block; font-size: 13px; font-weight: bold; color: #555; margin-bottom: 5px; }
         input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
         .btn-action { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .btn-action:disabled { background: #999; }
-        .saved-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-bottom: 10px; }
-        .badge { font-size: 11px; padding: 4px 8px; border-radius: 20px; color: white; }
+
+        .divider { border: none; border-top: 1px dashed #ccc; margin: 20px 0; }
+
+        .saved-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-bottom: 10px; gap: 10px; }
+        .saved-item.disabled-item { opacity: 0.55; background: #f1f1f1; }
+        .saved-item-left { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .saved-item-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        .badge { font-size: 11px; padding: 4px 8px; border-radius: 20px; color: white; white-space: nowrap; }
         .badge-upi { background: var(--primary); }
         .badge-qr { background: var(--green); }
+        .badge-bank { background: #6a1b9a; }
+
+        .bank-detail-text { font-size: 12px; line-height: 1.5; color: #333; }
+        .bank-detail-text b { color: #111; }
+
         .btn-remove { background: var(--red); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .qr-preview { max-width: 50px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+
+        /* Enable/Disable Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.25s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        input:checked + .slider { background-color: var(--green); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .toggle-label { font-size: 10px; font-weight: bold; color: #777; width: 42px; text-align: center; }
     </style>
 </head>
 <body>
@@ -28,14 +50,39 @@
 
     <div class="card">
         <h3>🏦 Add Banking Details</h3>
+
+        <h4 class="section-title">💳 UPI ID</h4>
         <div class="input-group">
             <label>UPI ID (e.g., name@bank)</label>
             <input type="text" id="upi" placeholder="Enter UPI ID">
         </div>
+
+        <h4 class="section-title">📷 QR Code</h4>
         <div class="input-group">
             <label>Upload QR Code Scanner (Optional)</label>
             <input type="file" id="qr" accept="image/*">
         </div>
+
+        <hr class="divider">
+
+        <h4 class="section-title">🏦 Bank Account</h4>
+        <div class="input-group">
+            <label>Account Number</label>
+            <input type="text" id="bank-acc-num" placeholder="Enter Account Number">
+        </div>
+        <div class="input-group">
+            <label>IFSC Code</label>
+            <input type="text" id="bank-ifsc" placeholder="Enter IFSC Code">
+        </div>
+        <div class="input-group">
+            <label>Account Holder Name</label>
+            <input type="text" id="bank-acc-name" placeholder="Enter Account Holder Name">
+        </div>
+        <div class="input-group">
+            <label>Bank Name</label>
+            <input type="text" id="bank-name" placeholder="Enter Bank Name">
+        </div>
+
         <button class="btn-action" id="save-btn" onclick="saveBank()">➕ Add Payment Method</button>
     </div>
 
@@ -58,9 +105,21 @@
         async function saveBank() {
             const upiVal = document.getElementById('upi').value.trim();
             const qrFile = document.getElementById('qr').files[0];
+
+            const accNum = document.getElementById('bank-acc-num').value.trim();
+            const ifsc = document.getElementById('bank-ifsc').value.trim();
+            const accName = document.getElementById('bank-acc-name').value.trim();
+            const bankName = document.getElementById('bank-name').value.trim();
+            const bankFilled = accNum || ifsc || accName || bankName;
+
             const btn = document.getElementById('save-btn');
 
-            if(!upiVal && !qrFile) { alert("Please provide UPI or QR Code!"); return; }
+            if(!upiVal && !qrFile && !bankFilled) { alert("Please provide UPI, QR Code, or Bank Details!"); return; }
+
+            if(bankFilled && (!accNum || !ifsc || !accName || !bankName)) {
+                alert("Please fill all 4 bank fields (Account Number, IFSC, Holder Name, Bank Name)!");
+                return;
+            }
 
             btn.innerText = "Saving... ⏳"; btn.disabled = true;
 
@@ -70,19 +129,33 @@
                 let data = doc.exists ? doc.data() : {};
                 let methods = data.paymentMethods ? data.paymentMethods : []; 
 
-                if(upiVal) methods.push({ id: Date.now().toString(), type: 'UPI', detail: upiVal });
+                if(upiVal) methods.push({ id: Date.now().toString(), type: 'UPI', detail: upiVal, enabled: true });
 
                 if(qrFile) {
                     const formData = new FormData();
                     formData.append('image', qrFile);
                     const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: formData });
                     const resData = await res.json();
-                    methods.push({ id: (Date.now() + 1).toString(), type: 'QR', detail: resData.data.url });
+                    methods.push({ id: (Date.now() + 1).toString(), type: 'QR', detail: resData.data.url, enabled: true });
+                }
+
+                if(bankFilled) {
+                    methods.push({
+                        id: (Date.now() + 2).toString(),
+                        type: 'BANK',
+                        detail: { accountNumber: accNum, ifsc: ifsc, accountHolder: accName, bankName: bankName },
+                        enabled: true
+                    });
                 }
 
                 await adminRef.update({ paymentMethods: methods });
                 alert("Payment Method Added!");
-                document.getElementById('upi').value = ""; document.getElementById('qr').value = "";
+                document.getElementById('upi').value = ""; 
+                document.getElementById('qr').value = "";
+                document.getElementById('bank-acc-num').value = "";
+                document.getElementById('bank-ifsc').value = "";
+                document.getElementById('bank-acc-name').value = "";
+                document.getElementById('bank-name').value = "";
             } catch (e) {
                 console.error(e);
                 alert("Error saving details!");
@@ -100,6 +173,19 @@
             } catch(e) { alert("Error removing."); }
         }
 
+        // Enable/Disable a method without deleting it — flips its 'enabled' flag.
+        async function toggleMethod(methodId, newState) {
+            try {
+                let doc = await adminRef.get();
+                let methods = doc.data().paymentMethods || [];
+                methods = methods.map(m => m.id === methodId ? { ...m, enabled: newState } : m);
+                await adminRef.update({ paymentMethods: methods });
+            } catch(e) {
+                console.error(e);
+                alert("Error updating status.");
+            }
+        }
+
         adminRef.onSnapshot(doc => {
             const list = document.getElementById('methods-list');
             list.innerHTML = "";
@@ -109,8 +195,34 @@
             if(methods.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No active methods.</p>"; return; }
 
             methods.forEach(m => {
-                let content = m.type === 'UPI' ? `<span class="badge badge-upi">UPI</span> <span>${m.detail}</span>` : `<span class="badge badge-qr">QR</span> <img src="${m.detail}" class="qr-preview" onclick="window.open('${m.detail}')">`;
-                list.innerHTML += `<div class="saved-item"><div style="display:flex; gap:10px; align-items:center;">${content}</div><button class="btn-remove" onclick="removeMethod('${m.id}')">🗑️ Remove</button></div>`;
+                const isEnabled = m.enabled !== false; // default true for old records without this field
+                let content = "";
+
+                if(m.type === 'UPI') {
+                    content = `<span class="badge badge-upi">UPI</span> <span>${m.detail}</span>`;
+                } else if(m.type === 'QR') {
+                    content = `<span class="badge badge-qr">QR</span> <img src="${m.detail}" class="qr-preview" onclick="window.open('${m.detail}')">`;
+                } else if(m.type === 'BANK') {
+                    content = `<span class="badge badge-bank">BANK</span>
+                        <div class="bank-detail-text">
+                            <b>${m.detail.bankName}</b><br>
+                            A/C: ${m.detail.accountNumber} | IFSC: ${m.detail.ifsc}<br>
+                            Holder: ${m.detail.accountHolder}
+                        </div>`;
+                }
+
+                list.innerHTML += `
+                    <div class="saved-item ${isEnabled ? '' : 'disabled-item'}">
+                        <div class="saved-item-left">${content}</div>
+                        <div class="saved-item-actions">
+                            <label class="switch">
+                                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleMethod('${m.id}', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="toggle-label">${isEnabled ? 'Enabled' : 'Disabled'}</span>
+                            <button class="btn-remove" onclick="removeMethod('${m.id}')">🗑️ Remove</button>
+                        </div>
+                    </div>`;
             });
         });
     </script>

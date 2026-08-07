@@ -364,7 +364,10 @@
                 });
 
                 // Table me hamesha NAYI entry sabse upar dikhani hai, isliye display ke liye wapas newest-first sort karo
-                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj);
+                // Dobara SORT mat karo — bas usi calculated array ko ULTA (reverse) kar do.
+                // Isse calculation-order aur display-order HAMESHA ek jaisa rahega,
+                // chahe kisi bhi 2 entries ka timestamp bilkul barabar kyu na ho.
+                freshLedgerData.reverse();
 
                 masterLedgerData = freshLedgerData;
                 renderTable(masterLedgerData);

@@ -347,23 +347,24 @@
                 });
 
                 // Sort by Date (Newest First)
-                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
+                // Sabse PURANI entry pehle honi chahiye taaki hum shuru se aage (forward) calculate kar sakein
+                freshLedgerData.sort((a, b) => a.dateObj - b.dateObj); 
                 
-                // Calculate Running Balance Top to Bottom
-                let runningBal = (parseFloat(userDoc.data().balance) || 0) + activeExposure + lockedWithdrawals;
+                // Calculate Running Balance ALWAYS 0 se shuru — kabhi bhi current live balance/exposure use nahi hota
+                // Isliye purani entries KABHI change nahi hongi, chahe baad me kuch bhi naya ho jaaye
+                let runningBal = 0;
 
                 freshLedgerData.forEach((item) => {
-                    // Jahan real snapshot maujood hai, wahan guess-based runningBal ko sahi value se replace karo
-                    if (item.balanceSnapshot !== undefined && item.balanceSnapshot !== null) {
-                        runningBal = item.balanceSnapshot;
+                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
+                        runningBal += item.amount; 
+                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
+                        runningBal -= item.amount; 
                     }
                     item.histBalance = runningBal; 
-                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
-                        runningBal -= item.amount; 
-                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
-                        runningBal += item.amount; 
-                    }
                 });
+
+                // Table me hamesha NAYI entry sabse upar dikhani hai, isliye display ke liye wapas newest-first sort karo
+                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj);
 
                 masterLedgerData = freshLedgerData;
                 renderTable(masterLedgerData);

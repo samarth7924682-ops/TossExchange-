@@ -290,6 +290,11 @@
 
                             if (b.selection === 'teamA') { pnlA += winAmt; pnlB -= bAmt; }
                             else { pnlB += winAmt; pnlA -= bAmt; }
+
+                            // Real DB snapshot jo settlement ke time save hua tha
+                            if (b.balanceSnapshot !== undefined && b.balanceSnapshot !== null) {
+                                group.balanceSnapshot = b.balanceSnapshot;
+                            }
                         });
                         
                         // Jis team par Net PnL highest tha, history mein wahi winning team aayegi
@@ -301,7 +306,7 @@
                             let isWin = group.netResult > 0;
                             let resultText = isWin ? 'Won' : 'Lost';
                             let color = isWin ? 'var(--green)' : 'var(--red)';
-                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>` });
+                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>`, balanceSnapshot: group.balanceSnapshot });
                         }
                     } else {
                         let pnlA = 0, pnlB = 0;
@@ -348,6 +353,10 @@
                 let runningBal = (parseFloat(userDoc.data().balance) || 0) + activeExposure + lockedWithdrawals;
 
                 freshLedgerData.forEach((item) => {
+                    // Jahan real snapshot maujood hai, wahan guess-based runningBal ko sahi value se replace karo
+                    if (item.balanceSnapshot !== undefined && item.balanceSnapshot !== null) {
+                        runningBal = item.balanceSnapshot;
+                    }
                     item.histBalance = runningBal; 
                     if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
                         runningBal -= item.amount; 

@@ -472,18 +472,24 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                     let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
                     let balanceAdjustment = lockedExposure + netResult;
 
-                    if (balanceAdjustment !== 0) {
-                        // FIX: Verify user exists before updating
-                        const userRef = db.collection("users").doc(userId);
-                        const userDoc = await userRef.get();
-                        if(userDoc.exists) {
+                    // Har baar real balance fetch karo taaki settlement ke baad ka SAHI snapshot mil sake
+                    const userRef = db.collection("users").doc(userId);
+                    const userDoc = await userRef.get();
+                    let newBal = null;
+
+                    if(userDoc.exists) {
+                        let curBal = parseFloat(userDoc.data().balance || 0);
+                        newBal = curBal + balanceAdjustment;
+                        if (balanceAdjustment !== 0) {
                             batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) });
                         }
                     }
 
                     uData.bets.forEach(b => {
                         let betStatus = b.selection === winnerCode ? 'won' : 'lost';
-                        batch.update(db.collection("bets").doc(b.id), { status: betStatus });
+                        let updateData = { status: betStatus };
+                        if(newBal !== null) updateData.balanceSnapshot = newBal;
+                        batch.update(db.collection("bets").doc(b.id), updateData);
                     });
                 }
                 

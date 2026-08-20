@@ -346,28 +346,32 @@
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
                 });
 
-                // Sort by Date (Newest First)
-                // Sabse PURANI entry pehle honi chahiye taaki hum shuru se aage (forward) calculate kar sakein
-                freshLedgerData.sort((a, b) => a.dateObj - b.dateObj); 
+                // ==========================================
+                // FIX: Calculate Balance From Current Wallet Balance
+                // ==========================================
                 
-                // Calculate Running Balance ALWAYS 0 se shuru — kabhi bhi current live balance/exposure use nahi hota
-                // Isliye purani entries KABHI change nahi hongi, chahe baad me kuch bhi naya ho jaaye
-                let runningBal = 0;
+                // 1. Fetch current wallet balance
+                let currentWalletBalance = parseFloat(userDoc.data().balance) || 0;
+
+                // 2. Sort by Date (Newest First)
+                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
+
+                // 3. Reverse Calculate Balance
+                let tempBal = currentWalletBalance;
 
                 freshLedgerData.forEach((item) => {
+                    // Assign current available balance to this row
+                    item.histBalance = tempBal;
+
+                    // Reverse math for the previous (older) entry
                     if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
-                        runningBal += item.amount; 
+                        tempBal -= item.amount; 
                     } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
-                        runningBal -= item.amount; 
+                        tempBal += item.amount; 
                     }
-                    item.histBalance = runningBal; 
                 });
 
-                // Table me hamesha NAYI entry sabse upar dikhani hai, isliye display ke liye wapas newest-first sort karo
-                // Dobara SORT mat karo — bas usi calculated array ko ULTA (reverse) kar do.
-                // Isse calculation-order aur display-order HAMESHA ek jaisa rahega,
-                // chahe kisi bhi 2 entries ka timestamp bilkul barabar kyu na ho.
-                freshLedgerData.reverse();
+                // ==========================================
 
                 masterLedgerData = freshLedgerData;
                 renderTable(masterLedgerData);

@@ -34,8 +34,13 @@
         .btn-action { width: 48%; padding: 10px; border: none; border-radius: 6px; font-weight: 900; color: white; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); font-size: 13px; letter-spacing: 0.5px;}
         .btn-action:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.2); }
         .section-title { margin: 15px 0 10px 0; font-size: 13px; color: #111; font-weight: 900; display: flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .games-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 10px; }
-        .game-card { width: 100%; height: 95px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.1); animation: cardGlow 2.4s ease-in-out infinite; }
+        
+        /* Updated Games Grid for Horizontal Scroll (3 visible at a time) */
+        .games-grid { display: flex; gap: 8px; padding-bottom: 10px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .games-grid::-webkit-scrollbar { display: none; }
+        
+        /* Updated Game Card width for exact 3 cards fit */
+        .game-card { width: calc(33.333% - 5.33px); flex-shrink: 0; scroll-snap-align: start; height: 95px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.1); animation: cardGlow 2.4s ease-in-out infinite; }
         .game-card:active { transform: scale(0.95); }
         .game-card::before { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent); transform: skewX(-20deg); animation: cardShine 10s ease-in-out infinite; z-index: 1; }
         .game-card .ic { font-size: 28px; z-index: 2; margin-bottom: 6px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }
@@ -51,6 +56,8 @@
         .card-aviator { background: linear-gradient(135deg, #a61a22, #1a0f0a); ;}
         .card-overout { background: linear-gradient(135deg, #1565c0, #0a192f); ;}
         .card-coinflip { background: linear-gradient(135deg, #f2c14e, #8b6508); ;}
+        .card-chicken { background: linear-gradient(135deg, #ff9800, #e65100); ;} /* Fallback color for chicken card */
+
         .category-header { background: var(--theme-dark); color: var(--accent); padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 900; margin: 12px 0 8px 0; text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: inline-block; letter-spacing: 0.5px;}
         .match-row { padding: 12px 12px; background: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--theme-dark); margin-bottom: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); transition: 0.2s; }
         .match-row:active { transform: scale(0.98); background: #f0f0f0; }
@@ -124,17 +131,18 @@
             <div class="games-grid">
                 <div class="game-card card-aviator" onclick="window.location.href='sixer.html'" style="background-image:url('aviator-animation.gif'); background-size:cover; background-position:center;">
                 </div>
-                 <div class="game-card  card-overout" onclick="window.location.href='over-out.html'" style="background-image:url('mines-animation.gif'); background-size:cover; background-position:center;">
+                <div class="game-card card-chicken" onclick="window.location.href='game.html'" style="background-image:url('chiken.jpg'); background-size:cover; background-position:center;">
                 </div>
-            <div class="game-card card-coinflip" onclick="window.location.href='coinflip.html'" style="background-image:url('headtail-animation.gif'); background-size:cover; background-position:center;">
-</div>
-</div>
+                 <div class="game-card card-overout" onclick="window.location.href='over-out.html'" style="background-image:url('mines-animation.gif'); background-size:cover; background-position:center;">
+                </div>
+                <div class="game-card card-coinflip" onclick="window.location.href='coinflip.html'" style="background-image:url('headtail-animation.gif'); background-size:cover; background-position:center;">
+                </div>
+            </div>
 
             <div id="matches-list"></div>
         </div>
     </div>
 
-    <!-- WhatsApp Button (Unchanged) -->
     <div class="wa-wrapper" id="waWrapper" onclick="handleWhatsAppClick(event)">
       <a class="wa-btn" id="waBtn" aria-label="Chat on WhatsApp" href="javascript:void(0);">
         <span class="wa-pulse-ring"></span>
@@ -308,11 +316,8 @@
                             
                     });
 
-                    // ⚡ SMART BACKGROUND CACHE WARMUP ⚡ 
-                    // Ye history page par click karte hi usko bina load kiye 0 second me khol dega
                     setTimeout(() => {
                         if (window.db && user && user.id) {
-                            // Run passive fetch queries to store them in Firebase's local IndexedDB Cache
                             db.collection("transactions").where("userId", "==", user.id).get().catch(()=>{});
                             db.collection("bets").where("userId", "==", user.id).get().catch(()=>{});
                             db.collection("aviator_history").where("userId", "==", user.id).get().catch(()=>{});
@@ -321,7 +326,6 @@
                         }
                     }, 2000);
             
-                    // Build Real User Exposure
                     db.collection("matches").get().then(matchSnap => {
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });

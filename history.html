@@ -75,6 +75,7 @@
                 <option value="aviator">Aviator Game</option>
                 <option value="overout">Over Out Game</option>
                 <option value="coinflip">Coin Flip Game</option>
+                <option value="chicken">Lost Chicken Game</option>
             </select>
             <button class="btn-submit" onclick="applyFilters()">Submit</button>
         </div>
@@ -211,12 +212,13 @@
                 const uid = user.id;
                 
                 // Saara data Firebase se ek saath parallel load karo
-                const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, matchSnap, userDoc] = await Promise.all([
+                const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, chickenSnap, matchSnap, userDoc] = await Promise.all([
                     db.collection("transactions").where("userId", "==", uid).get(),
                     db.collection("bets").where("userId", "==", uid).get(),
                     db.collection("aviator_history").where("userId", "==", uid).get(),
                     db.collection("overout_history").where("userId", "==", uid).get(),
                     db.collection("coinflip_history").where("userId", "==", uid).get(),
+                    db.collection("chicken_history").where("userId", "==", uid).get(),
                     db.collection("matches").get(),
                     db.collection("users").doc(uid).get()
                 ]);
@@ -321,7 +323,7 @@
                     }
                 }
 
-               // Process Games
+              // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
                     let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
@@ -346,6 +348,16 @@
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
                 });
 
+                chickenSnap.forEach(doc => {
+                    let ch = doc.data();
+                    let docDate = ch.timestamp ? ch.timestamp.toDate() : new Date();
+                    let betAmt = parseFloat(ch.betAmount || 0);
+                    let winAmt = parseFloat(ch.winAmount || 0);
+                    let pnl = winAmt > 0 ? (winAmt - betAmt) : -betAmt; 
+                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'chicken_profit', amount: pnl, remark: `Profit in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
+                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'chicken_loss', amount: Math.abs(pnl), remark: `Loss in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
+                });
+
                 // ==========================================
                 // FIX: Calculate Balance From Current Wallet Balance
                 // ==========================================
@@ -364,9 +376,9 @@
                     item.histBalance = tempBal;
 
                     // Reverse math for the previous (older) entry
-                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
+                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
                         tempBal -= item.amount; 
-                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) { 
+                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) { 
                         tempBal += item.amount; 
                     }
                 });
@@ -394,6 +406,7 @@
                 if(cat === 'aviator') matchCat = ['aviator_profit', 'aviator_loss'].includes(item.type);
                 if(cat === 'overout') matchCat = ['overout_profit', 'overout_loss'].includes(item.type);
                 if(cat === 'coinflip') matchCat = ['coinflip_profit', 'coinflip_loss'].includes(item.type); 
+                if(cat === 'chicken') matchCat = ['chicken_profit', 'chicken_loss'].includes(item.type); 
 
                 let matchDate = true;
                 if(sStr) { let sD = new Date(sStr); sD.setHours(0,0,0,0); if(item.dateObj < sD) matchDate = false; }
@@ -426,10 +439,10 @@
                 
                 let credit = "-", debit = "-";
                 
-                if(['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'match_profit', 'match_cancelled'].includes(item.type)) {
+                if(['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) {
                     credit = `<span class="text-green">+${Number(item.amount || 0).toFixed(2)}</span>`;
                 }
-                else if(['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'match_loss'].includes(item.type)) {
+                else if(['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) {
                     debit = `<span class="text-red">-${Number(item.amount || 0).toFixed(2)}</span>`;
                 }
 

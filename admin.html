@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Egg Flip</title>
+<style>
+  body {
+    background: #080c16;
+    color: #fff;
+    font-family: 'Segoe UI', sans-serif;
+    padding: 20px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  h2 { color: #ffd54f; font-size: 18px; margin-bottom: 12px; }
+  .card {
+    background: #121829;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .timer-tag {
+    font-size: 14px;
+    font-weight: bold;
+    color: #22c55e;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .stat-box {
+    background: #182035;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .stat-box label { font-size: 11px; color: #94a3b8; display: block; }
+  .stat-box span { font-size: 20px; font-weight: bold; }
+  .control-btns {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .control-btns button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    color: #fff;
+    cursor: pointer;
+  }
+  .btn-left { background: #f97316; }
+  .btn-right { background: #3b82f6; }
+</style>
+</head>
+<body>
+
+<h2>⚡ Admin Live Monitor</h2>
+
+<div class="card">
+  <div class="timer-tag" id="roundTimerDisplay">Round Timer: --</div>
+  <div style="font-size:12px; color:#94a3b8;">NEXT / LIVE ROUND ID: <b id="activeRoundId" style="color:#fff;">--</b></div>
+
+  <div class="stat-grid">
+    <div class="stat-box">
+      <label>LEFT EGG BETS</label>
+      <span style="color:#f97316;" id="leftBets">₹0</span>
+    </div>
+    <div class="stat-box">
+      <label>RIGHT EGG BETS</label>
+      <span style="color:#3b82f6;" id="rightBets">₹0</span>
+    </div>
+  </div>
+
+  <div style="margin-top:14px; font-size:13px;">
+    FORCED RESULT: <b id="forcedStatus" style="color:#ffd54f;">AUTO (RANDOM)</b>
+  </div>
+
+  <div class="control-btns">
+    <button class="btn-left" onclick="forceWinner('LEFT')">SET LEFT WIN</button>
+    <button class="btn-right" onclick="forceWinner('RIGHT')">SET RIGHT WIN</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+
+<script>
+  if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
+    window.db = firebase.firestore();
+  }
+
+  let currentRoundId = "";
+  let unsubscribeListener = null;
+
+  function monitorLiveBets() {
+    const now = Date.now();
+    const elapsed = now % 30000;
+    const roundId = Math.floor(now / 30000).toString();
+
+    let secLeft = 30 - Math.floor(elapsed / 1000);
+    document.getElementById('roundTimerDisplay').innerText = `Round Ends In: ${secLeft}s`;
+
+    if(roundId !== currentRoundId) {
+      currentRoundId = roundId;
+      document.getElementById('activeRoundId').innerText = roundId;
+      document.getElementById('forcedStatus').innerText = "AUTO (RANDOM)";
+
+      if(unsubscribeListener) unsubscribeListener();
+
+      if (typeof db !== 'undefined') {
+        unsubscribeListener = db.collection("round_bets").doc(roundId).onSnapshot(doc => {
+          if(doc.exists) {
+            const data = doc.data();
+            document.getElementById('leftBets').innerText = `₹${data.LEFT || 0}`;
+            document.getElementById('rightBets').innerText = `₹${data.RIGHT || 0}`;
+            if(data.forcedResult) {
+              document.getElementById('forcedStatus').innerText = data.forcedResult + " WIN";
+            }
+          } else {
+            document.getElementById('leftBets').innerText = `₹0`;
+            document.getElementById('rightBets').innerText = `₹0`;
+          }
+        });
+      }
+    }
+    requestAnimationFrame(monitorLiveBets);
+  }
+
+  async function forceWinner(side) {
+    if(!currentRoundId) return;
+    if (typeof db !== 'undefined') {
+      await db.collection("round_bets").doc(currentRoundId).set({
+        forcedResult: side
+      }, { merge: true });
+      alert(`Set ${side} to win this round!`);
+    } else {
+      alert("Firebase offline! Check app.js config.");
+    }
+  }
+
+  requestAnimationFrame(monitorLiveBets);
+</script>
+</body>
+</html>

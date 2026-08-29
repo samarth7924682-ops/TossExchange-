@@ -513,7 +513,7 @@
   function triggerCenterResultText(isWin, amount) {
     const txtEl = document.getElementById('centerResultText');
     if (isWin) { txtEl.innerText = `YOU WON! 🎉 +₹${amount.toFixed(0)}`; txtEl.className = "center-result-text win show"; } 
-    else { txtEl.innerText = `BET LOST 💔 -₹${amount.toFixed(0)}`; txtEl.className = "center-result-text loss show"; }
+    else { txtEl.innerText = `LOSS! -₹${amount.toFixed(0)}`; txtEl.className = "center-result-text loss show"; }
     setTimeout(() => txtEl.classList.remove('show'), 500);
   }
 

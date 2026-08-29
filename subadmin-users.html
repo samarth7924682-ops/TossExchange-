@@ -397,6 +397,17 @@
                 if(balance > 0) {
                     const adminRef = db.collection("admins").doc(subAdmin.id);
                     batch.update(adminRef, { balance: firebase.firestore.FieldValue.increment(-balance) });
+
+                    // 🌟 Opening Balance ko bhi "Approved Deposit" transaction ki tarah save karo,
+                    // taaki history.html me ye sahi se dikhe aur calculation me bhi count ho
+                    const newTxnRef = db.collection("transactions").doc();
+                    batch.set(newTxnRef, {
+                        userId: newUserRef.id,
+                        type: 'deposit',
+                        status: 'approved',
+                        amount: balance,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 }
 
                 await batch.commit();

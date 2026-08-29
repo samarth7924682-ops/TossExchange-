@@ -365,22 +365,37 @@
                 // 1. Fetch current wallet balance
                 let currentWalletBalance = parseFloat(userDoc.data().balance) || 0;
 
-                // 2. Sort by Date (Newest First)
-                freshLedgerData.sort((a, b) => b.dateObj - a.dateObj); 
+               // 2. Sort by Date (Oldest First) — taaki forward balance sahi banay
+                freshLedgerData.sort((a, b) => {
+                    let diff = a.dateObj - b.dateObj;
+                    if (diff !== 0) return diff;
+                    // Same timestamp ho toh Bonus ko Deposit se pehle count karo
+                    if (a.type === 'bonus' && b.type === 'deposit') return -1;
+                    if (a.type === 'deposit' && b.type === 'bonus') return 1;
+                    return 0;
+                });
 
-                // 3. Reverse Calculate Balance
-                let tempBal = currentWalletBalance;
+                // 3. Forward Calculate Balance — jis waqt transaction hua, uss waqt ka fixed balance
+                let tempBal = 0;
 
                 freshLedgerData.forEach((item) => {
-                    // Assign current available balance to this row
-                    item.histBalance = tempBal;
-
-                    // Reverse math for the previous (older) entry
                     if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
-                        tempBal -= item.amount; 
-                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) { 
                         tempBal += item.amount; 
+                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) { 
+                        tempBal -= item.amount; 
                     }
+                    item.histBalance = tempBal;
+                });
+
+                // 4. Display ke liye wapas Newest First order me sort karo
+                // 4. Display ke liye wapas Newest First order me sort karo
+                freshLedgerData.sort((a, b) => {
+                    let diff = b.dateObj - a.dateObj;
+                    if (diff !== 0) return diff;
+                    // Same timestamp ho toh display me Deposit upar, Bonus neeche (calculation ke ulta)
+                    if (a.type === 'deposit' && b.type === 'bonus') return -1;
+                    if (a.type === 'bonus' && b.type === 'deposit') return 1;
+                    return 0;
                 });
 
                 // ==========================================

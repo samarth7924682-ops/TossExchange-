@@ -66,7 +66,7 @@
 
 <div class="card">
   <div class="timer-tag" id="roundTimerDisplay">Round Timer: --</div>
-  <div style="font-size:12px; color:#94a3b8;">NEXT / LIVE ROUND ID: <b id="activeRoundId" style="color:#fff;">--</b></div>
+  <div style="font-size:12px; color:#94a3b8;">NEXT / LIVE ROUND ID: <b id="activeRoundId" style="color:#fff;">--</b> <span id="activeRoundRaw" style="color:#475569; font-size:10px;"></span></div>
 
   <div class="stat-grid">
     <div class="stat-box">
@@ -98,10 +98,36 @@
     window.db = firebase.firestore();
   }
 
+  // --- TIME SYNC (same as game.html, so admin round boundary matches players exactly) ---
+  let timeOffset = 0;
+  let isTimeSynced = false;
+
+  async function syncServerTime() {
+    try {
+      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
+      const data = await res.json();
+      const serverTime = new Date(data.utc_datetime).getTime();
+      timeOffset = serverTime - Date.now();
+    } catch(e) {
+      console.log("Time sync failed, using local time.");
+    }
+    isTimeSynced = true;
+  }
+  syncServerTime();
+
+  function getSyncedNow() { return Date.now(); }
+
+  // Same formula as game1.html so this ID always matches what players see on their screen
+  function getRoundDisplayId(roundIdNum) {
+    return String((Math.abs(roundIdNum * 2654435761) % 900000) + 100000);
+  }
+
   let currentRoundId = "";
   let unsubscribeListener = null;
 
   function monitorLiveBets() {
+    
+
     const now = Date.now();
     const elapsed = now % 30000;
     const roundId = Math.floor(now / 30000).toString();
@@ -111,7 +137,8 @@
 
     if(roundId !== currentRoundId) {
       currentRoundId = roundId;
-      document.getElementById('activeRoundId').innerText = roundId;
+      document.getElementById('activeRoundId').innerText = '#' + getRoundDisplayId(parseInt(roundId));
+      document.getElementById('activeRoundRaw').innerText = '(' + roundId + ')';
       document.getElementById('forcedStatus').innerText = "AUTO (RANDOM)";
 
       if(unsubscribeListener) unsubscribeListener();

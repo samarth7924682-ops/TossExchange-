@@ -9,7 +9,6 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
 
-  /* Playcode Style Ambient Light Background */
   body {
     background: #090d16;
     background-image: 
@@ -24,7 +23,6 @@
     min-height: 100vh;
   }
 
-  /* Glassmorphic Container */
   .app-container {
     width: 100%;
     max-width: 410px;
@@ -42,7 +40,6 @@
     position: relative;
   }
 
-  /* Brand Header */
   .header {
     display: flex;
     justify-content: space-between;
@@ -71,7 +68,6 @@
     box-shadow: 0 0 15px rgba(253, 224, 71, 0.15);
   }
 
-  /* Timer Ring Box */
   .timer-card {
     background: rgba(30, 41, 59, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -104,7 +100,6 @@
     text-transform: uppercase;
   }
 
-  /* Egg Selection Area */
   .eggs-card {
     background: rgba(30, 41, 59, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -136,7 +131,6 @@
     box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
   }
   
-  /* EGG BREAKING & CHICKEN ANIMATIONS */
   .egg-emoji {
     font-size: 40px;
     margin-bottom: 4px;
@@ -156,12 +150,8 @@
     60% { transform: scale(1.3) translateY(-8px); opacity: 1; }
     100% { transform: scale(1) translateY(0); opacity: 1; }
   }
-  .egg-cracking {
-    animation: eggCrackShake 0.6s ease-in-out forwards;
-  }
-  .chick-hatched {
-    animation: chickHatchPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-  }
+  .egg-cracking { animation: eggCrackShake 0.6s ease-in-out forwards; }
+  .chick-hatched { animation: chickHatchPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 
   .egg-title {
     font-size: 13px;
@@ -176,7 +166,6 @@
     margin-top: 2px;
   }
 
-  /* IN-PAGE CENTER TEXT RESULT NOTIFICATION */
   .center-result-text {
     position: absolute;
     top: 50%;
@@ -205,7 +194,6 @@
     text-shadow: 0 0 25px rgba(248, 113, 113, 0.9);
   }
 
-  /* Bet Input Controls */
   .bet-control-box {
     display: flex;
     align-items: center;
@@ -242,7 +230,6 @@
     width: 100%;
   }
 
-  /* Casino Chips */
   .chip-row {
     display: flex;
     justify-content: center;
@@ -268,7 +255,6 @@
   }
   .chip:active { transform: scale(0.9); }
 
-  /* Gradient Place Bet Button */
   .place-bet-btn {
     width: 100%;
     padding: 16px;
@@ -291,7 +277,6 @@
     cursor: not-allowed;
   }
 
-  /* History Cards */
   .content-card {
     background: rgba(30, 41, 59, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -343,27 +328,22 @@
 </head>
 <body>
 
-<!-- BACKGROUND AUDIO -->
 <audio id="bgMusic" loop preload="auto">
   <source src="background.mp3" type="audio/mpeg">
 </audio>
 
 <div class="app-container">
-  <!-- Brand Header -->
   <div class="header">
     <div class="brand-logo">🐥 LOST CHICKEN</div>
     <div class="balance-pill">🪙 <span id="userCoins">0.00</span></div>
   </div>
 
-  <!-- Synchronized Timer Card -->
   <div class="timer-card">
-    <div class="timer-circle" id="timerCircle">30</div>
-    <div class="timer-status" id="phaseDisplay">PLACE YOUR BETS</div>
+    <div class="timer-circle" id="timerCircle">...</div>
+    <div class="timer-status" id="phaseDisplay">SYNCING TIME...</div>
   </div>
 
-  <!-- Eggs Card -->
   <div class="eggs-card">
-    <!-- Inline Center Text Result -->
     <div class="center-result-text" id="centerResultText">YOU WON! 🎉</div>
 
     <div class="eggs-grid">
@@ -379,14 +359,12 @@
       </div>
     </div>
 
-    <!-- Bet Amount & Controls -->
     <div class="bet-control-box">
       <button class="action-btn" onclick="resetBetAmount()">RESET</button>
       <input type="number" class="bet-amount-display" id="betAmountInput" value="0" min="0" oninput="manualBetInput(this.value)">
       <button class="action-btn" onclick="setAllInBet()">ALL</button>
     </div>
 
-    <!-- Quick Chips -->
     <div class="chip-row">
       <div class="chip" onclick="addChipValue(10)">10</div>
       <div class="chip" onclick="addChipValue(50)">50</div>
@@ -395,30 +373,22 @@
       <div class="chip" onclick="addChipValue(1000)">1K</div>
     </div>
 
-    <button class="place-bet-btn" id="placeBetBtn" onclick="placeBet()">PLACE BET</button>
+    <button class="place-bet-btn" id="placeBetBtn" onclick="placeBet()" disabled>WAIT...</button>
   </div>
 
-  <!-- User History (Last 5) -->
   <div class="content-card">
     <div class="card-heading">Your Bet History (Last 5)</div>
-    <div class="history-list" id="myBetHistory">
-      <!-- Populated dynamically -->
-    </div>
+    <div class="history-list" id="myBetHistory"></div>
   </div>
 
-  <!-- Recent Global Results (Last 10 Sync) -->
   <div class="content-card">
     <div class="card-heading">Recent Results (Last 10)</div>
-    <div class="results-list" id="recentResultsList">
-      <!-- Populated dynamically -->
-    </div>
+    <div class="results-list" id="recentResultsList"></div>
   </div>
 </div>
 
-<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-<!-- External App Logic (Optional) -->
 <script src="app.js"></script>
 
 <script>
@@ -426,62 +396,61 @@
     window.db = firebase.firestore();
   }
 
-  // Continuous Background Music
-  const bgAudio = document.getElementById('bgMusic');
-  function startBgMusic() {
-    if(bgAudio.paused) {
-      bgAudio.volume = 0.4;
-      bgAudio.play().catch(function(e){});
+  // --- TIME SYNC LOGIC ---
+  let timeOffset = 0;
+  let isTimeSynced = false;
+
+  async function syncServerTime() {
+    try {
+      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
+      const data = await res.json();
+      const serverTime = new Date(data.utc_datetime).getTime();
+      timeOffset = serverTime - Date.now();
+      isTimeSynced = true;
+      document.getElementById('placeBetBtn').innerText = "PLACE BET";
+      document.getElementById('placeBetBtn').disabled = false;
+    } catch(e) {
+      console.log("Time sync failed, using local time.");
+      isTimeSynced = true; 
+      document.getElementById('placeBetBtn').innerText = "PLACE BET";
+      document.getElementById('placeBetBtn').disabled = false;
     }
+    recoverPendingBets();
   }
+  syncServerTime();
+
+  function getSyncedNow() { return Date.now(); }
+
+  const bgAudio = document.getElementById('bgMusic');
+  function startBgMusic() { if(bgAudio.paused) { bgAudio.volume = 0.4; bgAudio.play().catch(e=>{}); } }
   document.body.addEventListener('click', startBgMusic, { once: true });
   document.body.addEventListener('touchstart', startBgMusic, { once: true });
 
   function playClickSound() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(650, ctx.currentTime);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.08);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(650, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.08);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.08);
     } catch(e) {}
   }
 
   const sessionStr = localStorage.getItem('userSession');
   let userSession = sessionStr ? JSON.parse(sessionStr) : { id: "demo_user_" + Math.floor(Math.random()*10000), isDemo: true, balance: 1000 };
 
-  let realBalance = 0;
-  let selectedSide = null;
-  let currentActiveBet = null;
-  let inputBetAmount = 0;
-
-  // --- COIN FLIP MATCHING STORAGE LOGIC ---
-  const USER_HISTORY_KEY = `coin_flip_history_${userSession.id}`;
+  let realBalance = 0; let selectedSide = null; let currentActiveBet = null; let inputBetAmount = 0;
+  
+  // Safe parsing of user bet history with strict 5 item limit
+  const USER_HISTORY_KEY = `chicken_history_${userSession.id}`;
   let myBetHistoryData = JSON.parse(localStorage.getItem(USER_HISTORY_KEY) || '[]');
 
   function saveAndSyncBetHistory(newRecord) {
-    myBetHistoryData.unshift(newRecord);
-    myBetHistoryData = myBetHistoryData.slice(0, 10);
+    myBetHistoryData.unshift(newRecord); // Add new record at the beginning
+    myBetHistoryData = myBetHistoryData.slice(0, 5); // Keep strictly last 5 entries
     localStorage.setItem(USER_HISTORY_KEY, JSON.stringify(myBetHistoryData));
-    window.dispatchEvent(new Event('historyUpdated'));
-  }
-
-  window.addEventListener('historyUpdated', function() {
     renderHistoryTables();
-  });
-
-  window.addEventListener('storage', function(e) {
-    if (e.key === USER_HISTORY_KEY) {
-      myBetHistoryData = JSON.parse(e.newValue || '[]');
-      renderHistoryTables();
-    }
-  });
+  }
 
   function updateBalanceDisplay(val) {
     realBalance = parseFloat(val) || 0;
@@ -489,132 +458,130 @@
   }
 
   if (userSession.isDemo) {
-    realBalance = parseFloat(userSession.balance || 1000);
-    updateBalanceDisplay(realBalance);
+    realBalance = parseFloat(userSession.balance || 1000); updateBalanceDisplay(realBalance);
   } else if (typeof db !== 'undefined') {
-    db.collection("users").doc(userSession.id).onSnapshot(function(doc) {
-      if (doc.exists) {
-        updateBalanceDisplay(doc.data().balance || 0);
-      }
-    });
+    db.collection("users").doc(userSession.id).onSnapshot(doc => { if (doc.exists) updateBalanceDisplay(doc.data().balance || 0); });
   }
 
   function addChipValue(val) {
-    playClickSound();
-    if (inputBetAmount + val > realBalance) {
-      alert("INSUFFICIENT BALANCE!");
-      return;
-    }
-    inputBetAmount += val;
-    document.getElementById('betAmountInput').value = inputBetAmount;
+    playClickSound(); if (inputBetAmount + val > realBalance) return alert("INSUFFICIENT BALANCE!");
+    inputBetAmount += val; document.getElementById('betAmountInput').value = inputBetAmount;
   }
-
-  function resetBetAmount() {
-    playClickSound();
-    inputBetAmount = 0;
-    document.getElementById('betAmountInput').value = 0;
-  }
-
-  function setAllInBet() {
-    playClickSound();
-    inputBetAmount = Math.floor(realBalance);
-    document.getElementById('betAmountInput').value = inputBetAmount;
-  }
-
+  function resetBetAmount() { playClickSound(); inputBetAmount = 0; document.getElementById('betAmountInput').value = 0; }
+  function setAllInBet() { playClickSound(); inputBetAmount = Math.floor(realBalance); document.getElementById('betAmountInput').value = inputBetAmount; }
   function manualBetInput(val) {
     const num = parseFloat(val) || 0;
-    if (num > realBalance) {
-      alert("INSUFFICIENT BALANCE!");
-      inputBetAmount = Math.floor(realBalance);
-      document.getElementById('betAmountInput').value = inputBetAmount;
-      return;
-    }
+    if (num > realBalance) { alert("INSUFFICIENT BALANCE!"); inputBetAmount = Math.floor(realBalance); document.getElementById('betAmountInput').value = inputBetAmount; return; }
     inputBetAmount = num;
   }
 
   function selectEgg(side) {
-    if(currentActiveBet) return;
-    playClickSound();
-    selectedSide = side;
+    if(currentActiveBet) return; playClickSound(); selectedSide = side;
     document.getElementById('btnLeft').classList.toggle('selected', side === 'LEFT');
     document.getElementById('btnRight').classList.toggle('selected', side === 'RIGHT');
   }
 
   async function placeBet() {
+    if(!isTimeSynced) return alert("Please wait, syncing time...");
     if(!selectedSide) return alert("Pehle Egg Select Karein!");
     if(inputBetAmount <= 0) return alert("Please Enter/Select Bet Amount!");
     if(inputBetAmount > realBalance) return alert("INSUFFICIENT BALANCE!");
     
     playClickSound();
-    currentActiveBet = { side: selectedSide, amount: inputBetAmount };
-    
+    const roundId = Math.floor(getSyncedNow() / 30000).toString();
+    currentActiveBet = { side: selectedSide, amount: inputBetAmount, roundId: roundId };
+    localStorage.setItem(`pendingBet_${userSession.id}`, JSON.stringify(currentActiveBet));
+
     if (userSession.isDemo) {
-      realBalance -= inputBetAmount;
-      userSession.balance = realBalance;
-      localStorage.setItem('userSession', JSON.stringify(userSession));
-      updateBalanceDisplay(realBalance);
+      realBalance -= inputBetAmount; userSession.balance = realBalance;
+      localStorage.setItem('userSession', JSON.stringify(userSession)); updateBalanceDisplay(realBalance);
     } else if (typeof db !== 'undefined') {
-      await db.collection("users").doc(userSession.id).update({
-        balance: firebase.firestore.FieldValue.increment(-inputBetAmount)
-      });
+      await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(-inputBetAmount) });
+      db.collection("round_bets").doc(roundId).set({ [selectedSide]: firebase.firestore.FieldValue.increment(inputBetAmount) }, { merge: true });
     }
 
-    const roundId = Math.floor(Date.now() / 30000).toString();
-    if (typeof db !== 'undefined' && !userSession.isDemo) {
-      db.collection("round_bets").doc(roundId).set({
-        [selectedSide]: firebase.firestore.FieldValue.increment(inputBetAmount)
-      }, { merge: true });
-    }
-
-    document.getElementById('placeBetBtn').disabled = true;
-    document.getElementById('placeBetBtn').innerText = `PLACED (₹${inputBetAmount} ON ${selectedSide})`;
-    
-    inputBetAmount = 0;
-    document.getElementById('betAmountInput').value = 0;
+    document.getElementById('placeBetBtn').disabled = true; document.getElementById('placeBetBtn').innerText = `PLACED (₹${inputBetAmount} ON ${selectedSide})`;
+    inputBetAmount = 0; document.getElementById('betAmountInput').value = 0;
   }
 
   function resetEggsUI() {
-    const eLeft = document.getElementById('eggEmojiLeft');
-    const eRight = document.getElementById('eggEmojiRight');
-    eLeft.innerText = "🥚";
-    eLeft.className = "egg-emoji";
-    eRight.innerText = "🥚";
-    eRight.className = "egg-emoji";
-    document.getElementById('eggTitleLeft').innerText = "LEFT EGG";
-    document.getElementById('eggTitleRight').innerText = "RIGHT EGG";
+    const eLeft = document.getElementById('eggEmojiLeft'); const eRight = document.getElementById('eggEmojiRight');
+    eLeft.innerText = "🥚"; eLeft.className = "egg-emoji"; eRight.innerText = "🥚"; eRight.className = "egg-emoji";
+    document.getElementById('eggTitleLeft').innerText = "LEFT EGG"; document.getElementById('eggTitleRight').innerText = "RIGHT EGG";
   }
 
   function triggerCenterResultText(isWin, amount) {
     const txtEl = document.getElementById('centerResultText');
-    if (isWin) {
-      txtEl.innerText = `YOU WON! 🎉 +₹${amount.toFixed(0)}`;
-      txtEl.className = "center-result-text win show";
-    } else {
-      txtEl.innerText = `BET LOST 💔 -₹${amount.toFixed(0)}`;
-      txtEl.className = "center-result-text loss show";
-    }
-
-    setTimeout(function() {
-      txtEl.classList.remove('show');
-    }, 500);
+    if (isWin) { txtEl.innerText = `YOU WON! 🎉 +₹${amount.toFixed(0)}`; txtEl.className = "center-result-text win show"; } 
+    else { txtEl.innerText = `BET LOST 💔 -₹${amount.toFixed(0)}`; txtEl.className = "center-result-text loss show"; }
+    setTimeout(() => txtEl.classList.remove('show'), 500);
   }
 
-  let activeRoundId = "";
+  function getDeterministicOutcome(roundIdNum) {
+    let x = roundIdNum ^ 0x9e3779b9;
+    x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
+    x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
+    x = x ^ (x >>> 16);
+    return (x & 1) === 0 ? 'LEFT' : 'RIGHT';
+  }
+
+  // Same roundId always produces the same-looking short ID, everywhere (bet history + recent results)
+  function getRoundDisplayId(roundIdNum) {
+    return String((Math.abs(roundIdNum * 2654435761) % 900000) + 100000);
+  }
+
+  function getSynchronizedRecentRounds() {
+    const currentRoundNum = Math.floor(getSyncedNow() / 30000);
+    let saved = JSON.parse(localStorage.getItem('chicken_recent_results') || '[]');
+    const syncRounds = [];
+    
+    for (let i = 1; i <= 10; i++) {
+      const pastRoundNum = (currentRoundNum - i).toString();
+      const found = saved.find(r => r.roundId === pastRoundNum);
+      let outcome = found ? found.outcome : getDeterministicOutcome(parseInt(pastRoundNum));
+      let label = i === 1 ? "Previous Match" : (i % 2 === 0 ? `${i / 2} min ago` : `${i * 30} sec ago`);
+      syncRounds.push({ outcome, label, roundDisplayId: getRoundDisplayId(parseInt(pastRoundNum)) });
+    }
+    return syncRounds;
+  }
+
+  async function recoverPendingBets() {
+    const pendingData = localStorage.getItem(`pendingBet_${userSession.id}`);
+    if(pendingData) {
+      const pendingBet = JSON.parse(pendingData);
+      const currentRoundId = Math.floor(getSyncedNow() / 30000);
+      if(parseInt(pendingBet.roundId) < currentRoundId) {
+        currentActiveBet = pendingBet; await evaluateRoundResult(pendingBet.roundId, true);
+      } else {
+        currentActiveBet = pendingBet; document.getElementById('placeBetBtn').disabled = true;
+        document.getElementById('placeBetBtn').innerText = `PLACED (₹${pendingBet.amount} ON ${pendingBet.side})`;
+      }
+    }
+}
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isTimeSynced) {
+      recoverPendingBets();
+      renderHistoryTables();
+    }
+  });
+
+  let activeRoundId = Math.floor(Date.now() / 30000).toString();
+  let resultEvaluatedRound = null;
+
   function gameLoop() {
-    const now = Date.now();
+    if (!isTimeSynced) { requestAnimationFrame(gameLoop); return; }
+
+    const now = getSyncedNow();
     const elapsed = now % 30000; 
     const roundId = Math.floor(now / 30000).toString();
 
     if(roundId !== activeRoundId) {
-      activeRoundId = roundId;
-      currentActiveBet = null;
-      selectedSide = null;
-      document.getElementById('btnLeft').classList.remove('selected');
-      document.getElementById('btnRight').classList.remove('selected');
-      document.getElementById('placeBetBtn').disabled = false;
-      document.getElementById('placeBetBtn').innerText = "PLACE BET";
-      resetEggsUI();
-      playClickSound();
+      activeRoundId = roundId; currentActiveBet = null; selectedSide = null;
+      document.getElementById('btnLeft').classList.remove('selected'); document.getElementById('btnRight').classList.remove('selected');
+      document.getElementById('placeBetBtn').disabled = false; document.getElementById('placeBetBtn').innerText = "PLACE BET";
+      resetEggsUI(); playClickSound();
+      renderHistoryTables();
     }
 
     const timerCircle = document.getElementById('timerCircle');
@@ -622,120 +589,103 @@
 
     if (elapsed < 20000) {
       let leftSec = Math.ceil((20000 - elapsed) / 1000);
-      timerCircle.innerText = leftSec;
-      timerCircle.style.color = "#10b981";
-      timerCircle.style.borderColor = "#10b981";
-      timerCircle.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.3)";
+      timerCircle.innerText = leftSec; timerCircle.style.color = "#10b981"; timerCircle.style.borderColor = "#10b981"; timerCircle.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.3)";
       phaseDisplay.innerText = "PLACE YOUR BETS";
     } else if (elapsed < 25000) {
       let leftSec = Math.ceil((25000 - elapsed) / 1000);
-      timerCircle.innerText = leftSec;
-      timerCircle.style.color = "#f97316";
-      timerCircle.style.borderColor = "#f97316";
-      timerCircle.style.boxShadow = "0 0 15px rgba(249, 115, 22, 0.3)";
+      timerCircle.innerText = leftSec; timerCircle.style.color = "#f97316"; timerCircle.style.borderColor = "#f97316"; timerCircle.style.boxShadow = "0 0 15px rgba(249, 115, 22, 0.3)";
       phaseDisplay.innerText = "BETS LOCKED - CRACKING EGG";
       document.getElementById('placeBetBtn').disabled = true;
     } else {
-      timerCircle.innerText = "0";
-      timerCircle.style.color = "#ef4444";
-      timerCircle.style.borderColor = "#ef4444";
-      timerCircle.style.boxShadow = "0 0 15px rgba(239, 68, 68, 0.3)";
+      timerCircle.innerText = "0"; timerCircle.style.color = "#ef4444"; timerCircle.style.borderColor = "#ef4444"; timerCircle.style.boxShadow = "0 0 15px rgba(239, 68, 68, 0.3)";
       phaseDisplay.innerText = "RESULT REVEALED";
-
-      if(currentActiveBet && !currentActiveBet.processed) {
-        currentActiveBet.processed = true;
-        evaluateRoundResult(roundId);
+      if (resultEvaluatedRound !== roundId) {
+        resultEvaluatedRound = roundId;
+        evaluateRoundResult(roundId, false);
       }
     }
 
-    renderHistoryTables();
     requestAnimationFrame(gameLoop);
   }
 
-  function getSynchronizedRecentRounds() {
-    const currentRoundNum = Math.floor(Date.now() / 30000);
-    const syncRounds = [];
+  async function evaluateRoundResult(targetRoundId, isOfflineRecovery = false) {
+    let outcome = getDeterministicOutcome(parseInt(targetRoundId));
 
-    for (let i = 1; i <= 10; i++) {
-      const pastRoundNum = currentRoundNum - i;
-      const outcome = (pastRoundNum * 9301 + 49297) % 233280 > 116640 ? 'LEFT' : 'RIGHT';
-      
-      let label = `${i * 30} sec ago`;
-      if (i === 1) label = "Previous Match";
-      else if (i % 2 === 0) label = `${i / 2} min ago`;
-
-      syncRounds.push({ outcome, label });
-    }
-    return syncRounds;
-  }
-
-  async function evaluateRoundResult(roundId) {
-    let outcome = Math.random() < 0.5 ? 'LEFT' : 'RIGHT';
-
-    if (typeof db !== 'undefined') {
+    if (typeof db !== 'undefined' && !userSession.isDemo) {
       try {
-        const doc = await db.collection("round_bets").doc(roundId).get();
-        if(doc.exists && doc.data().forcedResult) {
-          outcome = doc.data().forcedResult;
-        }
+        const roundRef = db.collection("round_bets").doc(targetRoundId);
+        outcome = await db.runTransaction(async (tx) => {
+          const doc = await tx.get(roundRef);
+          const data = doc.exists ? doc.data() : {};
+          if (data.finalOutcome) return data.finalOutcome;
+          let decided = getDeterministicOutcome(parseInt(targetRoundId));
+          if (data.forcedResult) {
+            decided = data.forcedResult;
+          } else if (Math.random() < 0.35) {
+            let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
+            if (leftLoad > rightLoad) decided = 'RIGHT'; else if (rightLoad > leftLoad) decided = 'LEFT';
+          }
+          tx.set(roundRef, { finalOutcome: decided }, { merge: true });
+          return decided;
+        });
       } catch(e) {}
     }
 
-    const winEggEmoji = outcome === 'LEFT' ? document.getElementById('eggEmojiLeft') : document.getElementById('eggEmojiRight');
-    const winEggTitle = outcome === 'LEFT' ? document.getElementById('eggTitleLeft') : document.getElementById('eggTitleRight');
-    
-    winEggEmoji.classList.add('egg-cracking');
-    
-    setTimeout(function() {
-      winEggEmoji.innerText = "🐥";
-      winEggEmoji.classList.remove('egg-cracking');
-      winEggEmoji.classList.add('chick-hatched');
-      winEggTitle.innerText = "CHICKEN!";
-    }, 400);
-
-    const won = (currentActiveBet && currentActiveBet.side === outcome);
-    
-    if(won) {
-      const winAmt = currentActiveBet.amount * 1.9;
-      if (userSession.isDemo) {
-        realBalance += winAmt;
-        userSession.balance = realBalance;
-        localStorage.setItem('userSession', JSON.stringify(userSession));
-        updateBalanceDisplay(realBalance);
-      } else if (typeof db !== 'undefined') {
-        await db.collection("users").doc(userSession.id).update({
-          balance: firebase.firestore.FieldValue.increment(winAmt)
-        });
-      }
-      triggerCenterResultText(true, winAmt);
-    } else if (currentActiveBet) {
-      triggerCenterResultText(false, currentActiveBet.amount);
+    // Save actual result for recent rounds list
+    let recentRounds = JSON.parse(localStorage.getItem('chicken_recent_results') || '[]');
+    if (!recentRounds.find(r => r.roundId === targetRoundId)) {
+      recentRounds.unshift({ roundId: targetRoundId, outcome: outcome });
+      recentRounds = recentRounds.slice(0, 10);
+      localStorage.setItem('chicken_recent_results', JSON.stringify(recentRounds));
     }
 
-    // --- COIN FLIP FORMAT HISTORY RECORD ---
-    if(currentActiveBet) {
+    if(!isOfflineRecovery) {
+      const winEggEmoji = outcome === 'LEFT' ? document.getElementById('eggEmojiLeft') : document.getElementById('eggEmojiRight');
+      const winEggTitle = outcome === 'LEFT' ? document.getElementById('eggTitleLeft') : document.getElementById('eggTitleRight');
+      
+      winEggEmoji.classList.add('egg-cracking');
+      setTimeout(() => {
+        winEggEmoji.innerText = "🐥"; winEggEmoji.classList.remove('egg-cracking');
+        winEggEmoji.classList.add('chick-hatched'); winEggTitle.innerText = "CHICKEN!";
+      }, 400);
+
+      setTimeout(() => { resetEggsUI(); }, 4000);
+    }
+
+    if(currentActiveBet && currentActiveBet.roundId === targetRoundId && !currentActiveBet.processed) {
+      currentActiveBet.processed = true; 
+      const won = (currentActiveBet.side === outcome); 
+      const winAmt = won ? currentActiveBet.amount * 1.9 : 0;
+      
+      if(won) {
+        if (userSession.isDemo) {
+          realBalance += winAmt; userSession.balance = realBalance;
+          localStorage.setItem('userSession', JSON.stringify(userSession)); updateBalanceDisplay(realBalance);
+        } else if (typeof db !== 'undefined') {
+          await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
+        }
+        if(!isOfflineRecovery) triggerCenterResultText(true, winAmt);
+      } else if (!isOfflineRecovery) { 
+        triggerCenterResultText(false, currentActiveBet.amount); 
+      }
+
       const profitStr = won ? `+₹${(currentActiveBet.amount * 0.9).toFixed(2)}` : `-₹${currentActiveBet.amount.toFixed(2)}`;
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      const historyRecord = {
-        amount: currentActiveBet.amount,
-        side: currentActiveBet.side,
-        result: won ? 'WIN' : 'LOSS',
-        profit: profitStr,
-        time: timeStr
-      };
+      // Save to user history and keep strictly last 5 entries
+      saveAndSyncBetHistory({ amount: currentActiveBet.amount, side: currentActiveBet.side, result: won ? 'WIN' : 'LOSS', profit: profitStr, time: timeStr, roundDisplayId: getRoundDisplayId(parseInt(targetRoundId)) });
+      localStorage.removeItem(`pendingBet_${userSession.id}`);
 
-      saveAndSyncBetHistory(historyRecord);
-
+      // Save to Firestore so it shows up in history.html (same as Coin Flip does)
       if (typeof db !== 'undefined' && !userSession.isDemo) {
-  db.collection("chicken_history").add({
-    userId: userSession.id,
-    betAmount: currentActiveBet.amount,
-    winAmount: won ? (currentActiveBet.amount * 1.9) : 0,
-    selectedSide: currentActiveBet.side,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  });
-}
+        db.collection("chicken_history").add({
+          userId: userSession.id,
+          betAmount: currentActiveBet.amount,
+          winAmount: won ? winAmt : 0,
+          selectedSide: currentActiveBet.side,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
     }
 
     renderHistoryTables();
@@ -746,27 +696,21 @@
     if(!myBetHistoryData || myBetHistoryData.length === 0) {
       betHistoryContainer.innerHTML = `<div style="color:#64748b; font-size:12px; padding:6px;">No bets placed yet...</div>`;
     } else {
-      betHistoryContainer.innerHTML = myBetHistoryData.slice(0, 5).map(function(item) {
-        return `
+      betHistoryContainer.innerHTML = myBetHistoryData.map(item => `
         <div class="bet-row">
-          <span>₹${item.amount} (${item.side} EGG) <small class="time-label">${item.time || ''}</small></span>
+          <span>₹${item.amount} (${item.side} EGG) <small class="time-label">${item.roundDisplayId ? '#'+item.roundDisplayId : ''}</small></span>
           <span class="${item.result === 'WIN' ? 'win-tag' : 'loss-tag'}">${item.result} ${item.profit || ''}</span>
         </div>
-        `;
-      }).join('');
+      `).join('');
     }
 
     const resultsContainer = document.getElementById('recentResultsList');
-    const syncRounds = getSynchronizedRecentRounds();
-
-    resultsContainer.innerHTML = syncRounds.map(function(item) {
-      return `
+    resultsContainer.innerHTML = getSynchronizedRecentRounds().map(item => `
       <div class="result-row">
-        <span class="time-label">${item.label}</span>
-        <span class="${item.outcome === 'RIGHT' ? 'right-win-text' : 'left-win-text'}">${item.outcome} WIN</span>
+        <span class="time-label">#${item.roundDisplayId} <small style="opacity:0.7;">(${item.label})</small></span>
+        <span class="${item.outcome === 'RIGHT' ? 'right-xx' : 'left-xx'} ${item.outcome === 'RIGHT' ? 'right-win-text' : 'left-win-text'}">${item.outcome} WIN</span>
       </div>
-      `;
-    }).join('');
+    `).join('');
   }
 
   renderHistoryTables();

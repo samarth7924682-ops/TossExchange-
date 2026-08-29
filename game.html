@@ -607,6 +607,10 @@
   }
 
   async function evaluateRoundResult(targetRoundId, isOfflineRecovery = false) {
+    const settledKey = `settledRound_${userSession.id}_${targetRoundId}`;
+    if (localStorage.getItem(settledKey)) { return; }
+    localStorage.setItem(settledKey, '1');
+
     let outcome = getDeterministicOutcome(parseInt(targetRoundId));
 
     if (typeof db !== 'undefined' && !userSession.isDemo) {

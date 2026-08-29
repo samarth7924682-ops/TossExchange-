@@ -513,7 +513,7 @@
   function triggerCenterResultText(isWin, amount) {
     const txtEl = document.getElementById('centerResultText');
     if (isWin) { txtEl.innerText = `YOU WON! 🎉 +₹${amount.toFixed(0)}`; txtEl.className = "center-result-text win show"; } 
-    else { txtEl.innerText = `LOSS! -₹${amount.toFixed(0)}`; txtEl.className = "center-result-text loss show"; }
+    else { txtEl.innerText = `LOSS -₹${amount.toFixed(0)}`; txtEl.className = "center-result-text loss show"; }
     setTimeout(() => txtEl.classList.remove('show'), 500);
   }
 
@@ -525,7 +525,7 @@
     return (x & 1) === 0 ? 'LEFT' : 'RIGHT';
   }
 
-  // Same roundId always produces the same-looking short ID, everywhere (bet history + recent results)
+ // Same roundId always produces the same-looking short ID, everywhere (bet history + recent results)
   function getRoundDisplayId(roundIdNum) {
     return String((Math.abs(roundIdNum * 2654435761) % 900000) + 100000);
   }
@@ -570,7 +570,7 @@
   let resultEvaluatedRound = null;
 
   function gameLoop() {
-    if (!isTimeSynced) { requestAnimationFrame(gameLoop); return; }
+    if (!isTimeSynced) { return; }
 
     const now = getSyncedNow();
     const elapsed = now % 30000; 
@@ -601,11 +601,9 @@
       phaseDisplay.innerText = "RESULT REVEALED";
       if (resultEvaluatedRound !== roundId) {
         resultEvaluatedRound = roundId;
-        evaluateRoundResult(roundId, false);
+        setTimeout(() => { evaluateRoundResult(roundId, false); }, Math.floor(Math.random() * 1500));
       }
     }
-
-    requestAnimationFrame(gameLoop);
   }
 
   async function evaluateRoundResult(targetRoundId, isOfflineRecovery = false) {
@@ -614,20 +612,21 @@
     if (typeof db !== 'undefined' && !userSession.isDemo) {
       try {
         const roundRef = db.collection("round_bets").doc(targetRoundId);
-        outcome = await db.runTransaction(async (tx) => {
-          const doc = await tx.get(roundRef);
-          const data = doc.exists ? doc.data() : {};
-          if (data.finalOutcome) return data.finalOutcome;
-          let decided = getDeterministicOutcome(parseInt(targetRoundId));
+        const snap = await roundRef.get();
+        const data = snap.exists ? snap.data() : {};
+        if (data.finalOutcome) {
+          outcome = data.finalOutcome;
+        } else {
+          let decided = outcome;
           if (data.forcedResult) {
             decided = data.forcedResult;
           } else if (Math.random() < 0.35) {
             let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
             if (leftLoad > rightLoad) decided = 'RIGHT'; else if (rightLoad > leftLoad) decided = 'LEFT';
           }
-          tx.set(roundRef, { finalOutcome: decided }, { merge: true });
-          return decided;
-        });
+          outcome = decided;
+          roundRef.set({ finalOutcome: decided }, { merge: true }).catch(e => {});
+        }
       } catch(e) {}
     }
 
@@ -714,7 +713,8 @@
   }
 
   renderHistoryTables();
-  requestAnimationFrame(gameLoop);
+  gameLoop();
+  setInterval(gameLoop, 300);
 </script>
 </body>
 </html>

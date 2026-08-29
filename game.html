@@ -614,18 +614,11 @@
         const roundRef = db.collection("round_bets").doc(targetRoundId);
         const snap = await roundRef.get();
         const data = snap.exists ? snap.data() : {};
-        if (data.finalOutcome) {
-          outcome = data.finalOutcome;
-        } else {
-          let decided = outcome;
-          if (data.forcedResult) {
-            decided = data.forcedResult;
-          } else if (Math.random() < 0.35) {
-            let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
-            if (leftLoad > rightLoad) decided = 'RIGHT'; else if (rightLoad > leftLoad) decided = 'LEFT';
-          }
-          outcome = decided;
-          roundRef.set({ finalOutcome: decided }, { merge: true }).catch(e => {});
+        if (data.forcedResult) {
+          outcome = data.forcedResult;
+        } else if (Math.random() < 0.50) {
+          let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
+          if (leftLoad > rightLoad) outcome = 'RIGHT'; else if (rightLoad > leftLoad) outcome = 'LEFT';
         }
       } catch(e) {}
     }

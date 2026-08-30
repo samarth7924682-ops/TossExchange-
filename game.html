@@ -525,6 +525,16 @@
     return (x & 1) === 0 ? 'LEFT' : 'RIGHT';
   }
 
+  // 0-99 ka deterministic "dice roll" — har device same roundId pe SAME number nikalega,
+  // ab koi phone apna alag Math.random() nahi karega.
+  function getDeterministicRoll(roundIdNum) {
+    let x = roundIdNum ^ 0x2545F491;
+    x = Math.imul(x ^ (x >>> 15), 0x85ebca6b);
+    x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+    x = x ^ (x >>> 16);
+    return Math.abs(x) % 100;
+  }
+
  // Same roundId always produces the same-looking short ID, everywhere (bet history + recent results)
   function getRoundDisplayId(roundIdNum) {
     return String((Math.abs(roundIdNum * 2654435761) % 900000) + 100000);
@@ -613,14 +623,16 @@
 
     let outcome = getDeterministicOutcome(parseInt(targetRoundId));
 
-    if (typeof db !== 'undefined' && !userSession.isDemo) {
+    // isDemo check yahan se hata diya — actual result (jo Recent Results me dikhta hai)
+    // demo aur real dono users ke liye SAME hona chahiye. Balance update niche isDemo se hi hoga.
+    if (typeof db !== 'undefined') {
       try {
         const roundRef = db.collection("round_bets").doc(targetRoundId);
         const snap = await roundRef.get();
         const data = snap.exists ? snap.data() : {};
         if (data.forcedResult) {
           outcome = data.forcedResult;
-        } else if (Math.random() < 0.25) {
+        } else if (getDeterministicRoll(parseInt(targetRoundId)) < 30) {
           let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
           if (leftLoad > rightLoad) outcome = 'RIGHT'; else if (rightLoad > leftLoad) outcome = 'LEFT';
         }

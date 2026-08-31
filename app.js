@@ -189,3 +189,82 @@ setTimeout(() => {
         window.runBackgroundCleanup();
     }
 }, 4000);
+
+// ==========================================
+// 6. GLOBAL PENDING COINFLIP BET RECOVERY
+// Agar coinflip me bet place karke tab/app band kar diya ho result aane se pehle,
+// toh ye check kisi bhi page (history.html sameत) khulte hi turant settle kar dega —
+// taaki balance kabhi bhi bina kisi ledger entry ke gayab na rahe.
+// ==========================================
+const COINFLIP_CYCLE_TIME = 15000;
+
+async function coinflipFetchRoundResult(roundId, isDemo) {
+    let chaos1 = Math.sin(roundId * 12.9898 + 78.233) * 43758.5453;
+    let randVal1 = chaos1 - Math.floor(chaos1);
+    let chaos2 = Math.sin(roundId * 93.234 + 12.345) * 55555.5555;
+    let randVal2 = chaos2 - Math.floor(chaos2);
+    const isRigged = (randVal1 * 100) < 30;
+
+    if (!isRigged || isDemo) {
+        return (randVal2 < 0.5) ? 'heads' : 'tails';
+    }
+    try {
+        const doc = await db.collection("round_bets").doc(roundId.toString()).get();
+        let headsTotal = doc.exists ? (doc.data().heads || 0) : 0;
+        let tailsTotal = doc.exists ? (doc.data().tails || 0) : 0;
+        if (headsTotal > tailsTotal) return 'tails';
+        if (tailsTotal > headsTotal) return 'heads';
+        return (randVal2 < 0.5) ? 'heads' : 'tails';
+    } catch (e) {
+        return (randVal2 < 0.5) ? 'heads' : 'tails';
+    }
+}
+
+window.recoverPendingCoinflipBet = async function() {
+    const session = window.checkSession();
+    if (!session) return;
+
+    const pendingKey = `pendingCoinflipBet_${session.id}`;
+    const pendingRaw = localStorage.getItem(pendingKey);
+    if (!pendingRaw) return;
+
+    const pending = JSON.parse(pendingRaw);
+    const nowRoundId = Math.floor(Date.now() / COINFLIP_CYCLE_TIME);
+    if (pending.roundId >= nowRoundId) return; // round abhi bhi live hai — coinflip.html khud handle karega
+
+    const settledKey = `settledCoinflipRound_${session.id}_${pending.roundId}`;
+    if (localStorage.getItem(settledKey)) { localStorage.removeItem(pendingKey); return; }
+    localStorage.setItem(settledKey, '1');
+
+    try {
+        const outcome = await coinflipFetchRoundResult(pending.roundId, session.isDemo);
+        const won = pending.side === outcome;
+        const winAmount = won ? (pending.amount * 2) : 0;
+
+        if (won) {
+            if (session.isDemo) {
+                const freshSession = window.checkSession();
+                freshSession.balance = parseFloat(freshSession.balance || 0) + winAmount;
+                localStorage.setItem('userSession', JSON.stringify(freshSession));
+            } else {
+                await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmount) });
+            }
+        }
+
+        if (!session.isDemo) {
+            await db.collection("coinflip_history").add({
+                userId: session.id, betAmount: pending.amount, winAmount: winAmount,
+                sidePicked: pending.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+    } catch (e) {
+        console.log("Coinflip recovery error:", e);
+    }
+
+    localStorage.removeItem(pendingKey);
+};
+
+// Har page load hote hi 1.5 second baad check karo
+setTimeout(() => {
+    window.recoverPendingCoinflipBet();
+}, 1500);

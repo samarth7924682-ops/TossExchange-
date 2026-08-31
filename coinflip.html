@@ -375,6 +375,10 @@
   const savedHist = localStorage.getItem(TOSS_HISTORY_KEY);
   if(savedHist) myHistoryData = JSON.parse(savedHist);
 
+  // PENDING BET RECOVERY — bet place hone ke baad, agar result aane se pehle
+  // tab band/reload/background ho jaye, isse balance bina record ke gayab nahi hoga.
+  const COINFLIP_PENDING_KEY = `pendingCoinflipBet_${userSession.id}`;
+
   const statusText = document.getElementById('statusText');
   const progressBar = document.getElementById('progressBar');
   const coin1 = document.getElementById('coin1');
@@ -541,7 +545,7 @@
       if (inputBetAmount > realBalance) { showToastMsg("INSUFFICIENT BALANCE!"); return; }
       if (activeBet) return; 
       
-      const betData = { side: pickedSide, amount: inputBetAmount };
+      const betData = { side: pickedSide, amount: inputBetAmount, roundId: currentRoundId };
       
       if (userSession.isDemo) {
           realBalance -= inputBetAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
@@ -553,17 +557,41 @@
           }, { merge: true });
       }
 
+      // Bet localStorage me bhi save karo — tab band/reload/background hone pe bhi
+      // recoverPendingCoinflipBet() isko settle kar payega.
+      localStorage.setItem(COINFLIP_PENDING_KEY, JSON.stringify(betData));
+
       activeBet = betData;
       inputBetAmount = 0; betAmountEl.textContent = "0.00";
   });
+  // Agar tab band/reload/background ho jaye bet place hone ke baad, result aane se pehle —
+  // ye us missed round ko wapas fetch karke settle karta hai, taaki balance bina kisi
+  // ledger entry ke kabhi "chupke se" na kate.
+  async function recoverPendingCoinflipBet() {
+      const pendingRaw = localStorage.getItem(COINFLIP_PENDING_KEY);
+      if (!pendingRaw) return;
+      const pending = JSON.parse(pendingRaw);
+      const nowRoundId = Math.floor(getTrueTime() / CYCLE_TIME);
+      if (pending.roundId >= nowRoundId) return; // round abhi bhi live hai, normal gameLoop hi handle karega
 
-  async function processWinnings(outcome) {
+      const settledKey = `settledCoinflipRound_${userSession.id}_${pending.roundId}`;
+      if (localStorage.getItem(settledKey)) { localStorage.removeItem(COINFLIP_PENDING_KEY); return; }
+      localStorage.setItem(settledKey, '1');
+
+      await fetchRoundResult(pending.roundId);
+      activeBet = pending;
+      await processWinnings(currentRoundResult, true);
+  }
+
+  async function processWinnings(outcome, isRecovery = false) {
       if (!activeBet) return;
       const won = activeBet.side === outcome;
       const winAmount = won ? (activeBet.amount * 2) : 0;
-      
-      floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${activeBet.amount.toFixed(2)}`;
-      floatingAmount.className = `floating-amount ${won ? 'pop-win' : 'pop-lose'}`;
+
+      if (!isRecovery) {
+          floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${activeBet.amount.toFixed(2)}`;
+          floatingAmount.className = `floating-amount ${won ? 'pop-win' : 'pop-lose'}`;
+      }
       
       if (won) {
           if (userSession.isDemo) {
@@ -581,6 +609,7 @@
       }
       
       addToHistory(activeBet.side, activeBet.amount, outcome, won);
+      localStorage.removeItem(COINFLIP_PENDING_KEY);
       activeBet = null; 
   }
 
@@ -616,8 +645,13 @@
   document.getElementById('btnReset').addEventListener('click', () => { inputBetAmount = 0; betAmountEl.textContent = "0.00"; });
   document.getElementById('btnAll').addEventListener('click', () => { inputBetAmount = Math.floor(realBalance); betAmountEl.textContent = inputBetAmount.toFixed(2); });
 
-  syncServerTime().then(() => {
+  syncServerTime().then(async () => {
+      await recoverPendingCoinflipBet();
       requestAnimationFrame(gameLoop);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { recoverPendingCoinflipBet(); }
   });
 })();
 </script>

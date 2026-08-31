@@ -632,7 +632,7 @@
         const data = snap.exists ? snap.data() : {};
         if (data.forcedResult) {
           outcome = data.forcedResult;
-        } else if (getDeterministicRoll(parseInt(targetRoundId)) < 30) {
+        } else if (getDeterministicRoll(parseInt(targetRoundId)) < 42) {
           let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
           if (leftLoad > rightLoad) outcome = 'RIGHT'; else if (rightLoad > leftLoad) outcome = 'LEFT';
         }

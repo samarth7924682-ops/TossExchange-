@@ -243,7 +243,8 @@ setInterval(syncServerTime, 15000);
         let dynamicSeed = now.getUTCFullYear() * 1000000 + (now.getUTCMonth() + 1) * 10000 + now.getUTCDate() * 100 + now.getUTCHours();
         const rng = LCG(dynamicSeed);
         
-    const SPEED_RATE = 0.1215; // thodi si slow speed
+    
+        const SPEED_RATE = 0.1215; // thodi si slow speed
     const TAKEOFF_MS = 2000; // FIX: Sab round me plane exactly 2 seconds rukega (engine flame)
     const ZERO_CRASH_FLY_MS = 0; // FIX: 1.00x turant crash hoga taaki koi cashout na kar sake
     
@@ -251,62 +252,59 @@ setInterval(syncServerTime, 15000);
     const sequenceData = [];
     let accumulatedTime = 0;
 
-        for (let i = 0; i < 10000; i++) {
+    // 🔥 SHUFFLE LOGIC - Pattern aur clustering ko humesha ke liye khatam karne ke liye 🔥
+    let tempMultipliers = [];
+    for (let i = 0; i < 10000; i++) {
         let r = rng();
         let mult;
         
-                                                    // NAYA LOGIC: Total exactly 100%. Har round ekdum random hoga (No serial pattern).
-        if (r < 0.15) {
+                // Naya Exact Logic (100% Distribution)
+        if (r < 0.15) { 
             // 15% chances: Exact 1.00x par crash
             mult = 1.00; 
         } 
-        else if (r < 0.315) { // 0.15 + 0.165
-            // 16.5% chances: 1.00x se 1.07x ke beech
-            mult = 1.00 + rng() * 0.07; 
+        else if (r < 0.25) { 
+            // 10% chances: Under 1.2x (1.01x se 1.19x)
+            mult = 1.01 + rng() * 0.18; 
         } 
-        else if (r < 0.415) { // 0.315 + 0.10
-            // 10% chances: 1.10x se 1.50x ke beech
-            mult = 1.10 + rng() * 0.40; 
+        else if (r < 0.50) { 
+            // 25% chances: Under 1.7x (1.20x se 1.69x)
+            mult = 1.20 + rng() * 0.49; 
         } 
-        else if (r < 0.455) { // 0.415 + 0.04
-            // 4% chances: 1.10x se 1.18x ke beech
-            mult = 1.10 + rng() * 0.08; 
+        else if (r < 0.67) { 
+            // 17% chances: Under 2.1x (1.70x se 2.09x)
+            mult = 1.70 + rng() * 0.39; 
         } 
-        else if (r < 0.535) { // 0.455 + 0.08
-            // 8% chances: 1.05x se 1.11x ke beech
-            mult = 1.05 + rng() * 0.06; 
+        else if (r < 0.90) { 
+            // 23% chances: Under 5x (2.10x se 4.99x)
+            mult = 2.10 + rng() * 2.89; 
         } 
-        else if (r < 0.895) { // 0.535 + 0.36
-            // 36% chances: 1.01x se 2.00x ke beech
-            mult = 1.01 + rng() * 0.99; 
-        } 
-        else if (r < 0.935) { // 0.895 + 0.04
-            // 4% chances: 2.00x se 2.50x ke beech
-            mult = 2.00 + rng() * 0.50; 
+        else if (r < 0.95) { 
+            // 5% chances: Under 10x (5.00x se 9.99x)
+            mult = 5.00 + rng() * 4.99; 
         }
-        else if (r < 0.975) { // 0.935 + 0.04
-            // 4% chances: 2.01x se 5.00x ke beech
-            mult = 2.01 + rng() * 2.99;
-        } 
-        else if (r < 0.995) { // 0.975 + 0.02
-            // 2% chances: 5.01x se 10.00x ke beech
-            mult = 5.01 + rng() * 4.99;
-        } 
         else { 
-            // 0.5% chances: 10.01x se 50.00x ke beech
-            mult = 10.01 + rng() * 39.99;
+            // Bacha hua 5% chances: Under 1.1x (1.01x se 1.09x)
+            mult = 1.01 + rng() * 0.08; 
         }
-          
-          
         
         
-        
-               mult = parseFloat(mult.toFixed(2));  
+        tempMultipliers.push(parseFloat(mult.toFixed(2)));
+    }
+
+    // Triple Array Shuffle (Gaddi ko 3 baar phenta gaya hai taaki serial bilkul na bane)
+    for(let shuffle = 0; shuffle < 3; shuffle++) {
+        for (let i = tempMultipliers.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [tempMultipliers[i], tempMultipliers[j]] = [tempMultipliers[j], tempMultipliers[i]];
+        }
+    }
+
+    // Ab sequence banayenge ekdum random data ke sath
+    for (let i = 0; i < 10000; i++) {
+        let mult = tempMultipliers[i];
         masterSequence.push(mult);
 
-        // 1.00x rounds ka asli growth-rate 0 hota hai (log(1)=0), isliye unke liye
-        // ek fixed "fake fly" window rakhte hain — display hamesha 1.00x hi rahega (no exploit),
-        // sirf plane visually thoda upar uthega taaki instant-crash na lage.
         let flyDuration, effectiveRate;
         if (mult <= 1.00) {
             flyDuration = ZERO_CRASH_FLY_MS;
@@ -328,6 +326,8 @@ setInterval(syncServerTime, 15000);
 
         accumulatedTime += roundDuration;
     }
+
+    
 
     const TOTAL_BLOCK_DURATION = accumulatedTime; 
 
@@ -425,7 +425,7 @@ setInterval(syncServerTime, 15000);
     // FIREBASE DATABASE LISTENERS & DEMO BYPASS
     // ----------------------------------------------------
     if (user.isDemo) {
-        realBalance = user.balance || 1500;
+        realBalance = user.balance || 0;
         if(!historyLoaded) { initialBalance = realBalance; historyLoaded = true; } 
         document.getElementById('balanceText').innerText = Math.floor(realBalance).toFixed(2);
     } else {

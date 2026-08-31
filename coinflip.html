@@ -316,7 +316,7 @@
   let firestoreHistoryMirror = []; // Firestore se aaya recent history ka local mirror
 
   if (userSession.isDemo) {
-      realBalance = parseFloat(userSession.balance || 1500);
+      realBalance = parseFloat(userSession.balance) || 0;
       document.getElementById('coins').textContent = Math.floor(realBalance).toFixed(2);
   } else {
       db.collection("users").doc(userSession.id).onSnapshot(doc => {

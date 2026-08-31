@@ -205,10 +205,10 @@
                     }
 
                     if (userData.passwordChanged === true) {
-                        localStorage.setItem('userSession', JSON.stringify({id: doc.id, username: userData.username}));
+                        localStorage.setItem('userSession', JSON.stringify({id: doc.id, username: userData.username || rawU.trim()}));
                         window.location.replace("index.html");
                     } else {
-                        window.tempLoginUser = { id: doc.id, username: userData.username, currentPass: p };
+                        window.tempLoginUser = { id: doc.id, username: userData.username || rawU.trim(), currentPass: p };
                         document.getElementById('cp-current').value = p; 
                         document.getElementById('login-screen').style.display = 'none';
                         document.getElementById('change-password-screen').style.display = 'block';
@@ -249,9 +249,10 @@
                 id: 'demo_' + randomNum,
                 username: 'Demo@' + randomNum,
                 isDemo: true, 
-                balance: 1500 
+                balance: 0 
             };
             
+            localStorage.removeItem('demoBets'); // Purane kisi bhi demo account ke bets — naya account fresh start hoga
             localStorage.setItem('userSession', JSON.stringify(demoSession));
             window.location.replace("index.html");
         }

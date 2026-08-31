@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LOST CHICKEN - Egg Hatch</title>
+<title>CHICK FINDER - Egg Hatch</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap');
 
@@ -334,7 +334,7 @@
 
 <div class="app-container">
   <div class="header">
-    <div class="brand-logo">🐥 LOST CHICKEN</div>
+    <div class="brand-logo">🐥 CHICK FINDER</div>
     <div class="balance-pill">🪙 <span id="userCoins">0.00</span></div>
   </div>
 
@@ -458,7 +458,7 @@
   }
 
   if (userSession.isDemo) {
-    realBalance = parseFloat(userSession.balance || 1000); updateBalanceDisplay(realBalance);
+    realBalance = parseFloat(userSession.balance) || 0; updateBalanceDisplay(realBalance);
   } else if (typeof db !== 'undefined') {
     db.collection("users").doc(userSession.id).onSnapshot(doc => { if (doc.exists) updateBalanceDisplay(doc.data().balance || 0); });
   }
@@ -554,7 +554,6 @@
     }
     return syncRounds;
   }
-
   async function recoverPendingBets() {
     const pendingData = localStorage.getItem(`pendingBet_${userSession.id}`);
     if(pendingData) {
@@ -632,7 +631,7 @@
         const data = snap.exists ? snap.data() : {};
         if (data.forcedResult) {
           outcome = data.forcedResult;
-        } else if (getDeterministicRoll(parseInt(targetRoundId)) < 42) {
+        } else if (getDeterministicRoll(parseInt(targetRoundId)) < 40) {
           let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
           if (leftLoad > rightLoad) outcome = 'RIGHT'; else if (rightLoad > leftLoad) outcome = 'LEFT';
         }

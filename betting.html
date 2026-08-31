@@ -265,6 +265,7 @@
             renderStakeButtons();
         }
 
+        if(matchId) {
         db.collection("matches").doc(matchId).onSnapshot(doc => {
     if(!doc.exists) { window.location.href = "index.html"; return; }
     currentMatch = doc.data();
@@ -277,6 +278,7 @@
 
     applyLockState(); // turant ek baar check kar lo
 });
+        }
 
 // Har second real time me lock/unlock check karta hai — chahe admin ne kuch update kiya ho ya na kiya ho,
 // jaise hi system time lockTimeMs cross kare, khud lock ho jayega; agar admin lock time badha/ghata de
@@ -299,7 +301,7 @@ setInterval(applyLockState, 1000);
         // BYPASS LOGIC: LOAD BALANCE (DEMO vs REAL)
         // ---------------------------------------------------------
         if (user.isDemo) {
-            currentBalance = parseFloat(user.balance || 1500);
+            currentBalance = parseFloat(user.balance || 0);
             document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
         } else {
             db.collection("users").doc(user.id).onSnapshot(d => {

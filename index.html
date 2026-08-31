@@ -247,12 +247,12 @@
             const s = localStorage.getItem('userSession');
             if(s) { 
                 const user = JSON.parse(s); 
-                document.getElementById('top-user').innerText = user.username; 
+                document.getElementById('top-user').innerText = user.username || user.id || 'User';
                 const waWrapper = document.getElementById('waWrapper');
 
                 if (user.isDemo) {
                     waWrapper.style.display = 'flex';
-                    document.getElementById('top-bal').innerText = Math.floor(user.balance || 1500).toFixed(2);
+                    document.getElementById('top-bal').innerText = Math.floor(parseFloat(user.balance) || 0).toFixed(2);
                     
                     let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
                     let matchPnL = {}; 

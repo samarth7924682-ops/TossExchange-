@@ -182,7 +182,7 @@
   let hiddenBombs = []; 
 
   if (user.isDemo) {
-      realBalance = parseFloat(user.balance || 1500);
+      realBalance = parseFloat(user.balance || 0);
       document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
   } else {
       db.collection("users").doc(user.id).onSnapshot(doc => {

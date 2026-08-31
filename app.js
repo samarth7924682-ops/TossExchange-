@@ -268,3 +268,104 @@ window.recoverPendingCoinflipBet = async function() {
 setTimeout(() => {
     window.recoverPendingCoinflipBet();
 }, 1500);
+
+// ==========================================
+// 7. GLOBAL PENDING LOST CHICKEN (EGG) BET RECOVERY
+// Coin Flip jaisa hi system — agar chicken game me bet place karke tab/app
+// band kar diya ho result aane se pehle, toh koi bhi page (history.html sameत)
+// khulte hi turant settle ho jayega.
+// ==========================================
+const CHICKEN_CYCLE_TIME = 30000;
+
+function chickenGetDeterministicOutcome(roundIdNum) {
+    let x = roundIdNum ^ 0x9e3779b9;
+    x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
+    x = Math.imul(x ^ (x >>> 16), 0x45d9f3b);
+    x = x ^ (x >>> 16);
+    return (x & 1) === 0 ? 'LEFT' : 'RIGHT';
+}
+
+function chickenGetDeterministicRoll(roundIdNum) {
+    let x = roundIdNum ^ 0x2545F491;
+    x = Math.imul(x ^ (x >>> 15), 0x85ebca6b);
+    x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+    x = x ^ (x >>> 16);
+    return Math.abs(x) % 100;
+}
+
+function chickenGetRoundDisplayId(roundIdNum) {
+    return String((Math.abs(roundIdNum * 2654435761) % 900000) + 100000);
+}
+
+async function chickenFetchRoundOutcome(roundIdStr) {
+    const roundIdNum = parseInt(roundIdStr);
+    let outcome = chickenGetDeterministicOutcome(roundIdNum);
+    try {
+        const snap = await db.collection("round_bets").doc(roundIdStr).get();
+        const data = snap.exists ? snap.data() : {};
+        if (data.forcedResult) {
+            outcome = data.forcedResult;
+        } else if (chickenGetDeterministicRoll(roundIdNum) < 30) {
+            let leftLoad = data.LEFT || 0; let rightLoad = data.RIGHT || 0;
+            if (leftLoad > rightLoad) outcome = 'RIGHT'; else if (rightLoad > leftLoad) outcome = 'LEFT';
+        }
+    } catch (e) {}
+    return outcome;
+}
+
+window.recoverPendingChickenBet = async function() {
+    const session = window.checkSession();
+    if (!session) return;
+
+    const pendingKey = `pendingBet_${session.id}`;
+    const pendingRaw = localStorage.getItem(pendingKey);
+    if (!pendingRaw) return;
+
+    const pending = JSON.parse(pendingRaw);
+    const nowRoundId = Math.floor(Date.now() / CHICKEN_CYCLE_TIME);
+    if (parseInt(pending.roundId) >= nowRoundId) return; // round abhi bhi live hai — game.html khud handle karega
+
+    const settledKey = `settledRound_${session.id}_${pending.roundId}`;
+    if (localStorage.getItem(settledKey)) { localStorage.removeItem(pendingKey); return; }
+    localStorage.setItem(settledKey, '1');
+
+    try {
+        const outcome = await chickenFetchRoundOutcome(pending.roundId);
+        const won = pending.side === outcome;
+        const winAmt = won ? pending.amount * 1.9 : 0;
+
+        if (won) {
+            if (session.isDemo) {
+                const freshSession = window.checkSession();
+                freshSession.balance = parseFloat(freshSession.balance || 0) + winAmt;
+                localStorage.setItem('userSession', JSON.stringify(freshSession));
+            } else {
+                await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
+            }
+        }
+
+        // game.html ke "Your Bet History (Last 5)" panel ke liye bhi local record sync kar do
+        const profitStr = won ? `+₹${(pending.amount * 0.9).toFixed(2)}` : `-₹${pending.amount.toFixed(2)}`;
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const histKey = `chicken_history_${session.id}`;
+        let hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+        hist.unshift({ amount: pending.amount, side: pending.side, result: won ? 'WIN' : 'LOSS', profit: profitStr, time: timeStr, roundDisplayId: chickenGetRoundDisplayId(parseInt(pending.roundId)) });
+        hist = hist.slice(0, 5);
+        localStorage.setItem(histKey, JSON.stringify(hist));
+
+        if (!session.isDemo) {
+            await db.collection("chicken_history").add({
+                userId: session.id, betAmount: pending.amount, winAmount: winAmt,
+                selectedSide: pending.side, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+    } catch (e) {
+        console.log("Chicken recovery error:", e);
+    }
+
+    localStorage.removeItem(pendingKey);
+};
+
+setTimeout(() => {
+    window.recoverPendingChickenBet();
+}, 1500);

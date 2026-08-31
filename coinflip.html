@@ -313,7 +313,8 @@
   }
 
   let realBalance = 0;
-  
+  let firestoreHistoryMirror = []; // Firestore se aaya recent history ka local mirror
+
   if (userSession.isDemo) {
       realBalance = parseFloat(userSession.balance || 1500);
       document.getElementById('coins').textContent = Math.floor(realBalance).toFixed(2);
@@ -322,6 +323,8 @@
           if(doc.exists) {
               realBalance = parseFloat(doc.data().balance || 0);
               document.getElementById('coins').textContent = Math.floor(realBalance).toFixed(2);
+              firestoreHistoryMirror = doc.data().recentCoinflipHistory || [];
+              renderHistory(firestoreHistoryMirror);
           }
       });
   }
@@ -592,13 +595,18 @@
           floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${activeBet.amount.toFixed(2)}`;
           floatingAmount.className = `floating-amount ${won ? 'pop-win' : 'pop-lose'}`;
       }
-      
-      if (won) {
-          if (userSession.isDemo) {
-              realBalance += winAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
-          } else {
-              await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmount) });
-          }
+
+      if (userSession.isDemo) {
+          if (won) { realBalance += winAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession)); }
+      } else {
+          // Sirf last 3 history entries rakhni hain — naya sabse upar, purana 4th apne aap hat jayega
+          const newEntry = { side: activeBet.side, amount: activeBet.amount, outcome: outcome, won: won };
+          const newHistory = [newEntry, ...firestoreHistoryMirror].slice(0, 3);
+
+          const updatePayload = { recentCoinflipHistory: newHistory };
+          if (won) updatePayload.balance = firebase.firestore.FieldValue.increment(winAmount);
+
+          await db.collection("users").doc(userSession.id).update(updatePayload);
       }
 
       if (!userSession.isDemo) {
@@ -614,15 +622,17 @@
   }
 
   function addToHistory(side, amount, outcome, won) {
+      if (!userSession.isDemo) return; // Real users ke liye history ab Firestore listener se aayegi
       myHistoryData.unshift({ side, amount, outcome, won });
       if (myHistoryData.length > 10) myHistoryData.pop();
       localStorage.setItem(TOSS_HISTORY_KEY, JSON.stringify(myHistoryData));
       renderHistory();
   }
 
-  function renderHistory() {
-      if (myHistoryData.length === 0) { myHistoryList.innerHTML = `<div class="history-empty">No history yet...</div>`; return; }
-      myHistoryList.innerHTML = myHistoryData.map(h => {
+  function renderHistory(dataArray) {
+      const list = dataArray || myHistoryData;
+      if (list.length === 0) { myHistoryList.innerHTML = `<div class="history-empty">No history yet...</div>`; return; }
+      myHistoryList.innerHTML = list.map(h => {
           const cls = h.won ? 'win' : 'lose';
           const sign = h.won ? '+' : '-';
           const amt = h.won ? (h.amount * 2) : h.amount;
@@ -632,7 +642,6 @@
           </div>`;
       }).join('');
   }
-
   document.getElementById('pickHeads').addEventListener('click', () => { pickedSide = 'heads'; document.getElementById('pickHeads').classList.add('selected'); document.getElementById('pickTails').classList.remove('selected'); });
   document.getElementById('pickTails').addEventListener('click', () => { pickedSide = 'tails'; document.getElementById('pickTails').classList.add('selected'); document.getElementById('pickHeads').classList.remove('selected'); });
   document.getElementById('chipRow').querySelectorAll('.chip').forEach(chip => {

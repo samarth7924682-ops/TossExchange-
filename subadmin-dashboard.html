@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light only">
+    <meta name="theme-color" content="#1a365d">
     <title>⚡ TOSS EXCH - SubAdmin Dashboard</title>
     <style>
-        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; color-scheme: light only; }
+        html { color-scheme: light only; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; }
         
         /* 🌟 COMMON SUBADMIN HEADER 🌟 */
         .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
@@ -40,8 +43,8 @@
 
         /* 🔴🟢 BLINKING DOTS & PROOF UI CSS 🔴🟢 */
         @keyframes blink-dot { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
-        .dot-green { display: inline-block; width: 12px; height: 12px; background-color: var(--green); border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(46,125,50,0.6); }
-        .dot-red { display: inline-block; width: 12px; height: 12px; background-color: var(--red); border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(211,47,47,0.6); }
+        .dot-green { display: inline-block; width: 12px; height: 12px; background-color: var(--green) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(46,125,50,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .dot-red { display: inline-block; width: 12px; height: 12px; background-color: var(--red) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(211,47,47,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .proof-link { display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         /* Popup Modal Styles */

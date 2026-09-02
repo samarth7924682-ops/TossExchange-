@@ -6,10 +6,14 @@
     <meta name="color-scheme" content="light only">
     <meta name="theme-color" content="#1a365d">
     <title>⚡ TOSS EXCH - SubAdmin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; color-scheme: light only; }
         html { color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        * { font-family: inherit; }
         
         /* 🌟 COMMON SUBADMIN HEADER 🌟 */
         .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
@@ -21,10 +25,11 @@
 
         .container { padding: 10px; max-width: 800px; margin: 0 auto; }
 
-        /* Navigation Flex Grid */
-        .nav-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; justify-content: space-between;}
-        .nav-btn { flex: 1 1 30%; background: white; color: var(--primary); text-align: center; padding: 12px 5px; text-decoration: none; font-weight: 900; font-size: 11px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 3px solid var(--accent); box-sizing: border-box;}
+        /* Navigation Grid — FIXED 3 columns always, regardless of font metrics or phone width */
+        .nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+        .nav-btn { background: white; color: var(--primary); text-align: center; padding: 12px 4px; text-decoration: none; font-weight: 900; font-size: 10.5px; line-height: 1.25; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 3px solid var(--accent); box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: 44px; white-space: normal; overflow-wrap: break-word; }
         .nav-btn:active { transform: scale(0.95); }
+        .nav-grid > div.nav-btn { grid-column: 1 / -1; }
 
         .card { background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 3px solid var(--primary); }
         h3 { margin-top: 0; font-size: 14px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
@@ -118,7 +123,7 @@
             <a href="coinmaster.html" class="nav-btn" style="border-bottom-color: #f57c00;">👑 MASTER COINS</a>
             <a href="subadmin-change-pass.html" class="nav-btn" style="border-bottom-color: #f97316;"> CHANGE PASSWORD</a>
             
-            <div class="nav-btn" onclick="logoutWithPassword()" style="flex: 1 1 100%; border-bottom-color: var(--red); cursor: pointer; color: var(--red);">🚪 LOGOUT</div>
+            <div class="nav-btn" onclick="logoutWithPassword()" style="border-bottom-color: var(--red); cursor: pointer; color: var(--red);">🚪 LOGOUT</div>
         </div>
 
         <div class="card">
@@ -314,7 +319,7 @@
                     statusText = isManual ? 'MANUAL WITHDRAWAL' : 'WITHDRAWAL';
                 }
 
-              // 🔥 Attach Bonus info visually inside Deposit Amount
+                // 🔥 Attach Bonus info visually inside Deposit Amount
                 let amountHtml = `${sign}${tx.amount}`;
                 if (tx.type === 'deposit' && tx.bonusAmount) {
                     amountHtml += `<div style="font-size:9.5px; color:var(--green); font-weight:bold; margin-top:2px;">+${tx.bonusAmount} Bonus</div>`;

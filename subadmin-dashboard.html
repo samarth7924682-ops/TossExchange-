@@ -8,8 +8,8 @@
     <title>⚡ TOSS EXCH - SubAdmin Dashboard</title>
     <style>
         :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; color-scheme: light only; }
-        html { color-scheme: light only; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; }
+        html { color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         
         /* 🌟 COMMON SUBADMIN HEADER 🌟 */
         .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
@@ -59,7 +59,37 @@
         /* Image Viewer Modal Specific Style */
         .image-modal-content { padding: 10px; max-width: 95%; background: #222; border: none; position: relative; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
         .img-close-btn { position: absolute; top: -15px; right: -5px; font-size: 24px; color: white; background: #d32f2f; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; z-index: 2001; }
+
+        /* 🔒 HARD LOCK AGAINST PHONE "FORCE DARK" / "DARKEN WEB PAGES" 🔒
+           Some phones (Samsung Internet, MIUI, some Chrome builds) still recolor
+           pages that trigger prefers-color-scheme:dark, even with color-scheme:light
+           set. This block forcibly reasserts every colour so the page stays
+           IDENTICAL on every phone no matter the device dark-mode setting. */
+        @media (prefers-color-scheme: dark) {
+            html, body { background-color: #eceff4 !important; color: #1a202c !important; }
+            .sa-header { background-color: #1a365d !important; color: #ffffff !important; }
+            .sa-logo { color: #ffffff !important; }
+            .sa-badge { background-color: #334155 !important; color: #ffffff !important; border-color: #475569 !important; }
+            .sa-badge span { color: #ffb703 !important; }
+            .nav-btn { background-color: #ffffff !important; color: #1a365d !important; }
+            .card { background-color: #ffffff !important; color: #1a202c !important; }
+            h3 { background-color: transparent !important; color: #1a365d !important; }
+            .slim-strip { background-color: #f8f9fa !important; color: #1a202c !important; border-color: #e2e8f0 !important; }
+            .btn-green { background-color: #2e7d32 !important; color: #ffffff !important; }
+            .btn-red { background-color: #d32f2f !important; color: #ffffff !important; }
+            .upload-box { background-color: #e0f2fe !important; color: #1a202c !important; }
+            .dot-green { background-color: #2e7d32 !important; }
+            .dot-red { background-color: #d32f2f !important; }
+            .modal-content { background-color: #fefefe !important; color: #333333 !important; }
+            .modal-title { color: #d32f2f !important; }
+            .modal-body { color: #333333 !important; }
+            .btn-close-modal { background-color: #333333 !important; color: #ffffff !important; }
+            /* Text colours inside the activity log rows/PnL badge are set inline via JS
+               using var(--green)/var(--red)/#333 etc, which already resolve correctly —
+               this block only needs to stop the browser from repainting the containers. */
+        }
     </style>
+    <meta name="supported-color-schemes" content="light">
 </head>
 <body>
 
@@ -284,7 +314,7 @@
                     statusText = isManual ? 'MANUAL WITHDRAWAL' : 'WITHDRAWAL';
                 }
 
-                // 🔥 Attach Bonus info visually inside Deposit Amount
+              // 🔥 Attach Bonus info visually inside Deposit Amount
                 let amountHtml = `${sign}${tx.amount}`;
                 if (tx.type === 'deposit' && tx.bonusAmount) {
                     amountHtml += `<div style="font-size:9.5px; color:var(--green); font-weight:bold; margin-top:2px;">+${tx.bonusAmount} Bonus</div>`;

@@ -127,23 +127,6 @@
         }
         .btn-demo:hover { background: #f8fafc; border-color: #cbd5e1; }
 
-        .register-box { 
-    margin-top: 14px; padding-top: 12px; 
-    border-top: 1px dashed #e2e8f0; text-align: center; 
-}
-.register-label { 
-    font-size: 11px; color: #64748b; font-weight: 700; 
-    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; 
-}
-.btn-register { 
-    width: 100%; padding: 6px; 
-    background: linear-gradient(135deg, #25D366, #128C7E); 
-    color: #ffffff; border: 1px solid #0e6b5f; border-radius: 5px; 
-    font-size: 12px; font-weight: 700; cursor: pointer; 
-    box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-}
-.btn-register:hover { filter: brightness(1.05); }
-.btn-register:active { transform: scale(0.97); }
         
         .footer-text { font-size: 10px; color: #64748b; text-align: center; margin-top: 10px; line-height: 1.3; font-weight: 600;}
 
@@ -175,10 +158,6 @@
     Protected by reCAPTCHA & Google Privacy Policy.
 </div>
 
-<div class="register-box">
-    <div class="register-label">New User Registration</div>
-    <button class="btn-register" onclick="createNewId()">Create New ID ➜</button>
-</div>
 </div>
 
     <!-- FORCE CHANGE PASSWORD -->
@@ -292,12 +271,6 @@
             localStorage.removeItem('demoBets'); // Purane kisi bhi demo account ke bets — naya account fresh start hoga
             localStorage.setItem('userSession', JSON.stringify(demoSession));
             window.location.replace("index.html");
-        }
-
-        window.createNewId = function() {
-            const phone = "918601189293";
-            const msg = encodeURIComponent("Make My New ID On Tossexchange");
-            window.open("https://wa.me/" + phone + "?text=" + msg, "_blank");
         }
     </script>
 </body>

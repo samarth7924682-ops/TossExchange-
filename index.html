@@ -36,8 +36,6 @@
         .container { padding: clamp(8px, 3vw, 16px); max-width: 600px; margin: 0 auto; }
         .btn-action { width: 48%; padding: 10px; border: none; border-radius: 6px; font-weight: 900; color: white; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); font-size: 13px; letter-spacing: 0.5px;}
         .btn-action:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.2); }
-        .btn-register-strip { width: 100%; padding: 8px; margin-top: 8px; border: none; border-radius: 6px; font-weight: 900; color: white; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); font-size: clamp(11px, 3.2vw, 13px); letter-spacing: 0.5px; background: linear-gradient(135deg, #25D366, #128C7E); }
-        .btn-register-strip:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.2); }
         .section-title { margin: 15px 0 10px 0; font-size: clamp(12px, 3.4vw, 15px); color: #111; font-weight: 900; display: flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.5px;}
         
         /* Updated Games Grid for Horizontal Scroll (3 visible at a time) */
@@ -131,8 +129,6 @@
                 <button class="btn-action" style="background:var(--green);" onclick="handleBanking('deposit.html')">💰 Deposit</button>
                 <button class="btn-action" style="background:var(--red);" onclick="handleBanking('withdraw.html')">💸 Withdraw</button>
             </div>
-            <button id="register-strip-btn" class="btn-register-strip" style="display:none;" onclick="window.open('https://wa.me/918601189293?text=' + encodeURIComponent('Make My New ID On Tossexchange'), '_blank')">📝 Register For New ID</button>
-
             <h4 class="section-title">🎰 Casino & Games</h4>
             <div class="games-grid">
                 <div class="game-card card-aviator" onclick="window.location.href='sixer.html'" style="background-image:url('aviator-animation.gif'); background-size:cover; background-position:center;">
@@ -212,6 +208,7 @@
             }
         }
         
+        
         let realAdminWhatsApp = "";
 
         window.handleWhatsAppClick = async function(e) {
@@ -258,7 +255,6 @@
 
                 if (user.isDemo) {
                     waWrapper.style.display = 'flex';
-                    const regBtn = document.getElementById('register-strip-btn'); if(regBtn) regBtn.style.display = 'block';
                     document.getElementById('top-bal').innerText = Math.floor(parseFloat(user.balance) || 0).toFixed(2);
                     
                     let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
@@ -293,7 +289,6 @@
                     });
                     
                 } else {
-                    const regBtn = document.getElementById('register-strip-btn'); if(regBtn) regBtn.style.display = 'none';
                     db.collection("users").doc(user.id).onSnapshot(d => {
                         if(!d.exists) {
                             alert("⚠️ Your account has been deleted. Logging out.");

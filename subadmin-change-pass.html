@@ -5,44 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚡ TOSS EXCH - Change Password</title>
     <style>
-        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; }
-        
-        /* 🌟 COMMON SUBADMIN HEADER 🌟 */
-        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
-        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; cursor: pointer;}
-        .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
-        .sa-badge span { color: var(--accent); font-size: 12px;}
+        :root { --primary: #4a3a0f; --primary-light: #7a5c17; --accent: #ffd700; --bg: #f7f3e8; --green: #2e7d32; --red: #d32f2f; --shadow-sm: 0 2px 6px rgba(74,58,15,0.12); --shadow-md: 0 6px 18px rgba(74,58,15,0.22); }
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; color: #2b2410; box-sizing: border-box; }
+        * { box-sizing: border-box; }
 
-        .container { padding: 15px; max-width: 500px; margin: 0 auto; }
+        .container { padding: 14px 16px; max-width: 500px; margin: 0 auto; }
 
-        .card { background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #f97316; }
-        h3 { margin-top: 0; font-size: 16px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
-        
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; font-weight: 900; color: #444; margin-bottom: 5px; text-transform: uppercase;}
-        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;}
-        input:focus { border-color: var(--primary); }
+        .card { background: white; padding: 14px; border-radius: 8px; box-shadow: var(--shadow-sm); border-top: 3px solid var(--accent); }
+        h3 { margin-top: 0; font-size: 13px; color: var(--primary); border-bottom: 2px solid #f3e6b8; padding-bottom: 6px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; }
 
-        .btn-submit { background: var(--primary); color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: 900; font-size: 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s;}
-        .btn-submit:active { transform: translateY(2px); }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-size: 10px; font-weight: 800; color: #7a6b4a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+        input { width: 100%; padding: 8px 9px; border: 1px solid #eddfb0; border-radius: 6px; box-sizing: border-box; font-size: 12px; outline: none; background: #fdf9ee; color: #2b2410; }
+        input:focus { border-color: var(--accent); }
+
+        .btn-submit { background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; padding: 8px; width: 100%; border-radius: 6px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.6px; transition: 0.2s; box-shadow: var(--shadow-sm); }
+        .btn-submit:active { transform: scale(0.97); }
+
+        @media (max-width: 380px) {
+            .container { padding: 10px 12px; }
+            .card { padding: 10px; }
+            h3 { font-size: 12px; }
+            label { font-size: 9px; }
+            input { padding: 7px 8px; font-size: 11px; }
+            .btn-submit { padding: 7px; font-size: 10px; }
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #f7f3e8 !important; color: #2b2410 !important; }
+            .card { background-color: #ffffff !important; }
+            h3 { color: #4a3a0f !important; }
+            input { background-color: #fdf9ee !important; color: #2b2410 !important; }
+        }
     </style>
 </head>
 <body>
-
-    <div class="sa-header">
-        <div class="sa-header-top">
-            <div class="sa-logo" onclick="window.location.href='subadmin-dashboard.html'">⬅ SA PANEL</div>
-            <div style="font-size: 12px; font-weight: bold; color: #cbd5e1;">👤 <span id="sa-name">...</span></div>
-        </div>
-        <div class="sa-stats-bar">
-            <div class="sa-badge">BAL: <span id="sa-bal">0.00</span></div>
-            <div class="sa-badge">DOWNLINE: <span id="sa-downline">0.00</span></div>
-            <div class="sa-badge" style="border-color:var(--red);">PnL: <span id="sa-pnl" style="color:var(--red);">0.00</span></div>
-        </div>
-    </div>
 
     <div class="container">
         <div class="card">
@@ -75,30 +72,6 @@
         const subAdminSession = localStorage.getItem('adminSession');
         if(!subAdminSession) { window.location.href = "subadmin-login.html"; }
         const subAdmin = JSON.parse(subAdminSession);
-        
-        // Header Logic
-        document.getElementById('sa-name').innerText = subAdmin.username;
-        let currentSaBal = 0, totalDownlineBal = 0;
-        
-        db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
-            if(doc.exists) {
-                currentSaBal = doc.data().balance || 0;
-                document.getElementById('sa-bal').innerText = Math.floor(currentSaBal);
-                calcPnL();
-            }
-        });
-        db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
-            totalDownlineBal = 0;
-            snap.forEach(doc => { totalDownlineBal += (doc.data().balance || 0); });
-            document.getElementById('sa-downline').innerText = Math.floor(totalDownlineBal);
-            calcPnL();
-        });
-        function calcPnL() {
-            let pnl = currentSaBal - totalDownlineBal; 
-            let pnlEl = document.getElementById('sa-pnl');
-            pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
-            pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
-        }
 
         // Change Password Logic
         async function changePass() {

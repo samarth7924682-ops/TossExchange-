@@ -10,88 +10,98 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #d32f2f; color-scheme: light only; }
+       :root { --primary: #4a3a0f; --primary-light: #7a5c17; --accent: #ffd700; --bg: #f7f3e8; --green: #2e7d32; --red: #d32f2f; --blue: #1e88e5; --shadow-sm: 0 2px 6px rgba(74,58,15,0.12); --shadow-md: 0 6px 18px rgba(74,58,15,0.22); color-scheme: light only; }
         html { color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #1a202c; margin: 0; padding: 0; color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-        * { font-family: inherit; }
-        
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #2b2410; margin: 0; padding: 0; color-scheme: light only; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        * { font-family: inherit; box-sizing: border-box; }
+
         /* 🌟 COMMON SUBADMIN HEADER 🌟 */
-        .sa-header { background: var(--primary); color: white; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .sa-header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #ffd700; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 3px 14px rgba(74,58,15,0.4); border-bottom: 2px solid var(--accent); }
         .sa-header-top { display: flex; justify-content: space-between; align-items: center; }
-        .sa-logo { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; }
+        .sa-logo { font-size: 13px; font-weight: 900; letter-spacing: 0.3px; color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.4); }
         .sa-stats-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-        .sa-badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #475569; display: flex; align-items: center; gap: 4px; color: white;}
-        .sa-badge span { color: var(--accent); font-size: 12px;}
+        .sa-badge { background: rgba(255,215,0,0.1); padding: 3px 7px; border-radius: 14px; font-size: 9px; font-weight: 800; border: 1px solid rgba(255,215,0,0.35); display: flex; align-items: center; gap: 3px; color: #ffd700; }
+        .sa-badge span { color: #ffe680; font-size: 10px;}
 
-        .container { padding: 10px; max-width: 800px; margin: 0 auto; }
+        .container { padding: 8px 14px; max-width: 800px; margin: 0 auto; }
 
-        /* Navigation Grid — FIXED 3 columns always, regardless of font metrics or phone width */
-        .nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
-        .nav-btn { background: white; color: var(--primary); text-align: center; padding: 12px 4px; text-decoration: none; font-weight: 900; font-size: 10.5px; line-height: 1.25; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 3px solid var(--accent); box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: 44px; white-space: normal; overflow-wrap: break-word; }
+        /* Navigation Grid — FIXED 3 columns always */
+        .nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+        .nav-btn { background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; text-align: center; padding: 7px 3px; text-decoration: none; font-weight: 900; font-size: 9px; line-height: 1.2; border-radius: 7px; box-shadow: 0 3px 8px rgba(74,58,15,0.45); border: 1px solid #ffd700; box-sizing: border-box; display: flex; align-items: center; justify-content: center; min-height: 36px; white-space: normal; overflow-wrap: break-word; transition: transform 0.15s ease, box-shadow 0.15s ease; text-shadow: 0 0 6px rgba(0,0,0,0.4); }
+        .nav-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
         .nav-btn:active { transform: scale(0.95); }
         .nav-grid > div.nav-btn { grid-column: 1 / -1; }
 
-        .card { background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 3px solid var(--primary); }
-        h3 { margin-top: 0; font-size: 14px; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; }
-        
-        .slim-strip { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border: 1px solid #e2e8f0; margin-bottom: 8px; border-radius: 4px; font-size: 12px; flex-wrap: wrap; gap: 8px;}
-        .btn-green { background: var(--green); color: white; padding: 6px 12px; border: none; cursor: pointer; border-radius: 4px; font-weight: 900; font-size: 11px;}
-        .btn-red { background: var(--red); color: white; padding: 6px 12px; border: none; cursor: pointer; border-radius: 4px; font-weight: 900; font-size: 11px;}
-        .upload-box { background: #e0f2fe; padding: 8px; border-radius: 4px; width: 100%; border: 1px dashed #0284c7; margin-top: 5px; }
+        .card { background: white; padding: 8px; border-radius: 8px; box-shadow: var(--shadow-sm); margin-bottom: 8px; border-left: 3px solid var(--accent); transition: box-shadow 0.2s ease; }
+        .card:hover { box-shadow: var(--shadow-md); }
+        h3 { margin-top: 0; font-size: 11px; color: var(--primary); border-bottom: 2px solid #f3e6b8; padding-bottom: 5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; }
+
+        /* 📋 Activity/pending rows — compact, dot ko guaranteed jagah */
+        .slim-strip { display: flex; justify-content: space-between; align-items: center; padding: 6px 7px; background: #fdf9ee; border: 1px solid #eddfb0; margin-bottom: 5px; border-radius: 6px; font-size: 10px; flex-wrap: nowrap; gap: 5px; transition: background 0.15s ease; }
+        .slim-strip:hover { background: #faf1d8; }
+        .btn-green { background: linear-gradient(135deg, #2e7d32, #43a047); color: white; padding: 5px 9px; border: none; cursor: pointer; border-radius: 6px; font-weight: 900; font-size: 9.5px; box-shadow: 0 2px 7px rgba(46,125,50,0.3); transition: transform 0.15s ease;}
+        .btn-red { background: linear-gradient(135deg, #d32f2f, #e53935); color: white; padding: 5px 9px; border: none; cursor: pointer; border-radius: 6px; font-weight: 900; font-size: 9.5px; box-shadow: 0 2px 7px rgba(211,47,47,0.3); transition: transform 0.15s ease;}
+        .btn-green:active, .btn-red:active { transform: scale(0.95); }
+        .upload-box { background: #fdf6df; padding: 6px; border-radius: 6px; width: 100%; border: 1.5px dashed #c9a227; margin-top: 4px; }
 
         /* Floating WhatsApp Button for Master Contact */
         .whatsapp-float-btn {
-            position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 50px; height: 50px;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.3); z-index: 9999; text-decoration: none; display: none; 
+            position: fixed; bottom: 16px; right: 16px; background: #25d366; color: white; width: 44px; height: 44px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;
+            box-shadow: 0 5px 14px rgba(37,211,102,0.4); z-index: 9999; text-decoration: none; display: none; 
         }
 
-        /* 🔴🟢 BLINKING DOTS & PROOF UI CSS 🔴🟢 */
+        /* 🔴🟢 BLINKING DOTS & PROOF UI CSS — flex-shrink:0 taki dot kabhi squeeze/hide na ho 🔴🟢 */
         @keyframes blink-dot { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
-        .dot-green { display: inline-block; width: 12px; height: 12px; background-color: var(--green) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(46,125,50,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .dot-red { display: inline-block; width: 12px; height: 12px; background-color: var(--red) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 10px; box-shadow: 0 0 6px rgba(211,47,47,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .proof-link { display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .dot-green { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; background-color: var(--green) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 8px; box-shadow: 0 0 5px rgba(46,125,50,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .dot-red { flex-shrink: 0; display: inline-block; width: 10px; height: 10px; background-color: var(--red) !important; border-radius: 50%; animation: blink-dot 1.2s infinite; margin-left: 8px; box-shadow: 0 0 5px rgba(211,47,47,0.6); forced-color-adjust: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .proof-link { flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         /* Popup Modal Styles */
-        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); text-align: center; border-top: 5px solid #d32f2f; }
-        .close-btn { color: #aaa; float: right; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(74,58,15,0.75); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 16px; border: none; width: 82%; max-width: 360px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); text-align: center; border-top: 4px solid var(--red); }
+        .close-btn { color: #aaa; float: right; font-size: 20px; font-weight: bold; cursor: pointer; }
         .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
-        .modal-title { font-size: 18px; color: #d32f2f; font-weight: bold; margin-bottom: 10px; }
-        .modal-body { font-size: 14px; color: #333; margin-bottom: 20px; word-wrap: break-word; }
-        .btn-close-modal { background-color: #333; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .modal-title { font-size: 15px; color: var(--red); font-weight: bold; margin-bottom: 8px; }
+        .modal-body { font-size: 12px; color: #333; margin-bottom: 16px; word-wrap: break-word; }
+        .btn-close-modal { background-color: var(--primary); color: #ffd700; padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
         
         /* Image Viewer Modal Specific Style */
-        .image-modal-content { padding: 10px; max-width: 95%; background: #222; border: none; position: relative; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
-        .img-close-btn { position: absolute; top: -15px; right: -5px; font-size: 24px; color: white; background: #d32f2f; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; z-index: 2001; }
+        .image-modal-content { padding: 8px; max-width: 95%; background: #1a1a1a; border: none; position: relative; border-radius: 10px; display: flex; flex-direction: column; align-items: center; }
+        .img-close-btn { position: absolute; top: -13px; right: -5px; font-size: 20px; color: white; background: var(--red); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; z-index: 2001; }
 
-        /* 🔒 HARD LOCK AGAINST PHONE "FORCE DARK" / "DARKEN WEB PAGES" 🔒
-           Some phones (Samsung Internet, MIUI, some Chrome builds) still recolor
-           pages that trigger prefers-color-scheme:dark, even with color-scheme:light
-           set. This block forcibly reasserts every colour so the page stays
-           IDENTICAL on every phone no matter the device dark-mode setting. */
+        /* 📱 Extra compact for small phone screens */
+        @media (max-width: 380px) {
+            .container { padding: 8px 10px; }
+            .sa-logo { font-size: 11px; }
+            .sa-badge { font-size: 8px; padding: 2px 5px; }
+            .nav-btn { font-size: 8px; padding: 6px 2px; min-height: 32px; }
+            h3 { font-size: 10px; }
+            .slim-strip { font-size: 9px; padding: 5px 6px; gap: 4px; }
+            .btn-green, .btn-red { font-size: 8.5px; padding: 4px 7px; }
+            .dot-green, .dot-red { width: 9px; height: 9px; margin-left: 6px; }
+        }
+
+        /* 🔒 HARD LOCK AGAINST PHONE "FORCE DARK" / "DARKEN WEB PAGES" 🔒 */
         @media (prefers-color-scheme: dark) {
-            html, body { background-color: #eceff4 !important; color: #1a202c !important; }
-            .sa-header { background-color: #1a365d !important; color: #ffffff !important; }
-            .sa-logo { color: #ffffff !important; }
-            .sa-badge { background-color: #334155 !important; color: #ffffff !important; border-color: #475569 !important; }
-            .sa-badge span { color: #ffb703 !important; }
-            .nav-btn { background-color: #ffffff !important; color: #1a365d !important; }
-            .card { background-color: #ffffff !important; color: #1a202c !important; }
-            h3 { background-color: transparent !important; color: #1a365d !important; }
-            .slim-strip { background-color: #f8f9fa !important; color: #1a202c !important; border-color: #e2e8f0 !important; }
+            html, body { background-color: #f7f3e8 !important; color: #2b2410 !important; }
+            .sa-header { background-color: #4a3a0f !important; color: #ffd700 !important; }
+            .sa-logo { color: #ffd700 !important; }
+            .sa-badge { background-color: rgba(255,215,0,0.1) !important; color: #ffd700 !important; border-color: rgba(255,215,0,0.35) !important; }
+            .sa-badge span { color: #ffe680 !important; }
+            .nav-btn { color: #ffd700 !important; }
+            .card { background-color: #ffffff !important; color: #2b2410 !important; }
+            h3 { background-color: transparent !important; color: #4a3a0f !important; }
+            .slim-strip { background-color: #fdf9ee !important; color: #2b2410 !important; border-color: #eddfb0 !important; }
             .btn-green { background-color: #2e7d32 !important; color: #ffffff !important; }
             .btn-red { background-color: #d32f2f !important; color: #ffffff !important; }
-            .upload-box { background-color: #e0f2fe !important; color: #1a202c !important; }
+            .upload-box { background-color: #fdf6df !important; color: #2b2410 !important; }
             .dot-green { background-color: #2e7d32 !important; }
             .dot-red { background-color: #d32f2f !important; }
             .modal-content { background-color: #fefefe !important; color: #333333 !important; }
             .modal-title { color: #d32f2f !important; }
             .modal-body { color: #333333 !important; }
-            .btn-close-modal { background-color: #333333 !important; color: #ffffff !important; }
-            /* Text colours inside the activity log rows/PnL badge are set inline via JS
-               using var(--green)/var(--red)/#333 etc, which already resolve correctly —
-               this block only needs to stop the browser from repainting the containers. */
+            .btn-close-modal { background-color: #4a3a0f !important; color: #ffd700 !important; }
         }
     </style>
     <meta name="supported-color-schemes" content="light">
@@ -119,11 +129,11 @@
             <a href="subadmin-banking.html" class="nav-btn">🏦 UPI/QR</a>
             <a href="subadmin-settings.html" class="nav-btn">🤖 BOT</a>
             
-            <a href="subadmin-market.html" class="nav-btn" style="border-bottom-color: var(--green);">🏏 MARKET</a>
-            <a href="coinmaster.html" class="nav-btn" style="border-bottom-color: #f57c00;">👑 MASTER COINS</a>
+            <a href="subadmin-market.html" class="nav-btn" style="border-bottom-color: var(--green);"> MARKET</a>
+            <a href="coinmaster.html" class="nav-btn" style="border-bottom-color: #f57c00;"> MASTER COINS</a>
             <a href="subadmin-change-pass.html" class="nav-btn" style="border-bottom-color: #f97316;"> CHANGE PASSWORD</a>
             
-            <div class="nav-btn" onclick="logoutWithPassword()" style="border-bottom-color: var(--red); cursor: pointer; color: var(--red);">🚪 LOGOUT</div>
+            <div class="nav-btn" onclick="logoutWithPassword()" style="border-bottom-color: var(--red); cursor: pointer; color: var(--red);">⚠️ LOGOUT</div></div>
         </div>
 
         <div class="card">

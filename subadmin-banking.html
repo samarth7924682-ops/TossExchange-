@@ -5,48 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Banking - SubAdmin</title>
     <style>
-        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --red: #d32f2f; --green: #2e7d32; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
-        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid var(--primary); }
-        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        h4.section-title { margin: 0 0 12px 0; font-size: 13px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; border-left: 4px solid var(--primary); padding-left: 8px; }
-        .input-group { margin-bottom: 15px; }
-        .input-group label { display: block; font-size: 13px; font-weight: bold; color: #555; margin-bottom: 5px; }
-        input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        .btn-action { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .btn-action:disabled { background: #999; }
+        :root { --primary: #4a3a0f; --primary-light: #7a5c17; --accent: #ffd700; --bg: #f7f3e8; --red: #d32f2f; --green: #2e7d32; --shadow-sm: 0 2px 6px rgba(74,58,15,0.12); }
+        body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #2b2410; box-sizing: border-box; }
+        * { box-sizing: border-box; }
 
-        .divider { border: none; border-top: 1px dashed #ccc; margin: 20px 0; }
+        .card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow-sm); border-top: 3px solid var(--accent); }
+        h3 { margin-top: 0; font-size: 13px; color: var(--primary); border-bottom: 2px solid #f3e6b8; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; }
+        h4.section-title { margin: 10px 0 8px 0; font-size: 10.5px; color: #7a6b4a; text-transform: uppercase; letter-spacing: 0.4px; border-left: 3px solid var(--accent); padding-left: 6px; font-weight: 800; }
 
-        .saved-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-bottom: 10px; gap: 10px; }
-        .saved-item.disabled-item { opacity: 0.55; background: #f1f1f1; }
-        .saved-item-left { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        .saved-item-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 10px; font-weight: 800; color: #7a6b4a; margin-bottom: 4px; text-transform: uppercase; }
+        input { width: 100%; padding: 8px 9px; border: 1px solid #eddfb0; border-radius: 6px; box-sizing: border-box; font-size: 12px; background: #fdf9ee; color: #2b2410; }
+        input:focus { outline: none; border-color: var(--accent); }
 
-        .badge { font-size: 11px; padding: 4px 8px; border-radius: 20px; color: white; white-space: nowrap; }
+        .btn-action { width: 100%; padding: 8px; background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; border-radius: 6px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; box-shadow: var(--shadow-sm); }
+        .btn-action:disabled { background: #ccc; color: #888; border-color: #ccc; }
+        .btn-back { padding: 6px 12px; background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; border-radius: 6px; font-weight: 800; font-size: 10.5px; cursor: pointer; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+
+        .divider { border: none; border-top: 1px dashed #eddfb0; margin: 14px 0; }
+
+        /* 🌟 SAVED ITEM — aligned, patla, kabhi overflow nahi hoga */
+        .saved-item { display: flex; flex-direction: column; gap: 8px; background: #fdf9ee; border: 1px solid #eddfb0; padding: 9px; border-radius: 7px; margin-bottom: 7px; }
+        .saved-item.disabled-item { opacity: 0.6; background: #f5f2e6; }
+        .saved-item-left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .saved-item-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; border-top: 1px dashed #eddfb0; padding-top: 7px; }
+        .saved-item-actions-left { display: flex; align-items: center; gap: 6px; }
+
+        .badge { font-size: 9px; padding: 3px 8px; border-radius: 20px; color: white; white-space: nowrap; font-weight: 700; flex-shrink: 0; }
         .badge-upi { background: var(--primary); }
         .badge-qr { background: var(--green); }
         .badge-bank { background: #6a1b9a; }
 
-        .bank-detail-text { font-size: 12px; line-height: 1.5; color: #333; }
+        .bank-detail-text { font-size: 10.5px; line-height: 1.4; color: #2b2410; }
         .bank-detail-text b { color: #111; }
 
-        .btn-remove { background: var(--red); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .qr-preview { max-width: 50px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+        .btn-remove { background: linear-gradient(135deg, #d32f2f, #e53935); color: white; border: none; padding: 5px 9px; border-radius: 5px; cursor: pointer; font-size: 10px; font-weight: 800; flex-shrink: 0; }
+        .qr-preview { max-width: 38px; border-radius: 4px; cursor: pointer; border: 1px solid #eddfb0; flex-shrink: 0; }
 
-        /* Enable/Disable Toggle Switch */
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        /* Enable/Disable Toggle Switch — thoda chhota */
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.25s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.25s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
         input:checked + .slider { background-color: var(--green); }
-        input:checked + .slider:before { transform: translateX(20px); }
-        .toggle-label { font-size: 10px; font-weight: bold; color: #777; width: 42px; text-align: center; }
+        input:checked + .slider:before { transform: translateX(16px); }
+        .toggle-label { font-size: 9px; font-weight: 800; color: #7a6b4a; white-space: nowrap; }
+
+        @media (max-width: 380px) {
+            body { padding: 8px; }
+            .card { padding: 10px; }
+            h3 { font-size: 12px; }
+            .bank-detail-text { font-size: 10px; }
+            .btn-remove { font-size: 9px; padding: 4px 7px; }
+        }
     </style>
 </head>
 <body>
 
-    <button onclick="window.location.href='subadmin-dashboard.html'" style="margin-bottom:15px; padding:8px 12px; background:#333; color:white; border:none; border-radius:4px; font-weight:bold;">⬅ Back</button>
+    
 
     <div class="card">
         <h3>🏦 Add Banking Details</h3>
@@ -215,11 +231,13 @@
                     <div class="saved-item ${isEnabled ? '' : 'disabled-item'}">
                         <div class="saved-item-left">${content}</div>
                         <div class="saved-item-actions">
-                            <label class="switch">
-                                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleMethod('${m.id}', this.checked)">
-                                <span class="slider"></span>
-                            </label>
-                            <span class="toggle-label">${isEnabled ? 'Enabled' : 'Disabled'}</span>
+                            <div class="saved-item-actions-left">
+                                <label class="switch">
+                                    <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleMethod('${m.id}', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="toggle-label">${isEnabled ? 'Enabled' : 'Disabled'}</span>
+                            </div>
                             <button class="btn-remove" onclick="removeMethod('${m.id}')">🗑️ Remove</button>
                         </div>
                     </div>`;

@@ -603,6 +603,7 @@ function triggerWinPopup(winAmt, mult) {
         triggerCoinAnimation();
         triggerWinPopup(winAmt, multAtCashout);
         betState = 'IDLE';
+        localStorage.removeItem('pendingSixerBet');
         
         if (user.isDemo) {
             realBalance += winAmt;
@@ -698,6 +699,7 @@ function triggerWinPopup(winAmt, mult) {
                     } else {
                         db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) });
                     }
+                    localStorage.setItem('pendingSixerBet', JSON.stringify({ roundIndex: currentRoundIndex, betAmount: myBetAmount }));
                     actionBtn.className = 'action-btn btn-cashout';
                 }
                 startEngineSound();
@@ -776,6 +778,7 @@ function triggerWinPopup(winAmt, mult) {
 
             if (betState === 'IN_PLAY') {
                 betState = 'IDLE'; 
+                localStorage.removeItem('pendingSixerBet');
                 actionBtn.className = 'action-btn btn-bet'; 
                 actionBtn.innerHTML = `<span style="font-size: 16px; font-weight: 900;">BET</span>`; 
                 actionBtn.disabled = false; betInput.disabled = false;
@@ -1039,8 +1042,27 @@ function triggerWinPopup(winAmt, mult) {
     }
     
 
+    // RECOVERY: agar tab/chrome band hote waqt bet chalu tha aur round khatam ho gaya, use loss maan kar history me likho
+    async function recoverPendingSixerBet() {
+        try {
+            const pendingRaw = localStorage.getItem('pendingSixerBet');
+            if (!pendingRaw) return;
+            const pending = JSON.parse(pendingRaw);
+            const state = getGlobalGameState();
+            if (pending.roundIndex === state.roundIndex) return;
+            localStorage.removeItem('pendingSixerBet');
+            if (!user.isDemo) {
+                await db.collection("aviator_history").add({
+                    userId: user.id, betAmount: pending.betAmount, cashoutMult: 0, winAmount: 0,
+                    closingBalance: realBalance, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        } catch(e) { console.log("recoverPendingSixerBet error:", e); }
+    }
+
     // START GAME
     syncServerTime().then(() => {
+    recoverPendingSixerBet();
     requestAnimationFrame(gameTick);
 });
 

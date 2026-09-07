@@ -5,29 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👑 Master Coin Ledger</title>
     <style>
-        :root { --primary: #1a365d; --green: #2e7d32; --red: #c62828; --bg: #eceff4; --accent: #ffb703; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 0; font-size: 13px; }
-        
-        .container { padding: 15px; max-width: 800px; margin: 0 auto; }
+        :root { --primary: #4a3a0f; --primary-light: #7a5c17; --accent: #ffd700; --bg: #f7f3e8; --green: #2e7d32; --red: #d32f2f; --shadow-sm: 0 2px 6px rgba(74,58,15,0.12); color-scheme: light only; }
+        html { color-scheme: light only; }
+        body { font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #2b2410; margin: 0; padding: 0; font-size: 12px; }
+        * { box-sizing: border-box; font-family: inherit; }
+
+        .container { padding: 8px 10px; max-width: 800px; margin: 0 auto; }
 
         /* LEDGER LIST */
-        .ledger-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow: hidden; }
-        .ledger-header { background: #334155; color: white; padding: 10px 15px; font-weight: 900; font-size: 13px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;}
-        
-        .strip { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; transition: 0.2s; }
-        .strip:hover { background: #f8f9fa; }
-        .strip-left { display: flex; flex-direction: column; gap: 4px; }
-        .date-txt { font-size: 11px; color: #777; font-weight: bold; }
-        .remark-txt { font-size: 13px; font-weight: 900; color: #111; }
-        
-        .strip-right { text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end;}
-        .amt-txt { font-size: 16px; font-weight: 900; }
+        .ledger-wrapper { background: white; border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden; }
+        .ledger-header { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #ffd700; padding: 7px 10px; font-weight: 900; font-size: 11px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); }
+
+        /* 📏 2-LINE SLIM STRIP — top: remark+date | bottom: full-width thin amount bar, kabhi cut nahi hoga */
+        .strip { display: flex; flex-direction: column; padding: 5px 8px; border-bottom: 1px solid #f0ead2; gap: 3px; }
+        .strip:hover { background: #fdf9ee; }
+        .strip-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; overflow: hidden; }
+        .remark-txt { font-size: 10px; font-weight: 800; color: #2b2410; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .date-txt { font-size: 8.5px; color: #8a7a4f; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+
+        .strip-bottom { display: flex; justify-content: space-between; align-items: center; gap: 6px; background: #fdf9ee; border: 1px solid #eddfb0; border-radius: 5px; padding: 3px 6px; }
+        .running-bal { font-size: 9px; color: #7a6b4a; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .amt-txt { font-size: 10.5px; font-weight: 900; white-space: nowrap; flex-shrink: 0; }
         .text-green { color: var(--green); }
         .text-red { color: var(--red); }
-        
-        .running-bal { font-size: 11px; color: #444; font-weight: bold; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; display: inline-block; border: 1px solid #cbd5e1;}
 
-        .no-data { padding: 30px; text-align: center; color: #777; font-weight: bold; font-size: 14px; }
+        .no-data { padding: 20px; text-align: center; color: #8a7a4f; font-weight: 800; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -36,8 +38,8 @@
         <!-- Ledger List -->
         <div class="ledger-wrapper">
             <div class="ledger-header">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <a href="#" id="back-btn" style="color: white; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px;">⬅</a>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <a href="#" id="back-btn" style="color: #ffd700; text-decoration: none; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 15px; line-height: 1;">←</a>
                     <span>Transaction Details</span>
                 </div>
                 <span>Amount / Bal</span>
@@ -122,19 +124,17 @@
                       let colorClass = isDeposit ? "text-green" : "text-red";
                       let sign = isDeposit ? "+" : "-";
                       let remarkText = isDeposit ? "Received from Master" : "Returned to Master";
-                      let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleString([], {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Just now';
+                      let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleDateString([], {day:'2-digit', month:'short', year:'numeric'}) : 'Just now';
 
                       finalUIArray.unshift(`
-                          <div class="strip" style="border-left: 4px solid ${isDeposit ? 'var(--green)' : 'var(--red)'}">
-                              <div class="strip-left">
+                          <div class="strip" style="border-left: 3px solid ${isDeposit ? 'var(--green)' : 'var(--red)'}">
+                              <div class="strip-top">
                                   <span class="remark-txt">${remarkText}</span>
-                                  <span class="date-txt">📅 ${dateStr}</span>
+                                  <span class="date-txt">${dateStr}</span>
                               </div>
-                              <div class="strip-right">
+                              <div class="strip-bottom">
+                                  <span class="running-bal">Total: ${newBal.toFixed(2)}</span>
                                   <span class="amt-txt ${colorClass}">${sign}${amt.toFixed(2)}</span>
-                                  <span class="running-bal">
-                                      Old: ${oldBal.toFixed(2)} &nbsp;<strong class="${colorClass}">${sign}${amt.toFixed(0)}</strong> &nbsp;=&nbsp; <span style="color:#000;">${newBal.toFixed(2)}</span>
-                                  </span>
                               </div>
                           </div>
                       `);

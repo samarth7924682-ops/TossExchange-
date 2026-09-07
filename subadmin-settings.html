@@ -3,75 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light only">
     <title>SubAdmin Settings</title>
     <style>
-        :root { --primary: #1a365d; --accent: #ffb703; --bg: #eceff4; --green: #2e7d32; --red: #c62828; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
-        
-        /* Card & Input Styles */
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; border-top: 3px solid var(--primary); }
-        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 16px; }
-        
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
-        .input-field { width: 100%; padding: 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-weight: bold; outline: none; transition: 0.3s; }
-        .input-field:focus { border-color: var(--primary); box-shadow: 0 0 5px rgba(26, 54, 93, 0.2); }
-        
-        /* Buttons */
-        .action-row { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; color: white; text-transform: uppercase; transition: 0.2s; }
-        .btn-save { background: var(--green); }
-        .btn-clear { background: var(--red); }
-        
-        .info-text { font-size: 11px; color: #666; background: #e3f2fd; padding: 10px; border-radius: 4px; border: 1px solid #bbdefb; margin-bottom: 15px; display: block; }
+        :root { --primary: #4a3a0f; --primary-light: #7a5c17; --accent: #ffd700; --bg: #f7f3e8; --red: #d32f2f; --green: #2e7d32; --shadow-sm: 0 2px 6px rgba(74,58,15,0.12); color-scheme: light only; }
+        html { color-scheme: light only; }
+        body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #2b2410; box-sizing: border-box; }
+        * { box-sizing: border-box; font-family: inherit; }
+
+        .card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow-sm); border-top: 3px solid var(--accent); }
+        h3 { margin-top: 0; font-size: 13px; color: var(--primary); border-bottom: 2px solid #f3e6b8; padding-bottom: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px; }
+
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 10px; font-weight: 800; color: #7a6b4a; margin-bottom: 4px; text-transform: uppercase; }
+        input { width: 100%; padding: 8px 9px; border: 1px solid #eddfb0; border-radius: 6px; box-sizing: border-box; font-size: 12px; background: #fdf9ee; color: #2b2410; }
+        input:focus { outline: none; border-color: var(--accent); }
+
+        .action-row { display: flex; gap: 8px; margin-top: 4px; }
+        .btn-action { flex: 1; padding: 8px; background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; border-radius: 6px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; box-shadow: var(--shadow-sm); }
+        .btn-action:disabled { background: #ccc; color: #888; border-color: #ccc; }
+       
+
+        @media (max-width: 380px) {
+            body { padding: 8px; }
+            .card { padding: 10px; }
+            h3 { font-size: 12px; }
+            .btn-action { font-size: 10px; padding: 7px; }
+        }
+
+        @media (prefers-color-scheme: dark) {
+            html, body { background-color: #f7f3e8 !important; color: #2b2410 !important; }
+            .card { background-color: #ffffff !important; color: #2b2410 !important; }
+            h3 { color: var(--primary) !important; }
+            input { background-color: #fdf9ee !important; color: #2b2410 !important; }
+        }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h3>💬 WhatsApp Support Setup</h3>
-        <span class="info-text">Ye number users ko Deposit/Withdraw page par floating button mein dikhega. Format: 919876543210 (Bina + ke)</span>
-        
+        <h3>💬 WhatsApp Support</h3>
         <div class="input-group">
-            <label>WhatsApp Number:</label>
-            <input type="text" id="wa-number" class="input-field" placeholder="e.g. 919999999999">
+            <label>WhatsApp Number (with country code):</label>
+            <input type="text" id="wa-number" placeholder="e.g. 919999999999">
         </div>
-        
         <div class="action-row">
-            <button class="btn-action btn-save" id="save-wa-btn" onclick="saveWhatsApp()">💾 Save WhatsApp</button>
+            <button class="btn-action" id="save-wa-btn" onclick="saveWhatsApp()">💾 Save</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>🎁 Deposit Bonus Setup</h3>
-        <span class="info-text">Jab bhi aap kisi user ka deposit APPROVE karoge, is percentage ke hisaab se extra bonus coins automatically add ho jayenge (aapke wallet se hi katega). 0 daalne se bonus band ho jayega.</span>
-        
+        <h3>🎁 Deposit Bonus</h3>
         <div class="input-group">
             <label>Bonus Percentage (%):</label>
-            <input type="number" id="bonus-percent" class="input-field" placeholder="e.g. 5" min="0" step="0.1">
+            <input type="number" id="bonus-percent" placeholder="e.g. 5" min="0" step="0.1">
         </div>
-        
         <div class="action-row">
-            <button class="btn-action btn-save" id="save-bonus-btn" onclick="saveBonusPercent()">💾 Save Bonus %</button>
+            <button class="btn-action" id="save-bonus-btn" onclick="saveBonusPercent()">💾 Save</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>🤖 Telegram Bot Settings</h3>
-        <span class="info-text">Yahan apne Telegram Bot ka Token aur Chat ID save karein taaki jab bhi koi user deposit/withdraw request bheje, aapko turant notification mil jaye.</span>
-        
+        <h3>🤖 Telegram Bot</h3>
         <div class="input-group">
-            <label>Bot Token (From @BotFather):</label>
-            <input type="text" id="sub-token" class="input-field" placeholder="e.g. 123456789:ABCdefGhIJKlmno...">
+            <label>Bot Token:</label>
+            <input type="text" id="sub-token" placeholder="e.g. 123456789:ABCdefGhIJKlmno...">
         </div>
-        
         <div class="input-group">
-            <label>Chat ID (Your Telegram ID):</label>
-            <input type="text" id="sub-chatid" class="input-field" placeholder="e.g. 987654321">
+            <label>Chat ID:</label>
+            <input type="text" id="sub-chatid" placeholder="e.g. 987654321">
         </div>
-        
         <div class="action-row">
-            <button class="btn-action btn-save" id="save-bot-btn" onclick="saveBotSettings()">💾 Save Settings</button>
+            <button class="btn-action" id="save-bot-btn" onclick="saveBotSettings()">💾 Save</button>
             <button class="btn-action btn-clear" onclick="clearBotSettings()">🗑️ Clear</button>
         </div>
     </div>
@@ -118,7 +121,7 @@
                 await adminRef.update({ whatsapp: num });
                 alert("✅ WhatsApp Number Saved Successfully!");
             } catch (error) { alert("❌ Update Failed!"); }
-            btn.innerText = "💾 Save WhatsApp"; btn.disabled = false;
+            btn.innerText = "💾 Save"; btn.disabled = false;
         }
 
         // --- 2b. Save Deposit Bonus % ---
@@ -133,7 +136,7 @@
                 await adminRef.update({ depositBonusPercent: percent });
                 alert(`✅ Bonus set to ${percent}%! Ab har approved deposit par ${percent}% extra bonus milega.`);
             } catch (error) { alert("❌ Update Failed!"); }
-            btn.innerText = "💾 Save Bonus %"; btn.disabled = false;
+            btn.innerText = "💾 Save"; btn.disabled = false;
         }
 
         // --- 3. Save Telegram Bot Settings ---
@@ -154,7 +157,7 @@
             } catch(e) {
                 alert("Error saving settings. Please try again.");
             }
-            btn.innerText = "💾 Save Settings"; btn.disabled = false;
+            btn.innerText = "💾 Save"; btn.disabled = false;
         }
 
         // --- 4. Clear Telegram Settings ---

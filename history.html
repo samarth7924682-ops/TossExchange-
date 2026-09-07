@@ -248,7 +248,7 @@
                     let docDate = t.timestamp ? t.timestamp.toDate() : new Date();
 
                     if (t.status === 'approved') {
-                        let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : 'Approved Withdrawal');
+                        let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : (t.type === 'lossback' ? (t.remark || 'Lossback') : 'Approved Withdrawal'));
                         freshLedgerData.push({ dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
                     } else if (t.status === 'pending' && t.type === 'withdraw') {
                         lockedWithdrawals += parseFloat(t.amount) || 0;
@@ -379,7 +379,7 @@
                 let tempBal = 0;
 
                 freshLedgerData.forEach((item) => {
-                    if (['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
+                    if (['deposit', 'bonus', 'lossback', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
                         tempBal += item.amount; 
                     } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) { 
                         tempBal -= item.amount; 
@@ -416,7 +416,7 @@
 
             let filtered = masterLedgerData.filter(item => {
                 let matchCat = true;
-                if(cat === 'dep_with') matchCat = ['deposit', 'withdraw', 'bonus'].includes(item.type);
+                if(cat === 'dep_with') matchCat = ['deposit', 'withdraw', 'bonus', 'lossback'].includes(item.type);
                 if(cat === 'toss') matchCat = ['match_profit', 'match_loss', 'match_cancelled'].includes(item.type);
                 if(cat === 'aviator') matchCat = ['aviator_profit', 'aviator_loss'].includes(item.type);
                 if(cat === 'overout') matchCat = ['overout_profit', 'overout_loss'].includes(item.type);
@@ -454,7 +454,7 @@
                 
                 let credit = "-", debit = "-";
                 
-                if(['deposit', 'bonus', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) {
+                if(['deposit', 'bonus', 'lossback', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) {
                     credit = `<span class="text-green">+${Number(item.amount || 0).toFixed(2)}</span>`;
                 }
                 else if(['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) {

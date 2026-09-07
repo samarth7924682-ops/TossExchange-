@@ -22,13 +22,27 @@
         .action-row { display: flex; gap: 8px; margin-top: 4px; }
         .btn-action { flex: 1; padding: 8px; background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; border-radius: 6px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; box-shadow: var(--shadow-sm); }
         .btn-action:disabled { background: #ccc; color: #888; border-color: #ccc; }
-       
+        .btn-clear { background: linear-gradient(135deg, #d32f2f, #e53935); border-color: #e53935; }
+
+        select { width: 100%; padding: 8px 9px; border: 1px solid #eddfb0; border-radius: 6px; box-sizing: border-box; font-size: 12px; background: #fdf9ee; color: #2b2410; }
+        select:focus { outline: none; border-color: var(--accent); }
+        .lb-row { display: flex; gap: 8px; }
+        .lb-row .input-group { flex: 1; }
+
+        /* Lossback saved offers list */
+        .lb-offer-item { background: #fdf9ee; border: 1px solid #eddfb0; border-radius: 7px; padding: 7px 8px; margin-bottom: 6px; }
+        .lb-offer-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .lb-offer-name { font-size: 10.5px; font-weight: 800; color: #2b2410; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-thin-process { background: linear-gradient(135deg, #7a5c17, #4a3a0f); color: #ffd700; border: 1px solid #ffd700; padding: 4px 8px; border-radius: 5px; font-size: 9px; font-weight: 900; cursor: pointer; text-transform: uppercase; flex-shrink: 0; }
+        .btn-thin-remove { background: none; border: none; color: var(--red); font-size: 9px; font-weight: 800; cursor: pointer; text-decoration: underline; padding: 0; margin-left: 6px; }
+        .lb-offer-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; color: #7a6b4a; font-weight: 700; flex-wrap: wrap; gap: 4px; }
 
         @media (max-width: 380px) {
             body { padding: 8px; }
             .card { padding: 10px; }
             h3 { font-size: 12px; }
             .btn-action { font-size: 10px; padding: 7px; }
+            .lb-offer-name { font-size: 10px; }
         }
 
         @media (prefers-color-scheme: dark) {
@@ -61,6 +75,23 @@
         <div class="action-row">
             <button class="btn-action" id="save-bonus-btn" onclick="saveBonusPercent()">💾 Save</button>
         </div>
+    </div>
+
+    <div class="card">
+        <h3>🎯 Lossback</h3>
+        <div class="input-group">
+            <label>Select Match (Result Declared Only):</label>
+            <select id="lb-match-select" onchange="onLossbackMatchChange()"><option value="">Loading matches...</option></select>
+        </div>
+        <div id="lb-losing-team-box" style="display:none; background:#fdf9ee; border:1px solid #eddfb0; border-radius:6px; padding:7px 9px; margin-bottom:10px; font-size:11px; font-weight:800; color:var(--red);"></div>
+        <div class="input-group">
+            <label>Lossback %:</label>
+            <input type="number" id="lb-percent" placeholder="e.g. 10" min="0" step="0.1">
+        </div>
+        <div class="action-row" style="margin-bottom: 10px;">
+            <button class="btn-action" id="lb-process-btn" onclick="processLossback()">⚡ Process Lossback</button>
+        </div>
+        <div id="lb-offers-list"><p style="color:#8a7a4f; font-size:11px; text-align:center;">Loading history...</p></div>
     </div>
 
     <div class="card">
@@ -139,6 +170,209 @@
             btn.innerText = "💾 Save"; btn.disabled = false;
         }
 
+        // --- 2c. LOSSBACK: Load ONLY closed (result declared) matches into dropdown ---
+        let lbMatchCache = {}; // matchId -> match data, so we don't re-fetch on change
+
+        async function loadMatchesDropdown() {
+            const sel = document.getElementById('lb-match-select');
+            try {
+                // No orderBy here — avoids needing a Firestore composite index.
+                // Sorted client-side instead (newest settled first).
+                const snap = await db.collection("matches").where("status", "==", "closed").limit(60).get();
+                if(snap.empty) { sel.innerHTML = '<option value="">No results declared yet</option>'; return; }
+
+                let matchesArr = [];
+                snap.forEach(doc => matchesArr.push({ id: doc.id, ...doc.data() }));
+
+                matchesArr.sort((a, b) => {
+                    const aTime = (a.settledAt && a.settledAt.toMillis) ? a.settledAt.toMillis() : (a.tossTimeMs || 0);
+                    const bTime = (b.settledAt && b.settledAt.toMillis) ? b.settledAt.toMillis() : (b.tossTimeMs || 0);
+                    return bTime - aTime;
+                });
+
+                let opts = '<option value="">Select Match</option>';
+                matchesArr.slice(0, 30).forEach(m => {
+                    lbMatchCache[m.id] = m;
+                    opts += `<option value="${m.id}">✅ ${m.teamA} vs ${m.teamB}</option>`;
+                });
+                sel.innerHTML = opts;
+            } catch(e) {
+                console.log("Error loading closed matches:", e);
+                sel.innerHTML = '<option value="">Error loading matches</option>';
+            }
+        }
+
+        // --- Auto-detect losing team as soon as a match is picked ---
+        function onLossbackMatchChange() {
+            const matchId = document.getElementById('lb-match-select').value;
+            const box = document.getElementById('lb-losing-team-box');
+            if(!matchId) { box.style.display = 'none'; return; }
+
+            const m = lbMatchCache[matchId];
+            if(!m) { box.style.display = 'none'; return; }
+
+            const losingTeam = (m.winner === m.teamA) ? m.teamB : m.teamA;
+            box.innerText = `❌ Losing Team: ${losingTeam} (Winner: ${m.winner})`;
+            box.style.display = 'block';
+        }
+
+        // --- 2d. LOSSBACK: Load & render processed history (total amount + total users) ---
+        async function loadLossbackOffers() {
+            const wrap = document.getElementById('lb-offers-list');
+            try {
+                const doc = await adminRef.get();
+                const offers = (doc.exists && doc.data().lossbackOffers) || {};
+                const ids = Object.keys(offers);
+
+                if(ids.length === 0) {
+                    wrap.innerHTML = '<p style="color:#8a7a4f; font-size:11px; text-align:center;">No lossback processed yet.</p>';
+                    return;
+                }
+
+                let html = '';
+                ids.forEach(matchId => {
+                    const o = offers[matchId];
+                    html += `
+                        <div class="lb-offer-item">
+                            <div class="lb-offer-top">
+                                <span class="lb-offer-name">🏏 Lossback on ${o.losingTeam}</span>
+                                <button class="btn-thin-remove" onclick="removeLossbackOffer('${matchId}')">🗑️ Clear</button>
+                            </div>
+                            <div class="lb-offer-bottom">
+                                <span>${o.percent}% Lossback</span>
+                                <span>👥 Users: ${o.usersCount || 0}</span>
+                                <span>🪙 Total: ${(o.totalAmount || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                wrap.innerHTML = html;
+            } catch(e) {
+                console.log("Error loading lossback history:", e);
+                wrap.innerHTML = '<p style="color:#8a7a4f; font-size:11px; text-align:center;">Error loading history.</p>';
+            }
+        }
+
+        // --- 2e. LOSSBACK: Clear a history entry (does not touch already-credited coins) ---
+        async function removeLossbackOffer(matchId) {
+            if(!confirm("Is history entry ko clear karna chahte hain?\n(Users ko mile hue coins wapas nahi katenge)")) return;
+            try {
+                await adminRef.update({ [`lossbackOffers.${matchId}`]: firebase.firestore.FieldValue.delete() });
+                loadLossbackOffers();
+            } catch(e) {
+                alert("Error clearing entry.");
+            }
+        }
+
+        // --- 2f. LOSSBACK: Process — auto-detects losing team, credits ONLY this
+        // subadmin's users who lost on that team, skips already-processed bets,
+        // checks wallet balance, shows total amount + total users credited
+        async function processLossback() {
+            const matchId = document.getElementById('lb-match-select').value;
+            const percent = parseFloat(document.getElementById('lb-percent').value) || 0;
+            const btn = document.getElementById('lb-process-btn');
+
+            if(!matchId) { alert("Match select karo!"); return; }
+            if(percent <= 0) { alert("Lossback % daalo (0 se zyada)!"); return; }
+
+            const m = lbMatchCache[matchId];
+            if(!m) { alert("❌ Match data nahi mila, page refresh karo!"); return; }
+            const losingTeam = (m.winner === m.teamA) ? m.teamB : m.teamA;
+            const losingTeamKey = (m.winner === m.teamA) ? 'teamB' : 'teamA';
+
+            if(!confirm(`Confirm: "${losingTeam}" ke losers ko ${percent}% lossback diya jayega.\n\nContinue?`)) return;
+
+            btn.innerText = "Processing... ⏳"; btn.disabled = true;
+
+            try {
+                const adminDoc = await adminRef.get();
+                const offers = (adminDoc.exists && adminDoc.data().lossbackOffers) || {};
+                const existing = offers[matchId] || {};
+                const processedBetIds = existing.processedBetIds || [];
+                const walletBalance = parseFloat(adminDoc.data().balance || 0);
+
+                // Sirf apne users
+                const usersSnap = await db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).get();
+                let userMap = {};
+                usersSnap.forEach(d => userMap[d.id] = d.data().username);
+                const myUserIds = Object.keys(userMap);
+
+                if(myUserIds.length === 0) { alert("ℹ️ Koi users nahi mile!"); btn.innerText = "⚡ Process Lossback"; btn.disabled = false; return; }
+
+                // Sirf is match ke lost bets
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "lost").get();
+
+                const batch = db.batch();
+                let totalCredited = 0;
+                let usersAffected = 0;
+                let newProcessedIds = [...processedBetIds];
+
+                betsSnap.forEach(bDoc => {
+                    const b = bDoc.data();
+                    if(!myUserIds.includes(b.userId)) return; // dusre subadmin ka user — skip
+                    if(b.selection !== losingTeamKey) return; // safety check
+                    if(processedBetIds.includes(bDoc.id)) return; // already processed — skip
+
+                    const lossbackAmt = parseFloat(b.amount || 0) * (percent / 100);
+                    if(lossbackAmt <= 0) return;
+
+                    batch.update(db.collection("users").doc(b.userId), { balance: firebase.firestore.FieldValue.increment(lossbackAmt) });
+
+                    const txRef = db.collection("transactions").doc();
+                    batch.set(txRef, {
+                        userId: b.userId,
+                        username: userMap[b.userId] || '',
+                        linkedSubAdminId: subAdmin.id,
+                        type: 'lossback',
+                        amount: lossbackAmt,
+                        status: 'approved',
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        remark: `Lossback on ${losingTeam}`,
+                        matchId: matchId,
+                        betId: bDoc.id
+                    });
+
+                    totalCredited += lossbackAmt;
+                    usersAffected++;
+                    newProcessedIds.push(bDoc.id);
+                });
+
+                if(usersAffected === 0) {
+                    alert("ℹ️ Koi naya bet process karne ke liye nahi mila (ya sab already processed ho chuke hain).");
+                    btn.innerText = "⚡ Process Lossback"; btn.disabled = false;
+                    return;
+                }
+
+                if(walletBalance < totalCredited) {
+                    alert(`❌ Wallet me balance kam hai!\n\nZaroorat: 🪙${totalCredited.toFixed(2)}\nAvailable: 🪙${walletBalance.toFixed(2)}`);
+                    btn.innerText = "⚡ Process Lossback"; btn.disabled = false;
+                    return;
+                }
+
+                batch.update(adminRef, { balance: firebase.firestore.FieldValue.increment(-totalCredited) });
+                batch.update(adminRef, {
+                    [`lossbackOffers.${matchId}`]: {
+                        teamA: m.teamA,
+                        teamB: m.teamB,
+                        losingTeam: losingTeam,
+                        percent: percent,
+                        processedBetIds: newProcessedIds,
+                        totalAmount: (existing.totalAmount || 0) + totalCredited,
+                        usersCount: (existing.usersCount || 0) + usersAffected
+                    }
+                });
+
+                await batch.commit();
+                alert(`✅ Lossback Processed!\n\n👥 Users Credited: ${usersAffected}\n🪙 Total Amount Deposited: ${totalCredited.toFixed(2)}`);
+                document.getElementById('lb-percent').value = '';
+                loadLossbackOffers();
+            } catch(e) {
+                console.error(e);
+                alert("❌ Error processing lossback: " + e.message);
+            }
+            btn.innerText = "⚡ Process Lossback"; btn.disabled = false;
+        }
+
         // --- 3. Save Telegram Bot Settings ---
         async function saveBotSettings() {
             const token = document.getElementById('sub-token').value.trim();
@@ -178,7 +412,14 @@
         }
 
         // Run on load
-        window.onload = loadSettings;
+        window.onload = function() {
+            loadSettings();
+            loadMatchesDropdown();
+            loadLossbackOffers();
+        };
+        window.onLossbackMatchChange = onLossbackMatchChange;
+        window.removeLossbackOffer = removeLossbackOffer;
+        window.processLossback = processLossback;
     </script>
 </body>
 </html>

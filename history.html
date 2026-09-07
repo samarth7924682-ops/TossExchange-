@@ -480,7 +480,8 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             setupHeader(); 
-            fetchLiveHistory(); 
+            fetchLiveHistory();
+            setInterval(fetchLiveHistory, 10000);
         });
     </script>
 </body>

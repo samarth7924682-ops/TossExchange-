@@ -699,7 +699,7 @@ function triggerWinPopup(winAmt, mult) {
                     } else {
                         db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) });
                     }
-                    localStorage.setItem('pendingSixerBet', JSON.stringify({ roundIndex: currentRoundIndex, betAmount: myBetAmount }));
+                    localStorage.setItem('pendingSixerBet', JSON.stringify({ roundIndex: currentRoundIndex, betAmount: myBetAmount, timestamp: Date.now() }));
                     actionBtn.className = 'action-btn btn-cashout';
                 }
                 startEngineSound();

@@ -369,3 +369,41 @@ window.recoverPendingChickenBet = async function() {
 setTimeout(() => {
     window.recoverPendingChickenBet();
 }, 1500);
+// ==========================================
+// 8. GLOBAL PENDING SIXER (AVIATOR) BET RECOVERY
+// Agar sixer me bet lock hone ke baad (TAKEOFF phase) tab/app band ho gaya ho
+// result aane se pehle, toh koi bhi page (history.html samet) khulte hi turant
+// settle ho jayega. Round crash hote waqt user active nahi tha, isliye cashout
+// possible nahi tha — hamesha loss maana jaata hai.
+// ==========================================
+window.recoverPendingSixerBet = async function() {
+    const session = window.checkSession();
+    if (!session) return;
+
+    const pendingRaw = localStorage.getItem('pendingSixerBet');
+    if (!pendingRaw) return;
+
+    const pending = JSON.parse(pendingRaw);
+    if (!pending.timestamp || (Date.now() - pending.timestamp) < 40000) return; // round abhi khatam nahi hua hoga — sixer.html khud handle karega
+
+    const settledKey = `settledSixerBet_${pending.timestamp}`;
+    if (localStorage.getItem(settledKey)) { localStorage.removeItem('pendingSixerBet'); return; }
+    localStorage.setItem(settledKey, '1');
+
+    try {
+        if (!session.isDemo) {
+            await db.collection("aviator_history").add({
+                userId: session.id, betAmount: pending.betAmount, cashoutMult: 0, winAmount: 0,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+    } catch (e) {
+        console.log("Sixer recovery error:", e);
+    }
+
+    localStorage.removeItem('pendingSixerBet');
+};
+
+setTimeout(() => {
+    window.recoverPendingSixerBet();
+}, 1500);

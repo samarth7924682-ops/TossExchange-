@@ -453,19 +453,19 @@
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Safe Telegram Alert
-                try {
-                    await window.sendTelegramNotification(currentSubAdminId, "Deposit", user.username, amt);
-                } catch(tgError) { 
-                    console.log("Telegram alert failed: ", tgError); 
-                }
+             // Telegram Alert - background me chalega, isse submit rukega nahi
+                window.sendTelegramNotification(currentSubAdminId, "Deposit", user.username, amt)
+                    .catch(tgError => console.log("Telegram alert failed: ", tgError));
 
                 window.showMsg("Request Submitted!", "success");
-                
-                setTimeout(() => {
-                    window.location.reload(); 
-                }, 1500);
 
+                // Page reload nahi karenge — isse background Telegram retry beech me kat jaata
+                document.getElementById('dep-amount').value = "";
+                document.getElementById('dep-file').value = "";
+                uploadedProofUrl = null;
+                isUploading = false;
+                btn.innerText = "Submit Request 🚀";
+                btn.disabled = false;   
             } catch (e) {
                 window.showMsg("Submission Failed! Check connection.", "error");
                 btn.innerText = "Submit Request 🚀";

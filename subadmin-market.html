@@ -148,20 +148,26 @@
             let myUserIds = [];
             uSnap.forEach(d => myUserIds.push(d.id));
 
-            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
-                db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
-                    const listVolume = document.getElementById('sa-matches-list');
-                    listVolume.innerHTML = "";
-                    
-                    if(matchSnap.empty) { 
-                        listVolume.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches right now.</p>"; 
-                        return; 
-                    }
+            // 👇 Dono listeners ab SIRF EK BAAR attach honge — nested nahi
+            let latestMatchSnap = null;
+            let latestBetSnap = null;
 
-                    // Store combined subadmin net book here
-                    let saBook = {}; 
+            function renderMarket() {
+                if (!latestMatchSnap) return; // matches abhi load hi nahi hue
 
-                    betSnap.forEach(bDoc => {
+                const listVolume = document.getElementById('sa-matches-list');
+                listVolume.innerHTML = "";
+
+                if(latestMatchSnap.empty) { 
+                    listVolume.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches right now.</p>"; 
+                    return; 
+                }
+
+                // Store combined subadmin net book here
+                let saBook = {}; 
+
+                if (latestBetSnap) {
+                    latestBetSnap.forEach(bDoc => {
                         const b = bDoc.data();
                         
                         if(myUserIds.includes(b.userId)) { 
@@ -181,43 +187,53 @@
                             }
                         }
                     });
+                }
 
-                    // Render UI (sorted by match time - increasing order)
-                    let sortedMatches = [];
-                    matchSnap.forEach(doc => sortedMatches.push({ id: doc.id, ...doc.data() }));
-                    sortedMatches.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+                // Render UI (sorted by match time - increasing order)
+                let sortedMatches = [];
+                latestMatchSnap.forEach(doc => sortedMatches.push({ id: doc.id, ...doc.data() }));
+                sortedMatches.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
 
-                    sortedMatches.forEach(m => {
-                        const book = saBook[m.id] || { teamA: 0, teamB: 0 };
-                        
-                        let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
-                        let signA = book.teamA > 0 ? "+" : ""; 
-                        
-                        let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
-                        let signB = book.teamB > 0 ? "+" : "";
+                sortedMatches.forEach(m => {
+                    const book = saBook[m.id] || { teamA: 0, teamB: 0 };
+                    
+                    let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
+                    let signA = book.teamA > 0 ? "+" : ""; 
+                    
+                    let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
+                    let signB = book.teamB > 0 ? "+" : "";
 
-                        listVolume.innerHTML += `
-                            <div class="slim-strip">
-                                <div class="match-title">🏏 ${m.teamA} vs ${m.teamB}</div>
-                                <div style="font-size:11px; font-weight:bold; color:#666; margin-bottom:6px;">📅 ${getRelativeDateLabel(m.tossTimeMs)} • ${m.tossTimeMs ? new Date(m.tossTimeMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</div>
-                                <div class="volume-stats">
-                                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
-                                        <span style="font-weight:bold; font-size:13px;">${m.teamA}:</span> 
-                                        <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(2)}</span>
-                                    </div>
-                                    <div style="display:flex; justify-content:space-between;">
-                                        <span style="font-weight:bold; font-size:13px;">${m.teamB}:</span> 
-                                        <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(2)}</span>
-                                    </div>
+                    listVolume.innerHTML += `
+                        <div class="slim-strip">
+                            <div class="match-title">🏏 ${m.teamA} vs ${m.teamB}</div>
+                            <div style="font-size:11px; font-weight:bold; color:#666; margin-bottom:6px;">📅 ${getRelativeDateLabel(m.tossTimeMs)} • ${m.tossTimeMs ? new Date(m.tossTimeMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--'}</div>
+                            <div class="volume-stats">
+                                <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
+                                    <span style="font-weight:bold; font-size:13px;">${m.teamA}:</span> 
+                                    <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(2)}</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="font-weight:bold; font-size:13px;">${m.teamB}:</span> 
+                                    <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(2)}</span>
                                 </div>
                             </div>
-                        `;
-                    });
+                        </div>
+                    `;
                 });
+            }
+
+            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
+                latestMatchSnap = matchSnap;
+                renderMarket();
+            });
+
+            db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
+                latestBetSnap = betSnap;
+                renderMarket();
             });
         }
         
-        initLiveMarket(); 
+        initLiveMarket();
     </script>
 </body>
 </html>

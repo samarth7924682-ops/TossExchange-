@@ -159,17 +159,29 @@
                 return;
             }
 
-            const userHtmlPromises = snap.docs.map(async (doc) => {
-                const u = doc.data();
-                const userId = doc.id;
-                
+            const allUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const allUserIds = allUsers.map(u => u.id);
+
+            // Sab users ke pending bets EK saath fetch karna (N alag queries ki jagah)
+            // Firestore 'in' query max 30 IDs leta hai, isliye 30-30 ke batch mein todna
+            const betsByUser = {};
+            const chunkSize = 30;
+            for (let i = 0; i < allUserIds.length; i += chunkSize) {
+                const chunk = allUserIds.slice(i, i + chunkSize);
+                const betSnap = await db.collection("bets").where("userId", "in", chunk).where("status", "==", "pending").get();
+                betSnap.forEach(bDoc => {
+                    const b = bDoc.data();
+                    if (!betsByUser[b.userId]) betsByUser[b.userId] = [];
+                    betsByUser[b.userId].push(b);
+                });
+            }
+
+            const rowsHtml = allUsers.map(u => {
+                const userId = u.id;
                 let totalExposure = 0;
-                const betSnap = await db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").get();
-                
-                let matchExpData = {}; 
-                
-                betSnap.forEach(bDoc => { 
-                    let b = bDoc.data();
+                let matchExpData = {};
+
+                (betsByUser[userId] || []).forEach(b => {
                     if(b.matchId && b.selection) {
                         if(!matchExpData[b.matchId]) matchExpData[b.matchId] = {teamA: 0, teamB: 0};
                         let profit = b.amount * ((b.odds || 98) / 100);
@@ -214,8 +226,7 @@
                 `;
             });
 
-            const resolvedHtmlArray = await Promise.all(userHtmlPromises);
-            list.innerHTML = resolvedHtmlArray.join('');
+            list.innerHTML = rowsHtml.join('');
         }
 
         // 🌟 LOCK / UNLOCK USER LOGIC 🌟

@@ -436,7 +436,7 @@ setInterval(syncServerTime, 60000);
     }
 
     function loadMyHistory() {
-        db.collection("aviator_history").where("userId", "==", user.id).onSnapshot(snap => {
+        db.collection("aviator_history").where("userId", "==", user.id).orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
             let historyData = []; snap.forEach(doc => historyData.push(doc.data()));
             historyData.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
             historyData = historyData.slice(0, 20); 

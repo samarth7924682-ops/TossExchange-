@@ -1,0 +1,15 @@
+{
+  "name": "scan-matches",
+  "version": "1.0.0",
+  "description": "Playcode se cricket match schedule aur winners fetch karke Firestore update karta hai",
+  "main": "scan-matches.js",
+  "scripts": {
+    "start": "node scan-matches.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "firebase-admin": "^12.0.0",
+    "puppeteer": "^22.0.0",
+    "@google/generative-ai": "^0.14.0"
+  }
+}

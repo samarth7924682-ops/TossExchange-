@@ -581,10 +581,13 @@ setInterval(applyLockState, 1000);
                 }
 
                 // 5. Commit as Atomic Transaction
-                const batch = db.batch();
-                if (marginRequired !== 0) {
-                    batch.update(db.collection("users").doc(user.id), { balance: firebase.firestore.FieldValue.increment(-marginRequired) });
-                }
+               const batch = db.batch();
+if (marginRequired !== 0) {
+    batch.update(db.collection("users").doc(user.id), { 
+        balance: firebase.firestore.FieldValue.increment(-marginRequired),
+        totalExposure: firebase.firestore.FieldValue.increment(marginRequired)   // 👈 naya
+    });
+}
                 
                 batch.set(db.collection("bets").doc(), {
                     userId: user.id, username: user.username, matchId: matchId,

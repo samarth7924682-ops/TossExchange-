@@ -1,16 +1,28 @@
-{
-  "name": "scan-matches",
-  "version": "1.0.0",
-  "description": "Playcode se cricket match schedule aur winners fetch karke Firestore update karta hai",
-  "main": "scan-matches.js",
-  "scripts": {
-    "start": "node scan-matches.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.0.0",
-    "firebase-admin": "^12.0.0",
-    "puppeteer": "^22.0.0",
-    "@google/generative-ai": "^0.14.0"
-  }
-}
+name: Scan Playcode Matches
 
+on:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run scan matches script
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PLAYCODE_USERNAME: ${{ secrets.PLAYCODE_USERNAME }}
+          PLAYCODE_PASSWORD: ${{ secrets.PLAYCODE_PASSWORD }}
+        run: node scan-matches.js
+        

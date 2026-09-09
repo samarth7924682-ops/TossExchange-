@@ -245,8 +245,11 @@
                 setTimeout(function(){ r.remove(); }, 650);
             }
         }
+let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne ke liye
 
         window.checkSession = function() {
+            if (unsubBalance) { unsubBalance(); unsubBalance = null; }
+            if (unsubExposure) { unsubExposure(); unsubExposure = null; }
             const s = localStorage.getItem('userSession');
             if(s) { 
                 const user = JSON.parse(s); 
@@ -289,7 +292,7 @@
                     });
                     
                 } else {
-                    db.collection("users").doc(user.id).onSnapshot(d => {
+                    unsubBalance = db.collection("users").doc(user.id).onSnapshot(d => {
                         if(!d.exists) {
                             alert("⚠️ Your account has been deleted. Logging out.");
                             localStorage.removeItem('userSession');
@@ -319,21 +322,13 @@
                             
                     });
 
-                    setTimeout(() => {
-                        if (window.db && user && user.id) {
-                            db.collection("transactions").where("userId", "==", user.id).get().catch(()=>{});
-                            db.collection("bets").where("userId", "==", user.id).get().catch(()=>{});
-                            db.collection("aviator_history").where("userId", "==", user.id).get().catch(()=>{});
-                            db.collection("overout_history").where("userId", "==", user.id).get().catch(()=>{});
-                            db.collection("coinflip_history").where("userId", "==", user.id).get().catch(()=>{});
-                        }
-                    }, 2000);
+                    
             
                     db.collection("matches").get().then(matchSnap => {
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
 
-                        db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(snap => {
+                        unsubExposure = db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(snap => {
                             let matchPnL = {}; 
                             snap.forEach(doc => {
                                 let b = doc.data();

@@ -624,7 +624,7 @@
 
     // isDemo check yahan se hata diya — actual result (jo Recent Results me dikhta hai)
     // demo aur real dono users ke liye SAME hona chahiye. Balance update niche isDemo se hi hoga.
-    if (typeof db !== 'undefined') {
+    if (typeof db !== 'undefined' && currentActiveBet && currentActiveBet.roundId === targetRoundId && !currentActiveBet.processed) {
       try {
         const roundRef = db.collection("round_bets").doc(targetRoundId);
         const snap = await roundRef.get();

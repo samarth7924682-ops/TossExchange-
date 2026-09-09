@@ -411,7 +411,7 @@
       // 🔥 30% TIME RIGGED (Load based), 70% FAIR (Random) 🔥
       const isRigged = (randVal1 * 100) < 30; 
 
-      if (!isRigged || userSession.isDemo) {
+     if (!isRigged || userSession.isDemo || !activeBet) {
           // Unpredictable Decider for Fair Rounds
           currentRoundResult = (randVal2 < 0.5) ? 'heads' : 'tails';
       } else {
@@ -581,8 +581,8 @@
       if (localStorage.getItem(settledKey)) { localStorage.removeItem(COINFLIP_PENDING_KEY); return; }
       localStorage.setItem(settledKey, '1');
 
-      await fetchRoundResult(pending.roundId);
       activeBet = pending;
+      await fetchRoundResult(pending.roundId);
       await processWinnings(currentRoundResult, true);
   }
 

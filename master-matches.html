@@ -229,7 +229,8 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                     const diffMins = Math.round((m.tossTimeMs - m.lockTimeMs) / 60000);
                     lockDisplay = `<div class="time-badge" style="background: #ffebee; color: #c62828; margin-left: 5px;">🔒 Lock: ${diffMins} Min Before</div>`;
                 }
-
+                
+const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 list.innerHTML += `
                     <div class="match-row">
                         <div class="match-header">${m.teamA} vs ${m.teamB}</div>
@@ -238,12 +239,12 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                             ${lockDisplay}
                         </div>
                         <div class="action-btns">
-                            <button class="btn btn-primary btn-small" onclick="triggerOCR('${m.id}', '${m.teamA}', '${m.teamB}')">📸 OCR SETTLE</button>
-                            <button class="btn btn-warning btn-small" onclick="manualSettlePIN('${m.id}', '${m.teamA}', '${m.teamB}')">🔐 MANUAL</button>
+                            <button class="btn btn-primary btn-small" onclick="triggerOCR('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}')">📸 OCR SETTLE</button>
+                            <button class="btn btn-warning btn-small" onclick="manualSettlePIN('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}')">🔐 MANUAL</button>
                             <button class="btn btn-red btn-small" onclick="deleteMatch('${m.id}')" style="flex: 0.5;">🔐 VOID</button>
                         </div>
                         <div class="action-btns">
-                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${m.teamA}','${m.teamB}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs})">✏️ EDIT DATE / TIME / LOCK</button>
+                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs})">✏️ EDIT DATE / TIME / LOCK</button>
                         </div>
                         </div>
                     </div>

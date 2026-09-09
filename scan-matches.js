@@ -17,7 +17,7 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
 const PLAYCODE_USERNAME = process.env.PLAYCODE_USERNAME;
 const PLAYCODE_PASSWORD = process.env.PLAYCODE_PASSWORD;

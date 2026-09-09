@@ -200,11 +200,14 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             return "Upcoming";
         }
 
+        let cachedOpenMatches = []; // Reminder-checker isको use karega, Firestore ko baar-baar nahi chuegā
+
         db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             let matches = [];
             snap.forEach(doc => matches.push({id: doc.id, ...doc.data()}));
 
             matches.sort((a,b) => a.tossTimeMs - b.tossTimeMs);
+            cachedOpenMatches = matches; // Local cache update — background checker isको padhega
 
             const list = document.getElementById('live-list');
             list.innerHTML = "";
@@ -380,7 +383,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                             });
                         });
 
-                        // 5. Character Intersection (Fuzzy Match for YAR or SAWU19)
+                       // 5. Character Intersection (Fuzzy Match for YAR or SAWU19)
                         let charScore = 0;
                         let tChars = t.replace(/\s+/g, '');
                         for (let char of s) {
@@ -581,11 +584,12 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             const reminderMs = (masterTgSettings.tossReminderMins || 15) * 60000;
 
             try {
-                // Background me open matches fetch karna (Direct Firestore GET)
-                const snap = await db.collection("matches").where("status", "==", "open").get();
+                // Firestore ko dobara nahi chuna — jo listener (upar) khud-ba-khud
+                // updated rehta hai, usी local cache se padhna
+                const matchesToCheck = cachedOpenMatches;
                 
-                snap.forEach(async (doc) => {
-                    const m = doc.data();
+                matchesToCheck.forEach(async (m) => {
+                    const doc = { id: m.id };
                     const tossTime = m.tossTimeMs;
                     if (!tossTime) return;
 

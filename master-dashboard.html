@@ -118,32 +118,37 @@
 
         // 🌍 GLOBAL LIVE MATCHES & NET BOOK LOGIC
         function initGlobalMarket() {
-            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
-                db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
-                    
-                    const listMatches = document.getElementById('global-matches-list');
-                    listMatches.innerHTML = "";
-                    
-                    if(matchSnap.empty) { 
-                        listMatches.innerHTML = "<p style='color:#777; font-size:12px; font-weight:bold;'>No active matches right now.</p>"; 
-                        document.getElementById('master-global-vol').innerText = "0";
-                        return; 
-                    }
+            // 👇 Dono listeners ab SIRF EK BAAR attach honge — nested nahi
+            let latestMatchSnap = null;
+            let latestBetSnap = null;
 
-                    let masterBook = {};
-                    let totalGlobalRisk = 0;
-                    let matchesArray = [];
+            function renderGlobalMarket() {
+                if (!latestMatchSnap) return; // matches abhi load hi nahi hue
 
-                    // Extract matches into array for sorting
-                    matchSnap.forEach(m => { 
-                        matchesArray.push({ id: m.id, ...m.data() }); 
-                    });
+                const listMatches = document.getElementById('global-matches-list');
+                listMatches.innerHTML = "";
 
-                    // Sort Matches by Increasing Order of Time
-                    matchesArray.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+                if(latestMatchSnap.empty) { 
+                    listMatches.innerHTML = "<p style='color:#777; font-size:12px; font-weight:bold;'>No active matches right now.</p>"; 
+                    document.getElementById('master-global-vol').innerText = "0";
+                    return; 
+                }
 
-                    // Calculate Global Book
-                    betSnap.forEach(bDoc => {
+                let masterBook = {};
+                let totalGlobalRisk = 0;
+                let matchesArray = [];
+
+                // Extract matches into array for sorting
+                latestMatchSnap.forEach(m => { 
+                    matchesArray.push({ id: m.id, ...m.data() }); 
+                });
+
+                // Sort Matches by Increasing Order of Time
+                matchesArray.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+
+                // Calculate Global Book
+                if (latestBetSnap) {
+                    latestBetSnap.forEach(bDoc => {
                         const b = bDoc.data();
                         const amt = parseFloat(b.amount || 0);
                         const odds = parseFloat(b.odds || 98);
@@ -164,62 +169,72 @@
                             masterBook[b.matchId].teamA -= netLoss;   
                         }
                     });
+                }
+                
+                let currentCat = "";
+
+                // Render Match UI with Date Categories
+                matchesArray.forEach(m => {
+                    const book = masterBook[m.id] || { teamA: 0, teamB: 0 };
                     
-                    let currentCat = "";
+                    let worstCase = Math.min(book.teamA, book.teamB);
+                    if(worstCase < 0) {
+                        totalGlobalRisk += Math.abs(worstCase);
+                    }
 
-                    // Render Match UI with Date Categories
-                    matchesArray.forEach(m => {
-                        const book = masterBook[m.id] || { teamA: 0, teamB: 0 };
-                        
-                        let worstCase = Math.min(book.teamA, book.teamB);
-                        if(worstCase < 0) {
-                            totalGlobalRisk += Math.abs(worstCase);
-                        }
+                    let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
+                    let signA = book.teamA > 0 ? "+" : ""; 
+                    
+                    let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
+                    let signB = book.teamB > 0 ? "+" : "";
 
-                        let colorA = book.teamA >= 0 ? "var(--green)" : "var(--red)";
-                        let signA = book.teamA > 0 ? "+" : ""; 
-                        
-                        let colorB = book.teamB >= 0 ? "var(--green)" : "var(--red)";
-                        let signB = book.teamB > 0 ? "+" : "";
+                    // Format Date/Time
+                    let displayTime = m.tossTimeStr || "";
+                    if(m.tossTimeMs) {
+                        const d = new Date(m.tossTimeMs);
+                        displayTime = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    }
 
-                        // Format Date/Time
-                        let displayTime = m.tossTimeStr || "";
-                        if(m.tossTimeMs) {
-                            const d = new Date(m.tossTimeMs);
-                            displayTime = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        }
+                    // Determine Date Category Strip
+                    const cat = getCategoryByMs(m.tossTimeMs);
+                    if(cat !== currentCat) {
+                        listMatches.innerHTML += `<div class="category-header">📅 ${cat}</div>`;
+                        currentCat = cat;
+                    }
 
-                        // Determine Date Category Strip
-                        const cat = getCategoryByMs(m.tossTimeMs);
-                        if(cat !== currentCat) {
-                            listMatches.innerHTML += `<div class="category-header">📅 ${cat}</div>`;
-                            currentCat = cat;
-                        }
-
-                        listMatches.innerHTML += `
-                            <div class="slim-strip" style="border-left-color: var(--green);">
-                                <div class="match-title"> ${m.teamA} vs ${m.teamB}</div>
-                                <div class="match-time">🕒 Toss: ${displayTime}</div>
-                                <div class="volume-stats">
-                                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
-                                        <span style="font-weight:900;">${m.teamA}:</span> 
-                                        <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(0)}</span>
-                                    </div>
-                                    <div style="display:flex; justify-content:space-between;">
-                                        <span style="font-weight:900;">${m.teamB}:</span> 
-                                        <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(0)}</span>
-                                    </div>
+                    listMatches.innerHTML += `
+                        <div class="slim-strip" style="border-left-color: var(--green);">
+                            <div class="match-title"> ${m.teamA} vs ${m.teamB}</div>
+                            <div class="match-time">🕒 Toss: ${displayTime}</div>
+                            <div class="volume-stats">
+                                <div style="display:flex; justify-content:space-between; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #eee;">
+                                    <span style="font-weight:900;">${m.teamA}:</span> 
+                                    <span style="color:${colorA}; font-weight:900; font-size: 14px;">${signA}${book.teamA.toFixed(0)}</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="font-weight:900;">${m.teamB}:</span> 
+                                    <span style="color:${colorB}; font-weight:900; font-size: 14px;">${signB}${book.teamB.toFixed(0)}</span>
                                 </div>
                             </div>
-                        `;
-                    });
-
-                    document.getElementById('master-global-vol').innerText = totalGlobalRisk.toFixed(0);
+                        </div>
+                    `;
                 });
+
+                document.getElementById('master-global-vol').innerText = totalGlobalRisk.toFixed(0);
+            }
+
+            db.collection("matches").where("status", "==", "open").onSnapshot(matchSnap => {
+                latestMatchSnap = matchSnap;
+                renderGlobalMarket();
+            });
+
+            db.collection("bets").where("status", "==", "pending").onSnapshot(betSnap => {
+                latestBetSnap = betSnap;
+                renderGlobalMarket();
             });
         }
         
-        initGlobalMarket(); 
+        initGlobalMarket();
     </script>
 </body>
 </html>

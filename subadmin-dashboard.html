@@ -116,7 +116,6 @@
         </div>
         <div class="sa-stats-bar">
             <div class="sa-badge">BAL: <span id="sa-bal">0.00</span></div>
-            <div class="sa-badge">DOWNLINE: <span id="sa-downline">0.00</span></div>
             <div class="sa-badge" style="border-color:var(--red);">PnL: <span id="sa-pnl" style="color:var(--red);">0.00</span></div>
         </div>
     </div>
@@ -193,8 +192,6 @@
         }
         
         let currentSaBal = 0;
-        let totalDownlineBal = 0;
-        let netMasterCoins = 0;
         let bonusPercent = 0;
 
         // Modal Handlers
@@ -254,35 +251,21 @@
                 }
                 currentSaBal = doc.data().balance || 0;
                 bonusPercent = parseFloat(doc.data().depositBonusPercent || 0);
+                let userPnl = doc.data().userPnl || 0;   // 👈 naya — deposits/withdrawals ka running total
                 document.getElementById('sa-bal').innerText = Math.floor(currentSaBal);
-                calcPnL();
+                calcPnL(userPnl);
             }
         });
         
-        db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).onSnapshot(snap => {
-            totalDownlineBal = 0;
-            snap.forEach(doc => { totalDownlineBal += (doc.data().balance || 0); });
-            document.getElementById('sa-downline').innerText = Math.floor(totalDownlineBal);
-        });
+        
 
-        function calcPnL() {
-            let pnl = netMasterCoins - currentSaBal; 
+        function calcPnL(pnl) {
             let pnlEl = document.getElementById('sa-pnl');
             pnlEl.innerText = (pnl >= 0 ? '+' : '') + Math.floor(pnl);
             pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
         }
 
-        db.collection("transactions").where("userId", "==", subAdmin.id).onSnapshot(snap => {
-            netMasterCoins = 0; 
-            snap.forEach(doc => {
-                let tx = doc.data();
-                if(tx.remark && tx.remark.includes('Master') && tx.status === 'approved') {
-                    if (tx.type === 'deposit') netMasterCoins += parseFloat(tx.amount || 0);
-                    if (tx.type === 'withdraw') netMasterCoins -= parseFloat(tx.amount || 0);
-                }
-            });
-            calcPnL(); 
-        });
+        
 
         // ===============================================
         // 📜 REAL-TIME USER ACTIVITY LOGS (UI FIX FOR BONUS)
@@ -518,7 +501,10 @@
 
             if(type === 'deposit') {
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(totalDeduct) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-totalDeduct) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(-totalDeduct),
+                    userPnl: firebase.firestore.FieldValue.increment(amount)
+                });
 
                 if(existingBonusDocId) {
                     // Update existing bonus status
@@ -539,7 +525,10 @@
                 }
             } else if (type === 'withdraw') {
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-amount) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(amount) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(amount),
+                    userPnl: firebase.firestore.FieldValue.increment(-amount)
+                });
             }
 
             try {
@@ -589,11 +578,17 @@
                 } catch(e) {}
 
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-totalDeduction) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(totalDeduction) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(totalDeduction),
+                    userPnl: firebase.firestore.FieldValue.increment(-amount)
+                });
 
             } else if (type === 'withdraw') {
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(amount) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-amount) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(-amount),
+                    userPnl: firebase.firestore.FieldValue.increment(amount)
+                });
             }
 
             try {
@@ -638,7 +633,10 @@
 
             if(status === 'approved' && type === 'deposit') {
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(totalDeduct) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(-totalDeduct) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(-totalDeduct),
+                    userPnl: firebase.firestore.FieldValue.increment(amount)
+                });
 
                 if(bonusAmount > 0) {
                     batch.set(db.collection("transactions").doc(), {
@@ -688,7 +686,10 @@
                     linkedSubAdminId: subAdmin.id, // FORCE LINKING
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                batch.update(db.collection("admins").doc(subAdmin.id), { balance: firebase.firestore.FieldValue.increment(amount) });
+                batch.update(db.collection("admins").doc(subAdmin.id), { 
+                    balance: firebase.firestore.FieldValue.increment(amount),
+                    userPnl: firebase.firestore.FieldValue.increment(-amount)
+                });
 
                 await batch.commit();
                 loadPendingRequests(); 

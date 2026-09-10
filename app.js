@@ -13,16 +13,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// 🔍 DEBUG: har Firestore read/listener ko log karega — kaam ho jaye to hata dena
-(function () {
-    const origCollection = db.collection.bind(db);
-    db.collection = function (path) {
-        const caller = (new Error().stack || "").split("\n")[2] || "unknown";
-        console.log("%c[FIRESTORE READ] " + path, "color:#0f0;font-weight:bold;", "\n↳ " + caller.trim());
-        return origCollection(path);
-    };
-})();
-
 // 👇 ALL-IN-ONE FIREBASE FIX (No Error, No Warning) 👇
 db.settings({ 
     experimentalForceLongPolling: true, 

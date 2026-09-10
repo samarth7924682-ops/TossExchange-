@@ -13,6 +13,16 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// 🔍 DEBUG: har Firestore read/listener ko log karega — kaam ho jaye to hata dena
+(function () {
+    const origCollection = db.collection.bind(db);
+    db.collection = function (path) {
+        const caller = (new Error().stack || "").split("\n")[2] || "unknown";
+        console.log("%c[FIRESTORE READ] " + path, "color:#0f0;font-weight:bold;", "\n↳ " + caller.trim());
+        return origCollection(path);
+    };
+})();
+
 // 👇 ALL-IN-ONE FIREBASE FIX (No Error, No Warning) 👇
 db.settings({ 
     experimentalForceLongPolling: true, 
@@ -23,26 +33,6 @@ db.settings({
 
 // Global constants
 window.db = db; 
-
-// 🔍 TEMPORARY DEBUG TRACKER — sirf reads pakadne ke liye, baad me hata denge
-(function() {
-    try {
-        const QueryProto = Object.getPrototypeOf(db.collection('_debug_probe_'));
-        const origGet = QueryProto.get;
-        const origOnSnapshot = QueryProto.onSnapshot;
-
-        QueryProto.get = function(...args) {
-            const line = new Error().stack.split('\n')[2] || '(unknown)';
-            console.log('📖 GET —', line.trim());
-            return origGet.apply(this, args);
-        };
-        QueryProto.onSnapshot = function(...args) {
-            const line = new Error().stack.split('\n')[2] || '(unknown)';
-            console.log('👂 LISTEN ATTACHED —', line.trim());
-            return origOnSnapshot.apply(this, args);
-        };
-    } catch(e) { console.log('Debug tracker failed:', e); }
-})();
 
 // --- Helper Functions jo sabhi files mein kaam aayengi ---
 

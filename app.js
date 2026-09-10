@@ -24,6 +24,26 @@ db.settings({
 // Global constants
 window.db = db; 
 
+// 🔍 TEMPORARY DEBUG TRACKER — sirf reads pakadne ke liye, baad me hata denge
+(function() {
+    try {
+        const QueryProto = Object.getPrototypeOf(db.collection('_debug_probe_'));
+        const origGet = QueryProto.get;
+        const origOnSnapshot = QueryProto.onSnapshot;
+
+        QueryProto.get = function(...args) {
+            const line = new Error().stack.split('\n')[2] || '(unknown)';
+            console.log('📖 GET —', line.trim());
+            return origGet.apply(this, args);
+        };
+        QueryProto.onSnapshot = function(...args) {
+            const line = new Error().stack.split('\n')[2] || '(unknown)';
+            console.log('👂 LISTEN ATTACHED —', line.trim());
+            return origOnSnapshot.apply(this, args);
+        };
+    } catch(e) { console.log('Debug tracker failed:', e); }
+})();
+
 // --- Helper Functions jo sabhi files mein kaam aayengi ---
 
 // 1. STYLISH POPUP (Toast Notification) 

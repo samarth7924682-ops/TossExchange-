@@ -13,6 +13,16 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// 🔍 DEBUG: har Firestore read/listener ko log karega — kaam ho jaye to hata dena
+(function () {
+    const origCollection = db.collection.bind(db);
+    db.collection = function (path) {
+        const caller = (new Error().stack || "").split("\n")[2] || "unknown";
+        console.log("%c[FIRESTORE READ] " + path, "color:#0f0;font-weight:bold;", "\n↳ " + caller.trim());
+        return origCollection(path);
+    };
+})();
+
 // 👇 ALL-IN-ONE FIREBASE FIX (No Error, No Warning) 👇
 db.settings({ 
     experimentalForceLongPolling: true, 
@@ -93,7 +103,7 @@ window.sendTelegramNotification = async (subAdminId, type, userName, amount) => 
                         `💰 *Amount:* ₹${amount}\n\n` +
                         `👉 Check your panel to process.`;
 
-        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
         const payload = { chat_id: chatId, text: message, parse_mode: "Markdown" };
 
         let attempt = 1;

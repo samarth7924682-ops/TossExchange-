@@ -453,7 +453,7 @@
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-             // Telegram Alert - background me chalega, isse submit rukega nahi
+           // Telegram Alert - background me chalega, isse submit rukega nahi
                 window.sendTelegramNotification(currentSubAdminId, "Deposit", user.username, amt)
                     .catch(tgError => console.log("Telegram alert failed: ", tgError));
 
@@ -465,7 +465,7 @@
                 uploadedProofUrl = null;
                 isUploading = false;
                 btn.innerText = "Submit Request 🚀";
-                btn.disabled = false;   
+                btn.disabled = false; 
             } catch (e) {
                 window.showMsg("Submission Failed! Check connection.", "error");
                 btn.innerText = "Submit Request 🚀";
@@ -539,5 +539,7 @@
             loadTxHistory();
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
 </body>
 </html>

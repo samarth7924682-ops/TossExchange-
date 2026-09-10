@@ -63,7 +63,10 @@
     </div>
 
     <div class="container">
-        <div class="page-title">📜 Account Statement</div>
+        <div class="page-title" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <span>📜 Account Statement</span>
+            <button onclick="fetchLiveHistory()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #555; background:#222; color:#fff; cursor:pointer;">🔄 Refresh</button>
+        </div>
 
         <div class="filter-container">
             <input type="date" id="filter-start" class="filter-input" title="Start Date">
@@ -323,6 +326,7 @@
                     }
                 }
 
+              
               // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
@@ -481,7 +485,10 @@
         document.addEventListener("DOMContentLoaded", () => {
             setupHeader(); 
             fetchLiveHistory(); 
-            setInterval(fetchLiveHistory, 10000);
+            // 🔧 FIX: har 10 sec me auto-refresh (setInterval) hata diya gaya hai —
+            // ye har baar 8 collections dobara padhta tha (bina limit), jo Firestore
+            // reads ko bahut badha raha tha. Ab sirf page load pe 1 baar aur
+            // "🔄 Refresh" button dabane par data load hoga.
         });
     </script>
 </body>

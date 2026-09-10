@@ -434,7 +434,5 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
         if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(function () { window.checkSession && window.checkSession(); }, 1); }
         window.addEventListener("pageshow", function (event) { if (event.persisted) { window.checkSession && window.checkSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
 </body>
 </html>

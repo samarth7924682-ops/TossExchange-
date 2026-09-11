@@ -21,8 +21,39 @@ db.settings({
     merge: true 
 });
 
+// 👇 OFFLINE PERSISTENCE — baar-baar same data padhne se bachata hai (local cache use karta hai)
+db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+    if (err.code === 'failed-precondition') {
+        console.log('Persistence failed: multiple tabs open at once, sirf ek tab me hi persistence chalta hai.');
+    } else if (err.code === 'unimplemented') {
+        console.log('Persistence failed: is browser me offline support nahi hai.');
+    } else {
+        console.log('Persistence error:', err);
+    }
+});
+
 // Global constants
 window.db = db; 
+
+// 🔍 TEMPORARY DEBUG TRACKER — sirf reads pakadne ke liye, baad me hata denge
+(function() {
+    try {
+        const QueryProto = Object.getPrototypeOf(db.collection('_debug_probe_'));
+        const origGet = QueryProto.get;
+        const origOnSnapshot = QueryProto.onSnapshot;
+
+        QueryProto.get = function(...args) {
+            const line = new Error().stack.split('\n')[2] || '(unknown)';
+            console.log('📖 GET —', line.trim());
+            return origGet.apply(this, args);
+        };
+        QueryProto.onSnapshot = function(...args) {
+            const line = new Error().stack.split('\n')[2] || '(unknown)';
+            console.log('👂 LISTEN ATTACHED —', line.trim());
+            return origOnSnapshot.apply(this, args);
+        };
+    } catch(e) { console.log('Debug tracker failed:', e); }
+})();
 
 // --- Helper Functions jo sabhi files mein kaam aayengi ---
 

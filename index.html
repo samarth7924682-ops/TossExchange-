@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
-    
+     
     <style>
         /* CSS Exact Same as Original */
         :root { --theme-dark: #121418; --green: #2e7d32; --red: #d32f2f; --accent: #ffb703; color-scheme: light; }
@@ -430,8 +430,14 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
             });
         }
         
-        document.addEventListener("DOMContentLoaded", function () { window.checkSession && window.checkSession(); });
-        if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(function () { window.checkSession && window.checkSession(); }, 1); }
+        let sessionCheckDone = false;
+        function runCheckSessionOnce() {
+            if (sessionCheckDone) return;
+            sessionCheckDone = true;
+            window.checkSession && window.checkSession();
+        }
+        document.addEventListener("DOMContentLoaded", runCheckSessionOnce);
+        if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(runCheckSessionOnce, 1); }
         window.addEventListener("pageshow", function (event) { if (event.persisted) { window.checkSession && window.checkSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
     </script>
 </body>

@@ -270,119 +270,134 @@
         // ===============================================
         // 📜 REAL-TIME USER ACTIVITY LOGS (UI FIX FOR BONUS)
         // ===============================================
-        db.collection("transactions").where("linkedSubAdminId", "==", subAdmin.id).orderBy("timestamp", "desc").limit(30).onSnapshot(snap => {
-            let logs = [];
-            snap.forEach(doc => {
-                let tx = doc.data();
-                tx.id = doc.id; 
-                // Hide system master logs
-                if(tx.status !== 'pending' && (!tx.remark || !tx.remark.includes('Master'))) {
-                    logs.push(tx);
-                }
-            });
-            
-            // 🔥 REMOVE standalone BONUS entries from UI list. 
-            // We will attach them to Deposit rows instead.
-            logs = logs.filter(tx => tx.type !== 'bonus');
+        let activityLogsUnsub = null;
 
-            logs.sort((a,b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-            logs = logs.slice(0, 15); 
-            
-            const list = document.getElementById('local-logs-list');
-            list.innerHTML = "";
-            if(logs.length === 0) { list.innerHTML = "<p style='color:#777; font-size:11px;'>No recent activity.</p>"; return; }
-            
-            logs.forEach(tx => {
-                let isManual = (tx.remark && tx.remark.toLowerCase().includes('manual')) || 
-                               (tx.type === 'deposit' && !tx.proof) || 
-                               (tx.type === 'withdraw' && !tx.upi && !tx.adminProof);
-
-                let statusColor = '';
-                let statusText = '';
-                let sign = (tx.type === 'deposit') ? '+' : '-';
-
-                if (tx.status === 'rejected') {
-                    statusColor = '#f59e0b';
-                    statusText = 'REJECTED'; 
-                } else if (tx.type === 'deposit') {
-                    statusColor = 'var(--green)';
-                    statusText = isManual ? 'MANUAL DEPOSIT' : 'DEPOSIT';
-                } else if (tx.type === 'withdraw') {
-                    statusColor = 'var(--red)';
-                    statusText = isManual ? 'MANUAL WITHDRAWAL' : 'WITHDRAWAL';
-                }
-
-                // 🔥 Attach Bonus info visually inside Deposit Amount
-                let amountHtml = `${sign}${tx.amount}`;
-                if (tx.type === 'deposit' && tx.bonusAmount) {
-                    amountHtml += `<div style="font-size:9.5px; color:var(--green); font-weight:bold; margin-top:2px;">+${tx.bonusAmount} Bonus</div>`;
-                }
-
-                let dotElement = `<span style="width:12px; margin-left:10px;"></span>`; 
-                if (tx.proof) {
-                    let dotColor = (tx.status === 'rejected') ? 'dot-red' : 'dot-green';
-                    dotElement = `<span onclick="showImageModal('${tx.proof}')" title="View Proof" class="proof-link"><span class="${dotColor}"></span></span>`;
-                } else if (tx.adminProof) {
-                    dotElement = `<span onclick="showImageModal('${tx.adminProof}')" title="View Proof" class="proof-link"><span class="dot-red"></span></span>`;
-                }
-
-                let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+        function attachActivityLogsListener() {
+            if (activityLogsUnsub) return; // pehle se attached hai, dobara mat karo
+            activityLogsUnsub = db.collection("transactions").where("linkedSubAdminId", "==", subAdmin.id).orderBy("timestamp", "desc").limit(10).onSnapshot(snap => {
+                let logs = [];
+                snap.forEach(doc => {
+                    let tx = doc.data();
+                    tx.id = doc.id; 
+                    // Hide system master logs
+                    if(tx.status !== 'pending' && (!tx.remark || !tx.remark.includes('Master'))) {
+                        logs.push(tx);
+                    }
+                });
                 
-                let rejectInfo = "";
-                if(tx.status === 'rejected') {
-                    let r = tx.rejectReason ? tx.rejectReason.replace(/'/g, "\\'") : "No reason provided.";
-                    rejectInfo = `
-                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
-                            <span onclick="showRejectReason('${r}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">View Reason</span>
-                            &nbsp;|&nbsp;
-                            <span onclick="reApproveTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #2e7d32; text-decoration: underline; cursor: pointer;">Re-Approve ✅</span>
-                        </div>
-                    `;
-                } else if (tx.status === 'approved') {
-                    rejectInfo = `
-                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
-                            <span onclick="reRejectTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">Re-Reject ❌</span>
-                        </div>
-                    `;
-                }
+                // 🔥 REMOVE standalone BONUS entries from UI list. 
+                // We will attach them to Deposit rows instead.
+                logs = logs.filter(tx => tx.type !== 'bonus');
 
-                // EDIT WITHDRAWAL PROOF FUNCTIONALITY
-                if (tx.status === 'approved' && tx.type === 'withdraw') {
-                    rejectInfo += `
-                        <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
-                            <label style="color: #1e88e5; text-decoration: underline; cursor: pointer;">
-                                ✏️ Change Proof
-                                <input type="file" style="display:none;" accept="image/*" onchange="editWithdrawProof('${tx.id}', event)">
-                            </label>
+                logs.sort((a,b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+                logs = logs.slice(0, 15); 
+                
+                const list = document.getElementById('local-logs-list');
+                list.innerHTML = "";
+                if(logs.length === 0) { list.innerHTML = "<p style='color:#777; font-size:11px;'>No recent activity.</p>"; return; }
+                
+                logs.forEach(tx => {
+                    let isManual = (tx.remark && tx.remark.toLowerCase().includes('manual')) || 
+                                   (tx.type === 'deposit' && !tx.proof) || 
+                                   (tx.type === 'withdraw' && !tx.upi && !tx.adminProof);
+
+                    let statusColor = '';
+                    let statusText = '';
+                    let sign = (tx.type === 'deposit') ? '+' : '-';
+
+                    if (tx.status === 'rejected') {
+                        statusColor = '#f59e0b';
+                        statusText = 'REJECTED'; 
+                    } else if (tx.type === 'deposit') {
+                        statusColor = 'var(--green)';
+                        statusText = isManual ? 'MANUAL DEPOSIT' : 'DEPOSIT';
+                    } else if (tx.type === 'withdraw') {
+                        statusColor = 'var(--red)';
+                        statusText = isManual ? 'MANUAL WITHDRAWAL' : 'WITHDRAWAL';
+                    }
+
+                    // 🔥 Attach Bonus info visually inside Deposit Amount
+                    let amountHtml = `${sign}${tx.amount}`;
+                    if (tx.type === 'deposit' && tx.bonusAmount) {
+                        amountHtml += `<div style="font-size:9.5px; color:var(--green); font-weight:bold; margin-top:2px;">+${tx.bonusAmount} Bonus</div>`;
+                    }
+
+                    let dotElement = `<span style="width:12px; margin-left:10px;"></span>`; 
+                    if (tx.proof) {
+                        let dotColor = (tx.status === 'rejected') ? 'dot-red' : 'dot-green';
+                        dotElement = `<span onclick="showImageModal('${tx.proof}')" title="View Proof" class="proof-link"><span class="${dotColor}"></span></span>`;
+                    } else if (tx.adminProof) {
+                        dotElement = `<span onclick="showImageModal('${tx.adminProof}')" title="View Proof" class="proof-link"><span class="dot-red"></span></span>`;
+                    }
+
+                    let dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+                    
+                    let rejectInfo = "";
+                    if(tx.status === 'rejected') {
+                        let r = tx.rejectReason ? tx.rejectReason.replace(/'/g, "\\'") : "No reason provided.";
+                        rejectInfo = `
+                            <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                                <span onclick="showRejectReason('${r}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">View Reason</span>
+                                &nbsp;|&nbsp;
+                                <span onclick="reApproveTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #2e7d32; text-decoration: underline; cursor: pointer;">Re-Approve ✅</span>
+                            </div>
+                        `;
+                    } else if (tx.status === 'approved') {
+                        rejectInfo = `
+                            <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                                <span onclick="reRejectTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">Re-Reject ❌</span>
+                            </div>
+                        `;
+                    }
+
+                    // EDIT WITHDRAWAL PROOF FUNCTIONALITY
+                    if (tx.status === 'approved' && tx.type === 'withdraw') {
+                        rejectInfo += `
+                            <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
+                                <label style="color: #1e88e5; text-decoration: underline; cursor: pointer;">
+                                    ✏️ Change Proof
+                                    <input type="file" style="display:none;" accept="image/*" onchange="editWithdrawProof('${tx.id}', event)">
+                                </label>
+                            </div>
+                        `;
+                    }
+
+                    list.innerHTML += `
+                        <div class="slim-strip" style="border-left-color: ${statusColor}; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; flex-direction: row;">
+                            <div style="flex: 1.2; text-align: left; display: flex; flex-direction: column; overflow:hidden;">
+                                <div style="font-size:12px; font-weight:bold; color:#333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    👤 ${tx.username}
+                                </div>
+                                <div style="font-size:9.5px; color:#888; margin-top: 2px;">
+                                    ${dateStr}
+                                </div>
+                                ${rejectInfo}
+                            </div>
+                            <div style="flex: 1; text-align: center; font-size: 11px; font-weight: 900; color: ${statusColor};">
+                                ${statusText}
+                            </div>
+                            <div style="flex: 1; text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
+                                <div style="display: flex; align-items: center;">
+                                    <span style="font-weight:900; color:${statusColor}; font-size:13.5px;">
+                                        ${amountHtml}
+                                    </span>
+                                    ${dotElement}
+                                </div>
+                            </div>
                         </div>
                     `;
-                }
-
-                list.innerHTML += `
-                    <div class="slim-strip" style="border-left-color: ${statusColor}; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; flex-direction: row;">
-                        <div style="flex: 1.2; text-align: left; display: flex; flex-direction: column; overflow:hidden;">
-                            <div style="font-size:12px; font-weight:bold; color:#333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                👤 ${tx.username}
-                            </div>
-                            <div style="font-size:9.5px; color:#888; margin-top: 2px;">
-                                ${dateStr}
-                            </div>
-                            ${rejectInfo}
-                        </div>
-                        <div style="flex: 1; text-align: center; font-size: 11px; font-weight: 900; color: ${statusColor};">
-                            ${statusText}
-                        </div>
-                        <div style="flex: 1; text-align: right; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
-                            <div style="display: flex; align-items: center;">
-                                <span style="font-weight:900; color:${statusColor}; font-size:13.5px;">
-                                    ${amountHtml}
-                                </span>
-                                ${dotElement}
-                            </div>
-                        </div>
-                    </div>
-                `;
+                });
             });
+        }
+
+        attachActivityLogsListener();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (activityLogsUnsub) { activityLogsUnsub(); activityLogsUnsub = null; }
+            } else {
+                attachActivityLogsListener();
+            }
         });
 
          // ⏳ Load Pending Requests

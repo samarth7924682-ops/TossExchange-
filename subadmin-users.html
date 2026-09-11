@@ -133,9 +133,10 @@
         
         let currentSubAdminBalance = 0;
         let matchDict = {}; 
+        let cachedUserExposureData = {}; // 🌟 In-memory cache: userId -> {matchExpData, othersExp} (modal isi se read karega)
 
-        // Fetch Global Match Names First
-        db.collection("matches").get().then(snap => {
+        // Fetch Global Match Names First (🌟 sirf OPEN matches — settled/purane matches ke reads waste nahi honge)
+        let matchDictPromise = db.collection("matches").where("status", "==", "open").get().then(snap => {
             snap.forEach(doc => { matchDict[doc.id] = `${doc.data().teamA} vs ${doc.data().teamB}`; });
         });
 
@@ -176,12 +177,16 @@
                 });
             }
 
+            // 🌟 matchDict ready hone ka wait (race-condition avoid karne ke liye) — sirf pehli baar await hoga
+            await matchDictPromise;
+
             const rowsHtml = allUsers.map(u => {
                 const userId = u.id;
+                const userBets = betsByUser[userId] || [];
                 let totalExposure = 0;
                 let matchExpData = {};
 
-                (betsByUser[userId] || []).forEach(b => {
+                userBets.forEach(b => {
                     if(b.matchId && b.selection) {
                         if(!matchExpData[b.matchId]) matchExpData[b.matchId] = {teamA: 0, teamB: 0};
                         let profit = b.amount * ((b.odds || 98) / 100);
@@ -199,6 +204,24 @@
                     let worst = Math.min(matchExpData[m].teamA, matchExpData[m].teamB);
                     if(worst < 0) totalExposure += Math.abs(worst);
                 }
+
+                // 🌟 EXPOSURE MODAL CACHE — openExpModal isi se read karega, click par 0 extra reads 🌟
+                let modalMatchExpData = {};
+                let modalOthersExp = 0;
+                userBets.forEach(b => {
+                    if(b.matchId && matchDict[b.matchId]) {
+                        if(!modalMatchExpData[b.matchId]) modalMatchExpData[b.matchId] = {teamA: 0, teamB: 0};
+                        let profit = b.amount * ((b.odds || 98) / 100);
+                        if(b.selection === 'teamA') {
+                            modalMatchExpData[b.matchId].teamA += profit; modalMatchExpData[b.matchId].teamB -= b.amount;
+                        } else {
+                            modalMatchExpData[b.matchId].teamB += profit; modalMatchExpData[b.matchId].teamA -= b.amount;
+                        }
+                    } else {
+                        modalOthersExp += parseFloat(b.amount || 0);
+                    }
+                });
+                cachedUserExposureData[userId] = { matchExpData: modalMatchExpData, othersExp: modalOthersExp };
 
                 let isLocked = u.locked || false;
                 let lockBtnText = isLocked ? 'Unlock' : 'Lock';
@@ -268,36 +291,15 @@
             window.location.href = `history.html?id=${userId}&name=${username}`;
         }
 
-        // Single-Line Exp Modal
-        async function openExpModal(userId, username) {
+        // Single-Line Exp Modal (🌟 In-memory cache se read — 0 Firestore reads on click 🌟)
+        function openExpModal(userId, username) {
             document.getElementById('exp-modal-title').innerText = `Exp: ${username}`;
-            document.getElementById('exp-modal-body').innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">Loading Details...</p>';
             document.getElementById('exp-modal').style.display = 'flex';
 
-            const betSnap = await db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").get();
+            const cached = cachedUserExposureData[userId] || { matchExpData: {}, othersExp: 0 };
+            const matchExpData = cached.matchExpData;
+            const othersExp = cached.othersExp;
             let html = "";
-            let matchExpData = {};
-            let othersExp = 0;
-
-            if(betSnap.empty) {
-                document.getElementById('exp-modal-body').innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">No active bets.</p>';
-                return;
-            }
-
-            betSnap.forEach(bDoc => {
-                let b = bDoc.data();
-                if(b.matchId && matchDict[b.matchId]) {
-                    if(!matchExpData[b.matchId]) matchExpData[b.matchId] = {teamA: 0, teamB: 0};
-                    let profit = b.amount * ((b.odds || 98) / 100);
-                    if(b.selection === 'teamA') {
-                        matchExpData[b.matchId].teamA += profit; matchExpData[b.matchId].teamB -= b.amount;
-                    } else {
-                        matchExpData[b.matchId].teamB += profit; matchExpData[b.matchId].teamA -= b.amount;
-                    }
-                } else {
-                    othersExp += parseFloat(b.amount || 0);
-                }
-            });
 
             for(let mId in matchExpData) {
                 let m = matchExpData[mId];
@@ -340,7 +342,6 @@
 
             document.getElementById('exp-modal-body').innerHTML = html || '<p style="text-align:center; color:#777; font-size:12px;">No active exposure.</p>';
         }
-
         function closeExpModal(e) {
             if (e.target.id === 'exp-modal' || e.target.classList.contains('close-btn')) {
                 document.getElementById('exp-modal').style.display = 'none';

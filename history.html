@@ -65,7 +65,7 @@
     <div class="container">
         <div class="page-title" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <span>📜 Account Statement</span>
-            <button onclick="fetchLiveHistory()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #555; background:#222; color:#fff; cursor:pointer;">🔄 Refresh</button>
+            <button onclick="fetchLiveHistory(true)" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #555; background:#222; color:#fff; cursor:pointer;">🔄 Refresh</button>
         </div>
 
         <div class="filter-container">
@@ -207,12 +207,22 @@
         }
 
         // ⚡ FAST LIVE FIREBASE FETCHING (Promise.all) ⚡
-        async function fetchLiveHistory() {
+        async function fetchLiveHistory(forceRefresh) {
             try {
+                const uid = user.id;
+
+                // 🔧 Gate: sirf balance badla ho tabhi poora fetch karo, warna skip
+                if (!forceRefresh) {
+                    const quickCheck = await db.collection("users").doc(uid).get();
+                    const currentBal = quickCheck.exists ? parseFloat(quickCheck.data().balance) || 0 : null;
+                    const lastSeenBal = localStorage.getItem('historyLastBal_' + uid);
+                    if (currentBal !== null && lastSeenBal !== null && parseFloat(lastSeenBal) === currentBal) {
+                        return; // kuch naya nahi — 7 collections ko chhuo bhi mat
+                    }
+                }
+
                 // Pehle check karein agar aaj ka background cleanup nahi hua, toh background me laga de
                 if (window.runBackgroundCleanup) window.runBackgroundCleanup(user.id);
-
-                const uid = user.id;
                 
                 // Saara data Firebase se ek saath parallel load karo
                 const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, chickenSnap, matchSnap, userDoc] = await Promise.all([
@@ -326,8 +336,7 @@
                     }
                 }
 
-              
-              // Process Games
+             // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
                     let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
@@ -406,6 +415,7 @@
 
                 masterLedgerData = freshLedgerData;
                 renderTable(masterLedgerData);
+                localStorage.setItem('historyLastBal_' + uid, currentWalletBalance);
 
             } catch (e) {
                 console.log("Live fetching error:", e);

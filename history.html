@@ -63,10 +63,7 @@
     </div>
 
     <div class="container">
-        <div class="page-title" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <span>📜 Account Statement</span>
-            <button onclick="fetchLiveHistory(true)" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid #555; background:#222; color:#fff; cursor:pointer;">🔄 Refresh</button>
-        </div>
+        <div class="page-title">📜 Account Statement</div>
 
         <div class="filter-container">
             <input type="date" id="filter-start" class="filter-input" title="Start Date">
@@ -152,11 +149,11 @@
         function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
 
         window.buildExposureDropdown = async function(userId) {
-            const matchSnap = await db.collection("matches").where("status", "==", "open").limit(10).get();
+            const matchSnap = await db.collection("matches").get();
             let matchNames = {};
             matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
 
-            db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").limit(10).onSnapshot(snap => {
+            db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").onSnapshot(snap => {
                 let matchPnL = {}; 
                 snap.forEach(doc => {
                     let b = doc.data();
@@ -207,32 +204,22 @@
         }
 
         // ⚡ FAST LIVE FIREBASE FETCHING (Promise.all) ⚡
-        async function fetchLiveHistory(forceRefresh) {
+        async function fetchLiveHistory() {
             try {
-                const uid = user.id;
-
-                // 🔧 Gate: sirf balance badla ho tabhi poora fetch karo, warna skip
-                if (!forceRefresh) {
-                    const quickCheck = await db.collection("users").doc(uid).get();
-                    const currentBal = quickCheck.exists ? parseFloat(quickCheck.data().balance) || 0 : null;
-                    const lastSeenBal = localStorage.getItem('historyLastBal_' + uid);
-                    if (currentBal !== null && lastSeenBal !== null && parseFloat(lastSeenBal) === currentBal) {
-                        return; // kuch naya nahi — 7 collections ko chhuo bhi mat
-                    }
-                }
-
                 // Pehle check karein agar aaj ka background cleanup nahi hua, toh background me laga de
                 if (window.runBackgroundCleanup) window.runBackgroundCleanup(user.id);
+
+                const uid = user.id;
                 
                 // Saara data Firebase se ek saath parallel load karo
                 const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, chickenSnap, matchSnap, userDoc] = await Promise.all([
-                    db.collection("transactions").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("bets").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("aviator_history").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("overout_history").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("coinflip_history").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("chicken_history").where("userId", "==", uid).orderBy("timestamp", "desc").limit(20).get(),
-                    db.collection("matches").where("status", "==", "open").limit(10).get(),
+                    db.collection("transactions").where("userId", "==", uid).get(),
+                    db.collection("bets").where("userId", "==", uid).get(),
+                    db.collection("aviator_history").where("userId", "==", uid).get(),
+                    db.collection("overout_history").where("userId", "==", uid).get(),
+                    db.collection("coinflip_history").where("userId", "==", uid).get(),
+                    db.collection("chicken_history").where("userId", "==", uid).get(),
+                    db.collection("matches").get(),
                     db.collection("users").doc(uid).get()
                 ]);
 
@@ -336,7 +323,7 @@
                     }
                 }
 
-             // Process Games
+              // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
                     let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
@@ -415,7 +402,6 @@
 
                 masterLedgerData = freshLedgerData;
                 renderTable(masterLedgerData);
-                localStorage.setItem('historyLastBal_' + uid, currentWalletBalance);
 
             } catch (e) {
                 console.log("Live fetching error:", e);
@@ -495,10 +481,7 @@
         document.addEventListener("DOMContentLoaded", () => {
             setupHeader(); 
             fetchLiveHistory(); 
-            // 🔧 FIX: har 10 sec me auto-refresh (setInterval) hata diya gaya hai —
-            // ye har baar 8 collections dobara padhta tha (bina limit), jo Firestore
-            // reads ko bahut badha raha tha. Ab sirf page load pe 1 baar aur
-            // "🔄 Refresh" button dabane par data load hoga.
+            setInterval(fetchLiveHistory, 10000);
         });
     </script>
 </body>

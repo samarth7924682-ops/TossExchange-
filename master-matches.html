@@ -253,25 +253,26 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         });
 
         // ==========================================
-        // 3. LOAD HISTORY & AUTO-DELETE LOGIC
+        // 3. LOAD HISTORY — INSTANT LOCALSTORAGE CACHE + DELTA LISTENER
+        // Turant localStorage se render hota hai (0 reads), phir sirf naye
+        // settle/void hue matches ke liye Firestore se delta fetch hota hai.
         // ==========================================
-        db.collection("matches").where("status", "in", ["closed", "cancelled"]).onSnapshot(snap => {
-            let matches = [];
-            const nowMs = Date.now();
-            const fourDaysMs = 4 * 24 * 60 * 60 * 1000;
+        const MATCH_HISTORY_CACHE_KEY = 'masterMatchHistoryCache';
+        const MATCH_HISTORY_LASTFETCH_KEY = 'masterMatchHistoryLastFetch';
+        const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+        let historyMatchesMap = {}; // id -> match data (merge/dedupe ke liye)
 
-            snap.forEach(doc => {
-                const m = doc.data();
-                const matchTime = m.tossTimeMs || 0;
-                
-                if (nowMs - matchTime > fourDaysMs) {
-                    db.collection("matches").doc(doc.id).delete();
-                } else {
-                    matches.push({id: doc.id, ...m});
-                }
+        function pruneOldHistory() {
+            const cutoff = Date.now() - FOUR_DAYS_MS;
+            Object.keys(historyMatchesMap).forEach(id => {
+                if ((historyMatchesMap[id].tossTimeMs || 0) < cutoff) delete historyMatchesMap[id];
             });
+        }
 
-            matches.sort((a,b) => b.tossTimeMs - a.tossTimeMs); 
+        function renderHistoryList() {
+            pruneOldHistory();
+            let matches = Object.values(historyMatchesMap);
+            matches.sort((a,b) => b.tossTimeMs - a.tossTimeMs);
 
             const list = document.getElementById('history-list');
             list.innerHTML = "";
@@ -290,6 +291,44 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     </div>
                 `;
             });
+        }
+
+        function saveHistoryCache() {
+            try {
+                localStorage.setItem(MATCH_HISTORY_CACHE_KEY, JSON.stringify(Object.values(historyMatchesMap)));
+            } catch(e) { console.log("History cache save error:", e); }
+        }
+
+        // 🌟 STEP 1: localStorage se turant render — 0 second, 0 reads
+        try {
+            const cached = localStorage.getItem(MATCH_HISTORY_CACHE_KEY);
+            if (cached) {
+                JSON.parse(cached).forEach(m => { historyMatchesMap[m.id] = m; });
+                renderHistoryList();
+            }
+        } catch(e) { console.log("History cache load error:", e); }
+
+        // 🌟 STEP 2: Sirf wahi matches padho jo last fetch ke baad settle/void hue
+        const lastFetchMs = parseInt(localStorage.getItem(MATCH_HISTORY_LASTFETCH_KEY) || '0');
+        const historyCursorMs = lastFetchMs > 0 ? lastFetchMs : (Date.now() - FOUR_DAYS_MS);
+
+        db.collection("matches")
+          .where("status", "in", ["closed", "cancelled"])
+          .where("settledAt", ">", firebase.firestore.Timestamp.fromMillis(historyCursorMs))
+          .onSnapshot(snap => {
+            if (snap.empty) return; // Kuch naya nahi — 0 extra kaam
+
+            let latestMs = historyCursorMs;
+            snap.forEach(doc => {
+                const m = doc.data();
+                historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner };
+                const sMs = m.settledAt ? m.settledAt.toMillis() : Date.now();
+                if (sMs > latestMs) latestMs = sMs;
+            });
+
+            localStorage.setItem(MATCH_HISTORY_LASTFETCH_KEY, latestMs.toString());
+            saveHistoryCache();
+            renderHistoryList();
         });
 
         // ==========================================
@@ -384,7 +423,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                             });
                         });
 
-                       // 5. Character Intersection (Fuzzy Match for YAR or SAWU19)
+                     // 5. Character Intersection (Fuzzy Match for YAR or SAWU19)
                         let charScore = 0;
                         let tChars = t.replace(/\s+/g, '');
                         for (let char of s) {
@@ -469,6 +508,8 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     }
                 });
 
+                // 🌟 Ab koi pehle se GET nahi — seedha increment() likha jaata hai (0 extra reads).
+                // set({merge:true}) isliye taaki deleted user hone par bhi settlement fail na ho.
                 for(let userId in userBets) {
                     let uData = userBets[userId];
                     let worstCase = Math.min(uData.pnlA, uData.pnlB);
@@ -476,24 +517,13 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
                     let balanceAdjustment = lockedExposure + netResult;
 
-                    // Har baar real balance fetch karo taaki settlement ke baad ka SAHI snapshot mil sake
-                    const userRef = db.collection("users").doc(userId);
-                    const userDoc = await userRef.get();
-                    let newBal = null;
-
-                    if(userDoc.exists) {
-                        let curBal = parseFloat(userDoc.data().balance || 0);
-                        newBal = curBal + balanceAdjustment;
-                        if (balanceAdjustment !== 0) {
-                            batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) });
-                        }
+                    if (balanceAdjustment !== 0) {
+                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) }, { merge: true });
                     }
 
                     uData.bets.forEach(b => {
                         let betStatus = b.selection === winnerCode ? 'won' : 'lost';
-                        let updateData = { status: betStatus };
-                        if(newBal !== null) updateData.balanceSnapshot = newBal;
-                        batch.update(db.collection("bets").doc(b.id), updateData);
+                        batch.update(db.collection("bets").doc(b.id), { status: betStatus });
                     });
                 }
                 
@@ -551,12 +581,8 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                         let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
 
                         if (lockedExposure > 0) {
-                            // FIX: Verify user exists before updating
-                            const userRef = db.collection("users").doc(userId);
-                            const userDoc = await userRef.get();
-                            if(userDoc.exists) {
-                                batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(lockedExposure) });
-                            }
+                            // 🌟 Ab koi pehle se GET nahi — seedha set({merge:true}) se increment, 0 extra reads
+                            batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(lockedExposure) }, { merge: true });
                         }
 
                         uData.bets.forEach(b => {

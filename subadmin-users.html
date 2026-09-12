@@ -148,37 +148,20 @@
             }
         });
 
-        // 🌟 FAST LOADING LOGIC (PROMISE.ALL) 🌟
-        async function loadMyUsers() {
-            const list = document.getElementById('user-list');
-            list.innerHTML = "<p style='text-align: center; color: #888;'>Loading users...</p>";
+        // 🌟 LIVE SYNC (onSnapshot) — Firestore resume-token use karta hai:
+        // pehli baar poora data padhega, uske baad sirf genuinely badle hue documents
+        // hi dobara padhe jaate hain — baaki sab local cache se turant (0 reads) aata hai.
+        let allUsers = [];
+        let betsByUser = {};
+        let currentChunkKey = "";
+        let betUnsubscribers = [];
 
-            const snap = await db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).get();
-            
-            if(snap.empty) {
+        function renderUserList() {
+            const list = document.getElementById('user-list');
+            if (allUsers.length === 0) {
                 list.innerHTML = "<p style='text-align:center; color:#888; font-size:12px;'>No users found.</p>";
                 return;
             }
-
-            const allUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            const allUserIds = allUsers.map(u => u.id);
-
-            // Sab users ke pending bets EK saath fetch karna (N alag queries ki jagah)
-            // Firestore 'in' query max 30 IDs leta hai, isliye 30-30 ke batch mein todna
-            const betsByUser = {};
-            const chunkSize = 30;
-            for (let i = 0; i < allUserIds.length; i += chunkSize) {
-                const chunk = allUserIds.slice(i, i + chunkSize);
-                const betSnap = await db.collection("bets").where("userId", "in", chunk).where("status", "==", "pending").get();
-                betSnap.forEach(bDoc => {
-                    const b = bDoc.data();
-                    if (!betsByUser[b.userId]) betsByUser[b.userId] = [];
-                    betsByUser[b.userId].push(b);
-                });
-            }
-
-            // 🌟 matchDict ready hone ka wait (race-condition avoid karne ke liye) — sirf pehli baar await hoga
-            await matchDictPromise;
 
             const rowsHtml = allUsers.map(u => {
                 const userId = u.id;
@@ -227,7 +210,6 @@
                 let lockBtnText = isLocked ? 'Unlock' : 'Lock';
                 let nameIcon = isLocked ? '🚫' : '👤';
 
-                // 🌟 THIN FULL NAME BUTTONS IMPLEMENTED BELOW 🌟
                 return `
                     <div class="user-card" data-username="${u.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
                         <div class="u-info">
@@ -252,20 +234,62 @@
             list.innerHTML = rowsHtml.join('');
         }
 
-        // 🌟 LOCK / UNLOCK USER LOGIC 🌟
+        function attachBetListeners(userIds) {
+            const chunkSize = 30;
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += chunkSize) chunks.push(userIds.slice(i, i + chunkSize));
+            const newKey = JSON.stringify(chunks);
+            if (newKey === currentChunkKey) return; // Chunks same hain — purane listeners hi chalte rahenge
+            currentChunkKey = newKey;
+
+            betUnsubscribers.forEach(unsub => unsub());
+            betUnsubscribers = [];
+            betsByUser = {};
+
+            if (chunks.length === 0) { renderUserList(); return; }
+
+            chunks.forEach(chunk => {
+                const unsub = db.collection("bets").where("userId", "in", chunk).where("status", "==", "pending")
+                    .onSnapshot(betSnap => {
+                        chunk.forEach(uid => { betsByUser[uid] = []; });
+                        betSnap.forEach(bDoc => {
+                            const b = bDoc.data();
+                            if (!betsByUser[b.userId]) betsByUser[b.userId] = [];
+                            betsByUser[b.userId].push(b);
+                        });
+                        renderUserList();
+                    }, err => console.log("Bets listener error:", err));
+                betUnsubscribers.push(unsub);
+            });
+        }
+
+        // 🌟 FAST LOADING LOGIC (LIVE SYNC) 🌟
+        async function loadMyUsers() {
+            await matchDictPromise; // race-condition avoid karne ke liye
+
+            db.collection("users").where("linkedSubAdminId", "==", subAdmin.id)
+                .onSnapshot(snap => {
+                    allUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    attachBetListeners(allUsers.map(u => u.id).sort());
+                    renderUserList();
+                }, err => console.log("Users listener error:", err));
+        }
+
+      // 🌟 LOCK / UNLOCK USER LOGIC 🌟
         async function toggleLock(userId, currentStatus, username) {
             const newStatus = !currentStatus;
             const actionText = newStatus ? "LOCK" : "UNLOCK";
             if(confirm(`Are you sure you want to ${actionText} user '${username}'?`)) {
                 try {
                     await db.collection("users").doc(userId).update({ locked: newStatus });
-                    loadMyUsers();
+                    // 🌟 Live listener khud hi list update kar dega — dobara load karne ki zaroorat nahi
                 } catch(e) {
                     alert("Error updating lock status!");
                 }
             }
         }
 
+        // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
         // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
         async function delUser(id, username, balance) { 
             if(confirm(`🚨 WARNING: Are you sure you want to permanently delete user '${username}'?\n\n💰 Their remaining balance of 🪙${Math.floor(balance)} will be REFUNDED to your Admin Wallet.`)) {
@@ -279,7 +303,7 @@
                     }
                     await batch.commit();
                     alert(`✅ User Deleted! 🪙${Math.floor(balance)} refunded to your wallet.`);
-                    loadMyUsers();
+                    // 🌟 Live listener khud hi list update kar dega — dobara load karne ki zaroorat nahi
                 } catch(e) {
                     alert("Error deleting user!");
                 }
@@ -380,9 +404,9 @@
                     remark: 'Manual by Admin'
                 });
 
-                await batch.commit();
+               await batch.commit();
                 alert(`✅ Transaction Successful! ${val} coins updated.`);
-                loadMyUsers();
+                // 🌟 Live listener khud hi balance update dikha dega — dobara load karne ki zaroorat nahi
             } catch(e) { alert("Error: " + e.message); }
         }
 
@@ -452,10 +476,9 @@
                 // 🌟 RESTORING DEFAULT PASSWORD AFTER CREATION 🌟
                 document.getElementById('new-pass').value = '123456';
                 document.getElementById('new-bal').value = '';
-                loadMyUsers();
+                // 🌟 Live listener naya user khud hi list me dikha dega — dobara load karne ki zaroorat nahi
             } catch(e) { alert("Error creating user."); }
         }
-
         // Search
         function filterUsers() {
             const term = document.getElementById('search-bar').value.toLowerCase();

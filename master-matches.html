@@ -85,6 +85,35 @@
     <!-- Hidden OCR Input -->
     <input type="file" id="winnerImage" accept="image/*" style="display:none;" onchange="processWinnerOCR(event)">
 
+    <!-- VOID / PARTIAL VOID MODAL -->
+    <div id="void-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center;">
+        <div class="card" style="width:90%; max-width:400px; max-height:85vh; overflow-y:auto;">
+            <h3 class="card-title" id="void-modal-title">Void Match</h3>
+
+            <div id="void-choice-view">
+                <button class="btn btn-red" style="width:100%; margin-bottom:10px;" onclick="confirmVoidAll()">🔴 Void All (Refund Everyone)</button>
+                <button class="btn btn-warning" style="width:100%;" onclick="showPartialVoidView()">🟡 Void Partial (Time-Based)</button>
+                <button class="btn" style="width:100%; background:#888; margin-top:10px;" onclick="closeVoidModal()">✖ Cancel</button>
+            </div>
+
+            <div id="void-partial-view" style="display:none;">
+                <div class="input-group">
+                    <label>Bets is time ke BAAD lagi ho — VOID hongi</label>
+                    <input type="time" id="partialVoidTime">
+                </div>
+                <div class="input-group">
+                    <label>Is time se PEHLE ki bets ka Winner:</label>
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" id="partialTeamABtn" style="flex:1; padding:12px; border:2px solid #ccc; border-radius:6px; background:white; font-weight:bold; cursor:pointer;" onclick="selectPartialWinner('teamA')"></button>
+                        <button type="button" id="partialTeamBBtn" style="flex:1; padding:12px; border:2px solid #ccc; border-radius:6px; background:white; font-weight:bold; cursor:pointer;" onclick="selectPartialWinner('teamB')"></button>
+                    </div>
+                </div>
+                <button class="btn btn-green" style="width:100%; margin-top:10px;" onclick="submitPartialVoid()">✅ Submit</button>
+                <button class="btn" style="width:100%; background:#888; margin-top:6px;" onclick="closeVoidModal()">✖ Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="app.js"></script>
@@ -140,8 +169,6 @@
                 cancelEdit();
             } else {
                 data.status = 'open';
-                data.reminderSent = false;
-                data.tossTimeAlertSent = false;
                 data.timestamp = firebase.firestore.FieldValue.serverTimestamp();
                 await db.collection("matches").add(data);
                 alert("Match is now LIVE!");
@@ -202,6 +229,16 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 
         let cachedOpenMatches = []; // Reminder-checker isको use karega, Firestore ko baar-baar nahi chuegā
 
+        // 🌟 Alert-status ab alag collection me rehta hai — 'matches' doc ko kabhi touch
+        // nahi karta, isliye master-dashboard.html ka listener isse kabhi trigger nahi hota
+        let alertedMatchIds = new Set();
+        db.collection("match_alerts").onSnapshot(snap => {
+            snap.docChanges().forEach(change => {
+                if (change.type === "removed") alertedMatchIds.delete(change.doc.id);
+                else alertedMatchIds.add(change.doc.id);
+            });
+        });
+
         db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             let matches = [];
             snap.forEach(doc => matches.push({id: doc.id, ...doc.data()}));
@@ -241,7 +278,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                         <div class="action-btns">
                             <button class="btn btn-primary btn-small" onclick="triggerOCR('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}')">📸 OCR SETTLE</button>
                             <button class="btn btn-warning btn-small" onclick="manualSettlePIN('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}')">🔐 MANUAL</button>
-                            <button class="btn btn-red btn-small" onclick="deleteMatch('${m.id}')" style="flex: 0.5;">🔐 VOID</button>
+                            <button class="btn btn-red btn-small" onclick="openVoidModal('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}', ${m.tossTimeMs})" style="flex: 0.5;">🔐 VOID</button>
                         </div>
                         <div class="action-btns">
                             <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs})">✏️ EDIT DATE / TIME / LOCK</button>
@@ -251,6 +288,83 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 `;
             });
         });
+
+        // ==========================================
+        // 🟥 VOID MODAL — All / Partial choice
+        // ==========================================
+        let voidModalMatchId = null;
+        let voidModalMatchData = null;
+        let partialSelectedWinner = null;
+
+        function openVoidModal(id, teamA, teamB, tossTimeMs) {
+            voidModalMatchId = id;
+            voidModalMatchData = { teamA, teamB, tossTimeMs };
+            partialSelectedWinner = null;
+            document.getElementById('void-modal-title').innerText = `Void: ${teamA} vs ${teamB}`;
+            document.getElementById('void-choice-view').style.display = 'block';
+            document.getElementById('void-partial-view').style.display = 'none';
+            document.getElementById('void-modal').style.display = 'flex';
+        }
+
+        function closeVoidModal() {
+            document.getElementById('void-modal').style.display = 'none';
+        }
+
+        function showPartialVoidView() {
+            document.getElementById('void-choice-view').style.display = 'none';
+            document.getElementById('void-partial-view').style.display = 'block';
+
+            const aBtn = document.getElementById('partialTeamABtn');
+            const bBtn = document.getElementById('partialTeamBBtn');
+            aBtn.innerText = voidModalMatchData.teamA;
+            bBtn.innerText = voidModalMatchData.teamB;
+            aBtn.style.background = 'white'; aBtn.style.color = '#333'; aBtn.style.borderColor = '#ccc';
+            bBtn.style.background = 'white'; bBtn.style.color = '#333'; bBtn.style.borderColor = '#ccc';
+
+            const d = new Date(voidModalMatchData.tossTimeMs);
+            document.getElementById('partialVoidTime').value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        }
+
+        function selectPartialWinner(code) {
+            partialSelectedWinner = code;
+            const aBtn = document.getElementById('partialTeamABtn');
+            const bBtn = document.getElementById('partialTeamBBtn');
+            if (code === 'teamA') {
+                aBtn.style.background = 'var(--green)'; aBtn.style.color = 'white'; aBtn.style.borderColor = 'var(--green)';
+                bBtn.style.background = 'white'; bBtn.style.color = '#333'; bBtn.style.borderColor = '#ccc';
+            } else {
+                bBtn.style.background = 'var(--green)'; bBtn.style.color = 'white'; bBtn.style.borderColor = 'var(--green)';
+                aBtn.style.background = 'white'; aBtn.style.color = '#333'; aBtn.style.borderColor = '#ccc';
+            }
+        }
+
+        function confirmVoidAll() {
+            closeVoidModal();
+            deleteMatch(voidModalMatchId);
+        }
+
+        async function submitPartialVoid() {
+            const timeStr = document.getElementById('partialVoidTime').value;
+            if (!timeStr) { alert("Time select karo!"); return; }
+            if (!partialSelectedWinner) { alert("Winner select karo (team par tap karo)!"); return; }
+
+            const pin = prompt("🔐 Enter Master PIN to confirm Partial Void:");
+            if(pin !== MASTER_PIN) { alert("❌ Access Denied: Incorrect PIN!"); return; }
+
+            const cutoffDate = new Date(voidModalMatchData.tossTimeMs);
+            const [hh, mm] = timeStr.split(':');
+            cutoffDate.setHours(hh, mm, 0, 0);
+            const cutoffMs = cutoffDate.getTime();
+
+            const winnerName = partialSelectedWinner === 'teamA' ? voidModalMatchData.teamA : voidModalMatchData.teamB;
+
+            if (!confirm(`Bets ${timeStr} ke BAAD → VOID.\nBets ${timeStr} se PEHLE → Winner: ${winnerName}.\n\nConfirm?`)) return;
+
+            const mId = voidModalMatchId;
+            const wCode = partialSelectedWinner;
+            closeVoidModal();
+            await executePartialVoid(mId, cutoffMs, wCode, winnerName);
+        }
 
         // ==========================================
         // 3. LOAD HISTORY — INSTANT LOCALSTORAGE CACHE + DELTA LISTENER
@@ -283,11 +397,14 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 let winText = m.status === 'cancelled' ? 'VOIDED' : `WINNER: ${m.winner}`;
                 let color = m.status === 'cancelled' ? '#c62828' : '#2e7d32';
 
+                const safeA = String(m.teamA).replace(/'/g, "\\'");
+                const safeB = String(m.teamB).replace(/'/g, "\\'");
                 list.innerHTML += `
                     <div class="match-row" style="border-left-color: #999;">
                         <div style="font-weight:bold; color:#555;">${m.teamA} vs ${m.teamB}</div>
                         <div style="font-size: 11px; color:#888;">${tDisplay}</div>
                         <div style="font-weight:bold; color:${color}; font-size:12px; margin-top:5px;">${winText}</div>
+                        <button class="btn btn-small" style="background:#795548; width:100%; margin-top:8px;" onclick="undoSettlement('${m.id}', '${safeA}', '${safeB}')">↩️ Undo Result</button>
                     </div>
                 `;
             });
@@ -330,6 +447,90 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             saveHistoryCache();
             renderHistoryList();
         });
+
+        // ==========================================
+        // ↩️ UNDO RESULT — settlement/void/partial-void wapas reverse karta hai
+        // (History list me sirf 4-din tak dikhne wale matches par hi button dikhta hai)
+        // ==========================================
+        async function undoSettlement(matchId, teamA, teamB) {
+            const pin = prompt(`🔐 Enter Master PIN to UNDO result for ${teamA} vs ${teamB}:`);
+            if(pin !== MASTER_PIN) { alert("❌ Access Denied: Incorrect PIN!"); return; }
+
+            if(!confirm("⚠️ WARNING: Ye is match ke saare balance-changes reverse kar dega aur match wapas Active list me chala jayega. Agar kisi user ne jeeta hua paisa withdraw ya re-bet kar liya hai, uska balance negative ja sakta hai — ise manually check karna hoga.\n\nContinue?")) return;
+
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "in", ["won", "lost", "cancelled"]).get();
+
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'open', winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                    alert("✅ Match reopened.");
+                    return;
+                }
+
+                const batch = db.batch();
+                let settledUsers = {};
+                let voidedUsers = {};
+
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    const target = (b.status === 'cancelled') ? voidedUsers : settledUsers;
+
+                    if(!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0, winnerCode: null };
+                    target[b.userId].bets.push({ id: doc.id, ...b });
+                    if (b.status === 'won') target[b.userId].winnerCode = b.selection;
+                    if (b.status === 'lost' && !target[b.userId].winnerCode) target[b.userId].winnerCode = (b.selection === 'teamA' ? 'teamB' : 'teamA');
+
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') {
+                        target[b.userId].pnlA += winAmt;
+                        target[b.userId].pnlB -= b.amount;
+                    } else {
+                        target[b.userId].pnlB += winAmt;
+                        target[b.userId].pnlA -= b.amount;
+                    }
+                });
+
+                for(let userId in settledUsers) {
+                    let uData = settledUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = uData.winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let originalAdjustment = lockedExposure + netResult;
+
+                    if (originalAdjustment !== 0) {
+                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-originalAdjustment) }, { merge: true });
+                    }
+                    uData.bets.forEach(b => {
+                        batch.update(db.collection("bets").doc(b.id), { status: 'pending' });
+                    });
+                }
+
+                for(let userId in voidedUsers) {
+                    let uData = voidedUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+
+                    if (lockedExposure > 0) {
+                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-lockedExposure) }, { merge: true });
+                    }
+                    uData.bets.forEach(b => {
+                        batch.update(db.collection("bets").doc(b.id), { status: 'pending' });
+                    });
+                }
+
+                batch.update(db.collection("matches").doc(matchId), { 
+                    status: 'open', 
+                    winner: firebase.firestore.FieldValue.delete(), 
+                    settledAt: firebase.firestore.FieldValue.delete() 
+                });
+
+                await batch.commit();
+                alert("✅ Result undone! Match wapas Active Live Markets me hai.");
+            } catch(e) {
+                console.error(e);
+                alert("Error undoing settlement: " + e.message);
+            }
+        }
 
         // ==========================================
         // 4. SETTLEMENT (OCR & MANUAL)
@@ -538,6 +739,82 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         }
 
         // ==========================================
+        // 🟡 PARTIAL VOID — Cutoff time ke BAAD ki bets void, PEHLE ki settle
+        // ==========================================
+        async function executePartialVoid(matchId, cutoffMs, winnerCode, winnerName) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    alert("Match closed! No pending bets found.");
+                    return;
+                }
+
+                const batch = db.batch();
+                let settleUsers = {};
+                let voidUsers = {};
+
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    const betTimeMs = b.timestamp ? b.timestamp.toMillis() : 0;
+                    const target = (betTimeMs > cutoffMs) ? voidUsers : settleUsers;
+
+                    if(!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                    target[b.userId].bets.push({ id: doc.id, ...b });
+
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') {
+                        target[b.userId].pnlA += winAmt;
+                        target[b.userId].pnlB -= b.amount;
+                    } else {
+                        target[b.userId].pnlB += winAmt;
+                        target[b.userId].pnlA -= b.amount;
+                    }
+                });
+
+                // Cutoff se PEHLE ki bets — normal settle
+                for(let userId in settleUsers) {
+                    let uData = settleUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let balanceAdjustment = lockedExposure + netResult;
+
+                    if (balanceAdjustment !== 0) {
+                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) }, { merge: true });
+                    }
+                    uData.bets.forEach(b => {
+                        let betStatus = b.selection === winnerCode ? 'won' : 'lost';
+                        batch.update(db.collection("bets").doc(b.id), { status: betStatus });
+                    });
+                }
+
+                // Cutoff ke BAAD ki bets — void/refund
+                for(let userId in voidUsers) {
+                    let uData = voidUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+
+                    if (lockedExposure > 0) {
+                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(lockedExposure) }, { merge: true });
+                    }
+                    uData.bets.forEach(b => {
+                        batch.update(db.collection("bets").doc(b.id), { status: 'cancelled' });
+                    });
+                }
+
+                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await batch.commit();
+
+                alert("✅ Partial Void Complete! Cutoff se pehle ki bets settle hui, baad ki refund hui.");
+            } catch(e) {
+                console.error(e);
+                alert("Error during partial void: " + e.message);
+            }
+        }
+
+        // ==========================================
         // 🌟 FIXED VOID MATCH (Handles Deleted Users)
         // ==========================================
         async function deleteMatch(id) {
@@ -608,57 +885,51 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             if (!masterTgSettings || !masterTgSettings.masterBotToken || !masterTgSettings.masterChatId) return;
 
             const now = Date.now();
-            const reminderMs = (masterTgSettings.tossReminderMins || 15) * 60000;
+            const ALERT_DELAY_MS = 15 * 60000; // Toss ke 15 min baad — sirf EK hi alert
 
             try {
-                // Firestore ko dobara nahi chuna — jo listener (upar) khud-ba-khud
-                // updated rehta hai, usी local cache se padhna
-                const matchesToCheck = cachedOpenMatches;
-                
-                matchesToCheck.forEach(async (m) => {
-                    const doc = { id: m.id };
-                    const tossTime = m.tossTimeMs;
-                    if (!tossTime) return;
+                // Firestore ko dobara nahi chuna — dono listeners (cachedOpenMatches,
+                // alertedMatchIds) khud-ba-khud updated rehte hain, yahan sirf unhe padhna hai
+                const dueMatches = cachedOpenMatches.filter(m => 
+                    m.tossTimeMs && now >= (m.tossTimeMs + ALERT_DELAY_MS) && !alertedMatchIds.has(m.id)
+                );
 
-                    let needsUpdate = false;
-                    let updateData = {};
-                    let msg = "";
+                if (dueMatches.length === 0) return;
 
-                    // 1. TOSS REMINDER LOGIC (15/20/30 Mins before based on settings)
-                    if (now >= (tossTime - reminderMs) && now < tossTime && !m.reminderSent) {
-                        msg = `⏳ *Match Reminder!*\n\n🏏 *Match:* ${m.teamA} vs ${m.teamB}\n⏰ *Actual Toss Time:* ${m.tossTimeStr}\n\n⚠️ Toss is happening in ${masterTgSettings.tossReminderMins} minutes!`;
-                        updateData.reminderSent = true;
-                        needsUpdate = true;
-                    }
-                    
-                    // 2. TOSS TIME ACTION ALERT LOGIC (At exact toss time)
-                    else if (now >= tossTime && !m.tossTimeAlertSent) {
-                        msg = `🚨 *TOSS TIME ALERT!* 🚨\n\n🏏 *Match:* ${m.teamA} vs ${m.teamB}\n⏰ *Time:* ${m.tossTimeStr}\n\n❓ *Have you set the winner for ${m.teamA} vs ${m.teamB}?*`;
-                        updateData.tossTimeAlertSent = true;
-                        needsUpdate = true;
-                    }
+                // Ek hi combined message — chahe 1 match due ho ya ek saath kai
+                let msg = dueMatches.length === 1
+                    ? `🚨 *Toss ho chuka hai!*\n\n🏏 ${dueMatches[0].teamA} vs ${dueMatches[0].teamB}\n⏰ Toss: ${dueMatches[0].tossTimeStr}\n\n❓ Kya aapne winner set kar diya hai?`
+                    : `🚨 *${dueMatches.length} matches ka toss ho chuka hai!*\n\n` +
+                      dueMatches.map((m, i) => `${i+1}. ${m.teamA} vs ${m.teamB} (${m.tossTimeStr})`).join('\n') +
+                      `\n\n❓ Kya aapne inke winners set kar diye hain?`;
 
-                    // SEND TO TELEGRAM & UPDATE DATABASE
-                    if (needsUpdate && msg !== "") {
-                        const url = `https://api.telegram.org/bot${masterTgSettings.masterBotToken}/sendMessage`;
-                        fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                chat_id: masterTgSettings.masterChatId,
-                                text: msg,
-                                parse_mode: "Markdown"
-                            })
-                        }).catch(err => console.log("Master TG Alert Error:", err));
+                const url = `https://api.telegram.org/bot${masterTgSettings.masterBotToken}/sendMessage`;
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: masterTgSettings.masterChatId,
+                        text: msg,
+                        parse_mode: "Markdown"
+                    })
+                }).catch(err => console.log("Master TG Alert Error:", err));
 
-                        // Mark flag as true so it doesn't send duplicate messages
-                        db.collection("matches").doc(doc.id).update(updateData);
-                    }
+                // 🌟 'match_alerts' collection me likha jaata hai — 'matches' collection ko
+                // bilkul touch nahi karta, isliye master-dashboard.html ka listener isse
+                // kabhi trigger nahi hota
+                const batch = db.batch();
+                dueMatches.forEach(m => {
+                    alertedMatchIds.add(m.id); // Turant local update — isi cycle me dobara na ginay
+                    batch.set(db.collection("match_alerts").doc(m.id), {
+                        alertSent: true,
+                        sentAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 });
+                await batch.commit();
             } catch (e) {
                 console.log("Alert checker error:", e);
             }
-        }, 30000); // Har 30 second me check karega
+        }, 30000); // Har 30 second check karega — sirf local cache se, 0 Firestore reads jab tak kuch due na ho
     </script>
 </body>
 </html>

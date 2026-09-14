@@ -41,6 +41,14 @@
             <div class="input-group" style="flex:1;"><label>Team A</label><input type="text" id="tA" placeholder="e.g. VMK or Villianur"></div>
             <div class="input-group" style="flex:1;"><label>Team B</label><input type="text" id="tB" placeholder="e.g. MMS or Mahe"></div>
         </div>
+
+        <div class="input-group">
+            <label>📌 Source (kahan se liya)</label>
+            <select id="matchSource">
+                <option value="Crex">Crex</option>
+                <option value="PlayCode">PlayCode</option>
+            </select>
+        </div>
         <div style="display:flex; gap:10px;">
             <div class="input-group" style="flex:1;"><label>Odds A (%)</label><input type="number" id="oddsA" value="98"></div>
             <div class="input-group" style="flex:1;"><label>Odds B (%)</label><input type="number" id="oddsB" value="98"></div>
@@ -111,6 +119,16 @@
                 <button class="btn btn-green" style="width:100%; margin-top:10px;" onclick="submitPartialVoid()">✅ Submit</button>
                 <button class="btn" style="width:100%; background:#888; margin-top:6px;" onclick="closeVoidModal()">✖ Cancel</button>
             </div>
+       </div>
+    </div>
+
+    <!-- DUPLICATE MATCH WARNING MODAL -->
+    <div id="dup-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:999; align-items:center; justify-content:center;">
+        <div class="card" style="width:85%; max-width:360px; text-align:center;">
+            <div style="font-size:40px; margin-bottom:8px;">⚠️</div>
+            <h3 style="color:var(--red); margin:0 0 10px 0;">Teams Already Exist!</h3>
+            <p id="dup-modal-msg" style="color:#555; font-size:13px; margin-bottom:15px;"></p>
+            <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('dup-modal').style.display='none';">OK, Got It</button>
         </div>
     </div>
 
@@ -133,9 +151,27 @@
         // ==========================================
         // 1. CREATE MATCH LOGIC
         // ==========================================
+        // 🌟 Duplicate team-name detection — case/space-insensitive, reverse-order bhi pakadta hai.
+        // Sirf currently OPEN matches ke against check karta hai (cachedOpenMatches se — 0 extra reads)
+        function isDuplicateMatch(teamA, teamB, excludeId) {
+            const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+            const nA = norm(teamA), nB = norm(teamB);
+            return cachedOpenMatches.some(m => {
+                if (excludeId && m.id === excludeId) return false;
+                const mA = norm(m.teamA), mB = norm(m.teamB);
+                return (mA === nA && mB === nB) || (mA === nB && mB === nA);
+            });
+        }
+
+        function showDupWarning(teamA, teamB) {
+            document.getElementById('dup-modal-msg').innerText = `"${teamA} vs ${teamB}" (ya reverse order me) pehle se ek open match ke roop me maujood hai.`;
+            document.getElementById('dup-modal').style.display = 'flex';
+        }
+
         async function createMatch() {
             const tA = document.getElementById('tA').value.trim();
             const tB = document.getElementById('tB').value.trim();
+            const source = document.getElementById('matchSource').value;
             const oddsA = document.getElementById('oddsA').value;
             const oddsB = document.getElementById('oddsB').value;
             const dateOffset = parseInt(document.getElementById('matchDate').value);
@@ -143,6 +179,11 @@
             const lockMins = parseInt(document.getElementById('lockMins').value);
 
             if(!tA || !tB || !timeStr) { alert("Please fill all details!"); return; }
+
+            if (isDuplicateMatch(tA, tB, editingMatchId)) {
+                showDupWarning(tA, tB);
+                return;
+            }
 
             let matchDate = new Date();
             matchDate.setDate(matchDate.getDate() + dateOffset);
@@ -155,6 +196,7 @@
             const data = {
                 teamA: tA,
                 teamB: tB,
+                source: source,
                 oddsA: oddsA,
                 oddsB: oddsB,
                 tossTimeMs: tossTimestamp,
@@ -177,15 +219,17 @@
             document.getElementById('tA').value = '';
             document.getElementById('tB').value = '';
             document.getElementById('matchTime').value = '';
+            document.getElementById('matchSource').value = 'Crex';
         }
 
         // Match row ke "EDIT" button se call hota hai — form ko match ki current values se bhar deta hai
-        function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs) {
+        function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs, source) {
             editingMatchId = id;
             document.getElementById('tA').value = teamA;
             document.getElementById('tB').value = teamB;
             document.getElementById('oddsA').value = oddsA;
             document.getElementById('oddsB').value = oddsB;
+            document.getElementById('matchSource').value = source || 'Crex';
 
             const d = new Date(tossTimeMs);
             const today = new Date();
@@ -209,6 +253,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             document.getElementById('tA').value = '';
             document.getElementById('tB').value = '';
             document.getElementById('matchTime').value = '';
+            document.getElementById('matchSource').value = 'Crex';
             const btn = document.getElementById('publishBtn');
             btn.innerText = "Publish Live Match";
             btn.style.background = "";
@@ -229,10 +274,15 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 
         let cachedOpenMatches = []; // Reminder-checker isको use karega, Firestore ko baar-baar nahi chuegā
 
-        // 🌟 Alert-status ab alag collection me rehta hai — 'matches' doc ko kabhi touch
-        // nahi karta, isliye master-dashboard.html ka listener isse kabhi trigger nahi hota
+      // 🌟 Alert-status ab alag collection me rehta hai — 'matches' doc ko kabhi touch
+        // nahi karta, isliye master-dashboard.html ka listener isse kabhi trigger nahi hota.
+        // Sirf last 2 din ke alerts sunte hain — is collection me hamesha ke liye jama hote
+        // purane flags ab kabhi nahi padhe jaayenge (yahi 300-reads ka asli source tha).
         let alertedMatchIds = new Set();
-        db.collection("match_alerts").onSnapshot(snap => {
+        const ALERT_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+        db.collection("match_alerts")
+          .where("sentAt", ">", firebase.firestore.Timestamp.fromMillis(Date.now() - ALERT_WINDOW_MS))
+          .onSnapshot(snap => {
             snap.docChanges().forEach(change => {
                 if (change.type === "removed") alertedMatchIds.delete(change.doc.id);
                 else alertedMatchIds.add(change.doc.id);
@@ -266,6 +316,8 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
                     const diffMins = Math.round((m.tossTimeMs - m.lockTimeMs) / 60000);
                     lockDisplay = `<div class="time-badge" style="background: #ffebee; color: #c62828; margin-left: 5px;">🔒 Lock: ${diffMins} Min Before</div>`;
                 }
+
+                const sourceDisplay = `<div class="time-badge" style="background: #ede7f6; color: #5e35b1; margin-left: 5px;">📌 ${m.source || 'Crex'}</div>`;
                 
 const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 list.innerHTML += `
@@ -274,6 +326,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                         <div style="margin-bottom: 5px;">
                             <div class="time-badge">📢 Toss: ${tDisplay}</div>
                             ${lockDisplay}
+                            ${sourceDisplay}
                         </div>
                         <div class="action-btns">
                             <button class="btn btn-primary btn-small" onclick="triggerOCR('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}')">📸 OCR SETTLE</button>
@@ -281,14 +334,13 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                             <button class="btn btn-red btn-small" onclick="openVoidModal('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}', ${m.tossTimeMs})" style="flex: 0.5;">🔐 VOID</button>
                         </div>
                         <div class="action-btns">
-                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs})">✏️ EDIT DATE / TIME / LOCK</button>
+                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs},'${escJs(m.source || 'Crex')}')">✏️ EDIT DATE / TIME / LOCK</button>
                         </div>
                         </div>
                     </div>
                 `;
             });
         });
-
         // ==========================================
         // 🟥 VOID MODAL — All / Partial choice
         // ==========================================
@@ -366,27 +418,31 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             await executePartialVoid(mId, cutoffMs, wCode, winnerName);
         }
 
-        // ==========================================
+       
+       // ==========================================
         // 3. LOAD HISTORY — INSTANT LOCALSTORAGE CACHE + DELTA LISTENER
         // Turant localStorage se render hota hai (0 reads), phir sirf naye
         // settle/void hue matches ke liye Firestore se delta fetch hota hai.
+        // List hamesha sirf LAST 8 matches tak simit rehti hai (fixed cap) —
+        // isliye reads kabhi unpredictable nahi honge, chahe roz kitne bhi settle ho.
         // ==========================================
         const MATCH_HISTORY_CACHE_KEY = 'masterMatchHistoryCache';
         const MATCH_HISTORY_LASTFETCH_KEY = 'masterMatchHistoryLastFetch';
-        const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+        const HISTORY_MAX_COUNT = 8;
         let historyMatchesMap = {}; // id -> match data (merge/dedupe ke liye)
 
         function pruneOldHistory() {
-            const cutoff = Date.now() - FOUR_DAYS_MS;
-            Object.keys(historyMatchesMap).forEach(id => {
-                if ((historyMatchesMap[id].tossTimeMs || 0) < cutoff) delete historyMatchesMap[id];
-            });
+            // Fixed-count cap — sirf sabse recent 8 hi rakhte hain
+            let ids = Object.keys(historyMatchesMap);
+            if (ids.length <= HISTORY_MAX_COUNT) return;
+            let sorted = ids.map(id => historyMatchesMap[id]).sort((a,b) => (b.settledAtMs||b.tossTimeMs||0) - (a.settledAtMs||a.tossTimeMs||0));
+            sorted.slice(HISTORY_MAX_COUNT).forEach(m => delete historyMatchesMap[m.id]);
         }
 
         function renderHistoryList() {
             pruneOldHistory();
             let matches = Object.values(historyMatchesMap);
-            matches.sort((a,b) => b.tossTimeMs - a.tossTimeMs);
+            matches.sort((a,b) => (b.settledAtMs||b.tossTimeMs||0) - (a.settledAtMs||a.tossTimeMs||0));
 
             const list = document.getElementById('history-list');
             list.innerHTML = "";
@@ -425,9 +481,29 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             }
         } catch(e) { console.log("History cache load error:", e); }
 
-        // 🌟 STEP 2: Sirf wahi matches padho jo last fetch ke baad settle/void hue
+        // 🌟 STEP 2: Agar cache khaali hai (bilkul pehli baar / naya device) — sirf
+        // EK BAAR "last 8" ko seed karo. Uske baad poori history kabhi nahi padhni padegi.
+        async function seedHistoryIfEmpty() {
+            if (Object.keys(historyMatchesMap).length > 0) return; // Cache se already mil chuka
+            try {
+                const seedSnap = await db.collection("matches")
+                  .where("status", "in", ["closed", "cancelled"])
+                  .orderBy("settledAt", "desc")
+                  .limit(HISTORY_MAX_COUNT)
+                  .get();
+                seedSnap.forEach(doc => {
+                    const m = doc.data();
+                    historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner, settledAtMs: m.settledAt ? m.settledAt.toMillis() : 0 };
+                });
+                saveHistoryCache();
+                renderHistoryList();
+            } catch(e) { console.log("History seed error:", e); }
+        }
+        seedHistoryIfEmpty();
+
+        // 🌟 STEP 3: Ab sirf wahi matches padho jo abhi (page-load ke baad) se settle/void hue
         const lastFetchMs = parseInt(localStorage.getItem(MATCH_HISTORY_LASTFETCH_KEY) || '0');
-        const historyCursorMs = lastFetchMs > 0 ? lastFetchMs : (Date.now() - FOUR_DAYS_MS);
+        const historyCursorMs = lastFetchMs > 0 ? lastFetchMs : Date.now();
 
         db.collection("matches")
           .where("status", "in", ["closed", "cancelled"])
@@ -438,8 +514,8 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             let latestMs = historyCursorMs;
             snap.forEach(doc => {
                 const m = doc.data();
-                historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner };
                 const sMs = m.settledAt ? m.settledAt.toMillis() : Date.now();
+                historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner, settledAtMs: sMs };
                 if (sMs > latestMs) latestMs = sMs;
             });
 
@@ -447,7 +523,6 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             saveHistoryCache();
             renderHistoryList();
         });
-
         // ==========================================
         // ↩️ UNDO RESULT — settlement/void/partial-void wapas reverse karta hai
         // (History list me sirf 4-din tak dikhne wale matches par hi button dikhta hai)
@@ -896,11 +971,15 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
                 if (dueMatches.length === 0) return;
 
+                // 🌟 Markdown-unsafe characters escape karo (team names me _ * [ ] ` ho to
+                // Telegram 400 error deta tha) + tossTimeStr undefined ho to fallback
+                const escMd = (str) => String(str || 'N/A').replace(/([_*`\[\]])/g, '\\$1');
+
                 // Ek hi combined message — chahe 1 match due ho ya ek saath kai
                 let msg = dueMatches.length === 1
-                    ? `🚨 *Toss ho chuka hai!*\n\n🏏 ${dueMatches[0].teamA} vs ${dueMatches[0].teamB}\n⏰ Toss: ${dueMatches[0].tossTimeStr}\n\n❓ Kya aapne winner set kar diya hai?`
+                    ? `🚨 *Toss ho chuka hai!*\n\n🏏 ${escMd(dueMatches[0].teamA)} vs ${escMd(dueMatches[0].teamB)}\n⏰ Toss: ${escMd(dueMatches[0].tossTimeStr)}\n\n❓ Kya aapne winner set kar diya hai?`
                     : `🚨 *${dueMatches.length} matches ka toss ho chuka hai!*\n\n` +
-                      dueMatches.map((m, i) => `${i+1}. ${m.teamA} vs ${m.teamB} (${m.tossTimeStr})`).join('\n') +
+                      dueMatches.map((m, i) => `${i+1}. ${escMd(m.teamA)} vs ${escMd(m.teamB)} (${escMd(m.tossTimeStr)})`).join('\n') +
                       `\n\n❓ Kya aapne inke winners set kar diye hain?`;
 
                 const url = `https://api.telegram.org/bot${masterTgSettings.masterBotToken}/sendMessage`;
@@ -912,7 +991,13 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                         text: msg,
                         parse_mode: "Markdown"
                     })
-                }).catch(err => console.log("Master TG Alert Error:", err));
+                })
+                .then(res => {
+                    if (!res.ok) {
+                        res.text().then(body => console.log("Telegram API Error:", res.status, body));
+                    }
+                })
+                .catch(err => console.log("Master TG Alert Error:", err));
 
                 // 🌟 'match_alerts' collection me likha jaata hai — 'matches' collection ko
                 // bilkul touch nahi karta, isliye master-dashboard.html ka listener isse

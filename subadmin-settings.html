@@ -55,11 +55,15 @@
 </head>
 <body>
 
-    <div class="card">
-        <h3>💬 WhatsApp Support</h3>
+   <div class="card">
+        <h3>💬 WhatsApp & Telegram Support</h3>
         <div class="input-group">
             <label>WhatsApp Number (with country code):</label>
             <input type="text" id="wa-number" placeholder="e.g. 919999999999">
+        </div>
+        <div class="input-group">
+            <label>Telegram Username (with @):</label>
+            <input type="text" id="tg-username" placeholder="e.g. @yourusername">
         </div>
         <div class="action-row">
             <button class="btn-action" id="save-wa-btn" onclick="saveWhatsApp()">💾 Save</button>
@@ -122,7 +126,7 @@
 
         function logout() { localStorage.removeItem('adminSession'); window.location.href = "subadmin-login.html"; }
 
-        // --- 1. Load Existing Settings ---
+       // --- 1. Load Existing Settings ---
         async function loadSettings() {
             try {
                 const doc = await adminRef.get();
@@ -130,9 +134,11 @@
                     const data = doc.data();
                     // Load WhatsApp
                     if(data.whatsapp) document.getElementById('wa-number').value = data.whatsapp;
+                    // Load Telegram Username
+                    if(data.telegram) document.getElementById('tg-username').value = data.telegram;
                     // Load Bonus %
                     document.getElementById('bonus-percent').value = data.depositBonusPercent || 0;
-                    // Load Telegram (Using your exact database fields)
+                    // Load Telegram Bot (Using your exact database fields)
                     if(data.botToken) document.getElementById('sub-token').value = data.botToken;
                     if(data.chatId) document.getElementById('sub-chatid').value = data.chatId;
                 }
@@ -141,16 +147,17 @@
             }
         }
         
-        // --- 2. Save WhatsApp ---
+       // --- 2. Save WhatsApp + Telegram ---
         async function saveWhatsApp() {
             const num = document.getElementById('wa-number').value.trim();
+            const tg = document.getElementById('tg-username').value.trim();
             const btn = document.getElementById('save-wa-btn');
-            if(!num) { alert("Number blank nahi ho sakta!"); return; }
+            if(!num && !tg) { alert("Kam se kam ek field bharo (WhatsApp ya Telegram)!"); return; }
             
             btn.innerText = "Saving... ⏳"; btn.disabled = true;
             try {
-                await adminRef.update({ whatsapp: num });
-                alert("✅ WhatsApp Number Saved Successfully!");
+                await adminRef.update({ whatsapp: num, telegram: tg });
+                alert("✅ Contact Details Saved Successfully!");
             } catch (error) { alert("❌ Update Failed!"); }
             btn.innerText = "💾 Save"; btn.disabled = false;
         }

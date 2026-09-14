@@ -75,7 +75,7 @@
         .status-lock { color: var(--red); }
         
         /* WhatsApp Button CSS (Unchanged) */
-        .wa-wrapper{ position: fixed; right: 28px; bottom: 28px; z-index: 9999; display:flex; align-items:center; cursor: pointer; }
+       .wa-wrapper{ position: fixed; right: 28px; bottom: 28px; z-index: 9999; display:none; align-items:center; cursor: pointer; }
         .wa-btn{ position:relative; width: 66px; height: 66px; border:none; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; background: radial-gradient(circle at 32% 28%, #3CE86D 0%, #25D366 42%, #128C3E 78%, #0b6b2c 100%); box-shadow: 0 2px 2px rgba(255,255,255,0.6) inset, 0 -6px 10px rgba(0,0,0,0.28) inset, 0 12px 20px rgba(11, 107, 44, 0.35), 0 4px 6px rgba(0,0,0,0.15); animation: wa-float-idle 3.6s ease-in-out infinite; transition: transform 0.35s cubic-bezier(.34,1.56,.64,1), box-shadow 0.3s ease; text-decoration:none; }
         .wa-btn:hover{ transform: translateY(-6px) scale(1.07) rotate(-4deg); box-shadow: 0 2px 2px rgba(255,255,255,0.7) inset, 0 -6px 10px rgba(0,0,0,0.25) inset, 0 18px 30px rgba(11, 107, 44, 0.45), 0 6px 10px rgba(0,0,0,0.18); }
         .wa-btn:active{ transform: translateY(-2px) scale(0.95); }
@@ -87,8 +87,25 @@
         .wa-icon{ width: 32px; height: 32px; position:relative; z-index:2; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15)); }
         .wa-ripple{ position:absolute; border-radius:50%; background: rgba(255,255,255,0.55); transform: scale(0); animation: wa-ripple-anim 0.6s ease-out forwards; pointer-events:none; }
         @keyframes wa-ripple-anim{ to{ transform: scale(2.6); opacity:0; } }
-        @media (prefers-reduced-motion: reduce){ .wa-btn, .wa-pulse-ring{ animation: none !important; } }
+       @media (prefers-reduced-motion: reduce){ .wa-btn, .wa-pulse-ring{ animation: none !important; } }
         @media (max-width: 480px){ .wa-wrapper{ right:18px; bottom:18px; } .wa-btn{ width:58px; height:58px; } .wa-icon{ width:28px; height:28px; } }
+
+        /* Telegram Button CSS */
+       .tg-wrapper{ position: fixed; right: 28px; bottom: 104px; z-index: 9999; display:none; align-items:center; cursor: pointer; }
+        .tg-wrapper.tg-solo{ bottom: 28px; }
+        .tg-btn{ position:relative; width: 66px; height: 66px; border:none; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; background: radial-gradient(circle at 32% 28%, #6ec6f1 0%, #37aee2 42%, #1a7fb8 78%, #0f5f8c 100%); box-shadow: 0 2px 2px rgba(255,255,255,0.6) inset, 0 -6px 10px rgba(0,0,0,0.28) inset, 0 12px 20px rgba(15, 95, 140, 0.35), 0 4px 6px rgba(0,0,0,0.15); animation: tg-float-idle 3.6s ease-in-out infinite; transition: transform 0.35s cubic-bezier(.34,1.56,.64,1), box-shadow 0.3s ease; text-decoration:none; }
+        .tg-btn:hover{ transform: translateY(-6px) scale(1.07) rotate(-4deg); box-shadow: 0 2px 2px rgba(255,255,255,0.7) inset, 0 -6px 10px rgba(0,0,0,0.25) inset, 0 18px 30px rgba(15, 95, 140, 0.45), 0 6px 10px rgba(0,0,0,0.18); }
+        .tg-btn:active{ transform: translateY(-2px) scale(0.95); }
+        .tg-btn::before{ content:""; position:absolute; top:8%; left:14%; width:46%; height:34%; background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0)); border-radius:50%; filter: blur(1px); transform: rotate(-18deg); pointer-events:none; }
+        .tg-pulse-ring{ position:absolute; inset:0; border-radius:50%; border: 2px solid rgba(55, 174, 226, 0.55); animation: tg-pulse-out 2.4s ease-out infinite; pointer-events:none; }
+        .tg-pulse-ring.tg-delay{ animation-delay: 1.2s; }
+        @keyframes tg-pulse-out{ 0%{ transform: scale(1); opacity: 0.7; } 100%{ transform: scale(1.9); opacity: 0; } }
+        @keyframes tg-float-idle{ 0%, 100%{ transform: translateY(0); } 50%{ transform: translateY(-5px); } }
+        .tg-icon{ width: 42px; height: 42px; position:relative; z-index:2; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15)); }
+        .tg-ripple{ position:absolute; border-radius:50%; background: rgba(255,255,255,0.55); transform: scale(0); animation: tg-ripple-anim 0.6s ease-out forwards; pointer-events:none; }
+        @keyframes tg-ripple-anim{ to{ transform: scale(2.6); opacity:0; } }
+        @media (prefers-reduced-motion: reduce){ .tg-btn, .tg-pulse-ring{ animation: none !important; } }
+        @media (max-width: 480px){ .tg-wrapper{ right:18px; bottom:84px; } .tg-btn{ width:58px; height:58px; } .tg-icon{ width:34px; height:34px; } .tg-wrapper.tg-solo{ bottom:18px; } }
     </style>
 </head>
 <body>
@@ -152,6 +169,16 @@
         <svg class="wa-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M16.02 2.667c-7.363 0-13.353 5.99-13.353 13.353 0 2.354.62 4.65 1.796 6.671L2.667 29.333l6.8-1.783a13.29 13.29 0 0 0 6.55 1.72h.005c7.362 0 13.352-5.99 13.352-13.353 0-3.567-1.39-6.921-3.912-9.443A13.256 13.256 0 0 0 16.02 2.667Z" fill="#F5F5F5"/>
           <path d="M23.87 19.24c-.343-.172-2.03-1.002-2.345-1.116-.315-.115-.544-.172-.773.172-.229.343-.888 1.116-1.088 1.345-.2.23-.4.258-.744.086-.343-.172-1.448-.534-2.759-1.702-1.02-.91-1.709-2.034-1.909-2.377-.2-.343-.021-.529.151-.7.155-.154.343-.4.515-.6.172-.2.229-.343.343-.572.115-.23.057-.43-.029-.6-.086-.172-.773-1.863-1.059-2.552-.279-.671-.562-.58-.773-.591l-.658-.012a1.267 1.267 0 0 0-.916.43c-.315.343-1.202 1.174-1.202 2.864s1.23 3.323 1.402 3.552c.172.23 2.42 3.696 5.865 5.183.819.353 1.458.564 1.956.722.822.261 1.57.224 2.161.136.659-.098 2.03-.83 2.316-1.632.286-.801.286-1.487.2-1.632-.086-.144-.315-.229-.658-.4Z" fill="#25D366"/>
+        </svg>
+      </a>
+    </div>
+
+    <div class="tg-wrapper" id="tgWrapper" onclick="handleTelegramClick(event)">
+      <a class="tg-btn" id="tgBtn" aria-label="Chat on Telegram" href="javascript:void(0);">
+        <span class="tg-pulse-ring"></span>
+        <span class="tg-pulse-ring tg-delay"></span>
+        <svg class="tg-icon" viewBox="0 0 496 512" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+          <path d="M362 176.7c-3.7 39.2-19.9 134.4-28.1 178.3-3.5 18.6-10.3 24.8-16.9 25.4-14.4 1.3-25.3-9.5-39.3-18.7-21.8-14.3-34.2-23.2-55.3-37.2-24.5-16.1-8.6-25 5.3-39.5 3.7-3.8 67.1-61.5 68.3-66.7 .2-.7 .3-3.1-1.2-4.4s-3.6-.8-5.1-.5q-3.3 .7-104.6 69.1-14.8 10.2-26.9 9.9c-8.9-.2-25.9-5-38.6-9.1-15.5-5-27.9-7.7-26.8-16.3q.8-6.7 18.5-13.7 108.4-47.2 144.6-62.3c68.9-28.6 83.2-33.6 92.5-33.8 2.1 0 6.6 .5 9.6 2.9a10.5 10.5 0 0 1 3.5 6.7A43.8 43.8 0 0 1 362 176.7z"/>
         </svg>
       </a>
     </div>
@@ -245,6 +272,41 @@
                 setTimeout(function(){ r.remove(); }, 650);
             }
         }
+
+        window.handleTelegramClick = async function(e) {
+            const s = localStorage.getItem('userSession');
+            if(s) {
+                const user = JSON.parse(s);
+                if(user.isDemo) { showDemoAlert("Demo account admin not assign"); } 
+                else {
+                    try {
+                        const userDoc = await db.collection("users").doc(user.id).get();
+                        if(userDoc.exists) {
+                            const linkedSubAdminId = userDoc.data().linkedSubAdminId;
+                            if(linkedSubAdminId) {
+                                const adminDoc = await db.collection("admins").doc(linkedSubAdminId).get();
+                                if(adminDoc.exists && adminDoc.data().telegram) {
+                                    const tgUsername = adminDoc.data().telegram.replace('@', '');
+                                    window.open(`https://t.me/${tgUsername}`, '_blank');
+                                } else { showDemoAlert("Admin has not set Telegram"); }
+                            } else { showDemoAlert("Admin has not set Telegram"); }
+                        }
+                    } catch(err) { showDemoAlert("Admin has not set Telegram"); }
+                }
+            }
+
+            const tgLink = document.getElementById('tgBtn');
+            if(tgLink && e) {
+                var r2 = document.createElement('span'); r2.className = 'tg-ripple';
+                var size2 = Math.max(tgLink.clientWidth, tgLink.clientHeight);
+                r2.style.width = r2.style.height = size2 + 'px';
+                var rect2 = tgLink.getBoundingClientRect();
+                r2.style.left = (e.clientX - rect2.left - size2/2) + 'px';
+                r2.style.top = (e.clientY - rect2.top - size2/2) + 'px';
+                tgLink.appendChild(r2);
+                setTimeout(function(){ r2.remove(); }, 650);
+            }
+        }
 let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne ke liye
 
         window.checkSession = function() {
@@ -255,9 +317,11 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                 const user = JSON.parse(s); 
                 document.getElementById('top-user').innerText = user.username || user.id || 'User';
                 const waWrapper = document.getElementById('waWrapper');
+                const tgWrapper = document.getElementById('tgWrapper');
 
-                if (user.isDemo) {
+               if (user.isDemo) {
                     waWrapper.style.display = 'flex';
+                    if (tgWrapper) tgWrapper.style.display = 'flex';
                     document.getElementById('top-bal').innerText = Math.floor(parseFloat(user.balance) || 0).toFixed(2);
                     
                     let demoBets = JSON.parse(localStorage.getItem('demoBets') || '[]');
@@ -303,7 +367,22 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                         const balEl = document.getElementById('top-bal');
                         if(balEl) balEl.innerText = Math.floor(userData.balance || 0).toFixed(2);
                         realAdminWhatsApp = userData.adminNumber || userData.subadminNumber || "";
-                        waWrapper.style.display = 'flex';
+                        waWrapper.style.display = 'none';
+                        if (tgWrapper) { tgWrapper.style.display = 'none'; tgWrapper.classList.remove('tg-solo'); }
+                        if (userData.linkedSubAdminId) {
+                            db.collection("admins").doc(userData.linkedSubAdminId).get().then(adminSnap => {
+                                if (adminSnap.exists) {
+                                    const adminInfo = adminSnap.data();
+                                    const hasWa = !!adminInfo.whatsapp;
+                                    const hasTg = !!adminInfo.telegram;
+                                    if (hasWa) waWrapper.style.display = 'flex';
+                                    if (hasTg && tgWrapper) {
+                                        tgWrapper.style.display = 'flex';
+                                        tgWrapper.classList.toggle('tg-solo', !hasWa);
+                                    }
+                                }
+                            });
+                        }
 
                         if(userData.locked) {
                             if(userData.linkedSubAdminId) {

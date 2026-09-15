@@ -73,6 +73,11 @@
             <label>🔒 Auto-Lock Betting — <span id="lockMinsLabel" style="color:var(--primary);">30</span> Minute(s) Before Toss</label>
             <input type="range" id="lockMins" min="1" max="45" step="1" value="30" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
         </div>
+
+        <div class="input-group" style="border-top: 2px dashed #ddd; padding-top: 10px;">
+            <label>🏆 Predict Pro Winner (optional — sirf Predict Pro site ke liye)</label>
+            <input type="text" id="predictWinner" placeholder="e.g. Team A (khaali chhodo agar abhi pata nahi)">
+        </div>
         
         <button class="btn btn-primary" id="publishBtn" onclick="createMatch()">Publish Live Match</button>
         <button class="btn" style="background:#888; margin-top:6px;" onclick="cancelEdit()">✖ Cancel Edit</button>
@@ -137,6 +142,15 @@
     <script src="app.js"></script>
 
     <script>
+        // 🔗 Predict Pro (alag Firebase project) — sirf schedule + winner yahan se bhejne ke liye
+        const predictFirebaseConfig = {
+          apiKey: "AIzaSyCFKhWdoGWWjIs7Z6yIEOZdx58ybp07jD0",
+          authDomain: "playing11-819b0.firebaseapp.com",
+          projectId: "playing11-819b0"
+        };
+        const predictApp = firebase.initializeApp(predictFirebaseConfig, "predictApp");
+        const predictDb = predictApp.firestore();
+
         const MASTER_PIN = "786786";
         let currentSettleMatchId = null;
         let currentSettleMatchData = null;
@@ -177,6 +191,7 @@
             const dateOffset = parseInt(document.getElementById('matchDate').value);
             const timeStr = document.getElementById('matchTime').value;
             const lockMins = parseInt(document.getElementById('lockMins').value);
+            const predictWinner = document.getElementById('predictWinner').value.trim();
 
             if(!tA || !tB || !timeStr) { alert("Please fill all details!"); return; }
 
@@ -201,8 +216,11 @@
                 oddsB: oddsB,
                 tossTimeMs: tossTimestamp,
                 lockTimeMs: lockTimestamp,
-                tossTimeStr: matchDate.toLocaleString()
+                tossTimeStr: matchDate.toLocaleString(),
+                predictWinner: predictWinner || ""
             };
+
+            let matchIdForPredict = editingMatchId;
 
             if (editingMatchId) {
                 // Existing match update — betting.html ko onSnapshot se turant naya time/lock mil jayega
@@ -212,24 +230,43 @@
             } else {
                 data.status = 'open';
                 data.timestamp = firebase.firestore.FieldValue.serverTimestamp();
-                await db.collection("matches").add(data);
+                const newRef = db.collection("matches").doc(); // ID pehle hi bana lo taaki Predict Pro me bhi wahi ID use ho
+                matchIdForPredict = newRef.id;
+                await newRef.set(data);
                 alert("Match is now LIVE!");
+            }
+
+            // 🔗 Predict Pro (alag project) me schedule + winner bhej do — same doc ID use karke
+            try {
+                const predictData = {
+                    team1: tA,
+                    team2: tB,
+                    time: matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    timestamp: firebase.firestore.Timestamp.fromDate(matchDate)
+                };
+                if (predictWinner) predictData.winner = predictWinner;
+                await predictDb.collection("matches").doc(matchIdForPredict).set(predictData, { merge: true });
+            } catch (e) {
+                console.error("Predict Pro sync error:", e);
+                alert("⚠️ Master match saved, lekin Predict Pro site pe sync fail hua: " + e.message);
             }
             
             document.getElementById('tA').value = '';
             document.getElementById('tB').value = '';
             document.getElementById('matchTime').value = '';
             document.getElementById('matchSource').value = 'Crex';
+            document.getElementById('predictWinner').value = '';
         }
 
         // Match row ke "EDIT" button se call hota hai — form ko match ki current values se bhar deta hai
-        function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs, source) {
+        function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs, source, predictWinner) {
             editingMatchId = id;
             document.getElementById('tA').value = teamA;
             document.getElementById('tB').value = teamB;
             document.getElementById('oddsA').value = oddsA;
             document.getElementById('oddsB').value = oddsB;
             document.getElementById('matchSource').value = source || 'Crex';
+            document.getElementById('predictWinner').value = predictWinner || '';
 
             const d = new Date(tossTimeMs);
             const today = new Date();
@@ -254,6 +291,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             document.getElementById('tB').value = '';
             document.getElementById('matchTime').value = '';
             document.getElementById('matchSource').value = 'Crex';
+            document.getElementById('predictWinner').value = '';
             const btn = document.getElementById('publishBtn');
             btn.innerText = "Publish Live Match";
             btn.style.background = "";
@@ -274,6 +312,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 
         let cachedOpenMatches = []; // Reminder-checker isको use karega, Firestore ko baar-baar nahi chuegā
 
+      
       // 🌟 Alert-status ab alag collection me rehta hai — 'matches' doc ko kabhi touch
         // nahi karta, isliye master-dashboard.html ka listener isse kabhi trigger nahi hota.
         // Sirf last 2 din ke alerts sunte hain — is collection me hamesha ke liye jama hote
@@ -334,8 +373,9 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                             <button class="btn btn-red btn-small" onclick="openVoidModal('${m.id}', '${escJs(m.teamA)}', '${escJs(m.teamB)}', ${m.tossTimeMs})" style="flex: 0.5;">🔐 VOID</button>
                         </div>
                         <div class="action-btns">
-                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs},'${escJs(m.source || 'Crex')}')">✏️ EDIT DATE / TIME / LOCK</button>
+                            <button class="btn btn-small" style="background:#455a64; flex:1;" onclick="editMatch('${m.id}','${escJs(m.teamA)}','${escJs(m.teamB)}',${m.oddsA},${m.oddsB},${m.tossTimeMs},${m.lockTimeMs},'${escJs(m.source || 'Crex')}','${escJs(m.predictWinner || '')}')">✏️ EDIT DATE / TIME / LOCK</button>
                         </div>
+                        ${m.predictWinner ? `<div class="time-badge" style="background:#fff3cd; color:#856404; margin-top:5px;">🏆 Predict Winner: ${m.predictWinner}</div>` : ''}
                         </div>
                     </div>
                 `;
@@ -627,7 +667,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             document.getElementById('winnerImage').click();
         }
 
-        // ==========================================
+       // ==========================================
         // 🚀 POWERFUL OCR MATCHING ALGORITHM
         // ==========================================
         async function processWinnerOCR(event) {
@@ -999,7 +1039,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 })
                 .catch(err => console.log("Master TG Alert Error:", err));
 
-                // 🌟 'match_alerts' collection me likha jaata hai — 'matches' collection ko
+                 // 🌟 'match_alerts' collection me likha jaata hai — 'matches' collection ko
                 // bilkul touch nahi karta, isliye master-dashboard.html ka listener isse
                 // kabhi trigger nahi hota
                 const batch = db.batch();

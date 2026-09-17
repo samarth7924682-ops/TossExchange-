@@ -205,6 +205,7 @@
 
         window.logout = function() { localStorage.removeItem('userSession'); window.location.replace('login.html'); }
 
+        
         window.showDemoAlert = function(msg) {
             const alertBar = document.getElementById('demo-alert');
             alertBar.innerText = msg;
@@ -505,10 +506,263 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     });
                 });
 
-                list.innerHTML = finalHtml;
+               list.innerHTML = finalHtml;
             });
         }
-        
+
+        // ============================================================
+        // 🔗 HUB SYNC (Index) — display + winner/void settlement, sab yahi.
+        // Master-matches.html jaisa hi claim-lock use karta hai taaki
+        // ek sath kai users khule ho tab bhi settlement double na ho.
+        // ============================================================
+        const HUB_API_URL = "https://matchhub-api.pages.dev/api/matches";
+        const HUB_SITE_API_KEY = "site_3cdd0018009e3ead1344514bb6058f07";
+        const HUB_POLL_MS = 20 * 1000;
+
+        // 🌟 Pichla hub-status yaad rakhne ke liye — isi se pata chalta hai ki
+        // match "wapas open" hua hai (yani hub-admin par Undo dabaya gaya),
+        // taaki site ke settled/voided bets bhi khud-ba-khud reverse ho jayein.
+        const HUB_STATE_KEY = 'hubSyncState_v1';
+        let hubSyncState = {};
+        try { hubSyncState = JSON.parse(localStorage.getItem(HUB_STATE_KEY) || '{}'); } catch(e) {}
+
+        function resolveWinnerCode(winnerName, teamA, teamB) {
+            const norm = s => String(s || '').trim().toLowerCase();
+            const w = norm(winnerName);
+            if (!w) return null;
+            if (w === norm(teamA)) return 'teamA';
+            if (w === norm(teamB)) return 'teamB';
+            return null;
+        }
+
+        async function claimMatchForProcessing(matchId, expectedHubStatus) {
+            try {
+                return await db.runTransaction(async (tx) => {
+                    const ref = db.collection("matches").doc(matchId);
+                    const doc = await tx.get(ref);
+                    if (!doc.exists) return false;
+                    if (doc.data().status !== 'open') return false;
+                    tx.update(ref, { status: '_processing_' + expectedHubStatus, claimedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    return true;
+                });
+            } catch (e) { console.error("claim error:", e); return false; }
+        }
+
+        async function releaseClaimOnFailure(matchId) {
+            try { await db.collection("matches").doc(matchId).update({ status: 'open' }); } catch(e) {}
+        }
+
+        // 🌟 Undo ke liye alag claim — is waqt local match 'open' nahi, balki
+        // 'closed'/'cancelled' hota hai (kyunki wo pehle settle/void ho chuka tha).
+        // Isse multiple user-tabs khule hone par bhi undo sirf EK hi baar chalega.
+        async function claimUndoForProcessing(matchId) {
+            try {
+                return await db.runTransaction(async (tx) => {
+                    const ref = db.collection("matches").doc(matchId);
+                    const doc = await tx.get(ref);
+                    if (!doc.exists) return null;
+                    const st = doc.data().status;
+                    if (st !== 'closed' && st !== 'cancelled') return null;
+                    tx.update(ref, { status: '_processing_undo', claimedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    return st; // original status, for rollback if something fails
+                });
+            } catch (e) { console.error("claim-undo error:", e); return null; }
+        }
+
+        async function releaseUndoClaimOnFailure(matchId, originalStatus) {
+            try { await db.collection("matches").doc(matchId).update({ status: originalStatus }); } catch(e) {}
+        }
+
+        async function idxExecuteSettlement(matchId, winnerCode, winnerName) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    return;
+                }
+                const batch = db.batch();
+                let userBets = {};
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    if(!userBets[b.userId]) userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                    userBets[b.userId].bets.push({ id: doc.id, ...b });
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') { userBets[b.userId].pnlA += winAmt; userBets[b.userId].pnlB -= b.amount; }
+                    else { userBets[b.userId].pnlB += winAmt; userBets[b.userId].pnlA -= b.amount; }
+                });
+                for(let userId in userBets) {
+                    let uData = userBets[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let balanceAdjustment = lockedExposure + netResult;
+                    if (balanceAdjustment !== 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) }, { merge: true });
+                    uData.bets.forEach(b => { let betStatus = b.selection === winnerCode ? 'won' : 'lost'; batch.update(db.collection("bets").doc(b.id), { status: betStatus }); });
+                }
+                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await batch.commit();
+            } catch(e) { console.error("Index settlement error:", e); await releaseClaimOnFailure(matchId); }
+        }
+
+        async function idxExecutePartialVoid(matchId, cutoffMs, winnerCode, winnerName) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    return;
+                }
+                const batch = db.batch();
+                let settleUsers = {}, voidUsers = {};
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    const betTimeMs = b.timestamp ? b.timestamp.toMillis() : 0;
+                    const target = (betTimeMs > cutoffMs) ? voidUsers : settleUsers;
+                    if(!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                    target[b.userId].bets.push({ id: doc.id, ...b });
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') { target[b.userId].pnlA += winAmt; target[b.userId].pnlB -= b.amount; }
+                    else { target[b.userId].pnlB += winAmt; target[b.userId].pnlA -= b.amount; }
+                });
+                for(let userId in settleUsers) {
+                    let uData = settleUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let balanceAdjustment = lockedExposure + netResult;
+                    if (balanceAdjustment !== 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) }, { merge: true });
+                    uData.bets.forEach(b => { let betStatus = b.selection === winnerCode ? 'won' : 'lost'; batch.update(db.collection("bets").doc(b.id), { status: betStatus }); });
+                }
+                for(let userId in voidUsers) {
+                    let uData = voidUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    if (lockedExposure > 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(lockedExposure) }, { merge: true });
+                    uData.bets.forEach(b => batch.update(db.collection("bets").doc(b.id), { status: 'cancelled' }));
+                }
+                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await batch.commit();
+            } catch(e) { console.error("Index partial-void error:", e); await releaseClaimOnFailure(matchId); }
+        }
+
+        async function idxAutoVoidMatch(matchId) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'cancelled', voidReason: 'hub-sync', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    return;
+                }
+                const batch = db.batch();
+                let userBets = {};
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    if(!userBets[b.userId]) userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                    userBets[b.userId].bets.push({ id: doc.id, ...b });
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') { userBets[b.userId].pnlA += winAmt; userBets[b.userId].pnlB -= b.amount; }
+                    else { userBets[b.userId].pnlB += winAmt; userBets[b.userId].pnlA -= b.amount; }
+                });
+                for(let userId in userBets) {
+                    let uData = userBets[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    if (lockedExposure > 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(lockedExposure) }, { merge: true });
+                    uData.bets.forEach(b => batch.update(db.collection("bets").doc(b.id), { status: 'cancelled' }));
+                }
+                batch.update(db.collection("matches").doc(matchId), { status: 'cancelled', voidReason: 'hub-sync', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await batch.commit();
+            } catch(e) { console.error("Index auto-void error:", e); await releaseClaimOnFailure(matchId); }
+        }
+
+        async function idxAutoUndoMatch(matchId, originalStatus) {
+            try {
+                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "in", ["won", "lost", "cancelled"]).get();
+                if (betsSnap.empty) {
+                    await db.collection("matches").doc(matchId).update({ status: 'open', winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                    return;
+                }
+                const batch = db.batch();
+                let settledUsers = {}, voidedUsers = {};
+                betsSnap.forEach(doc => {
+                    let b = doc.data();
+                    const target = (b.status === 'cancelled') ? voidedUsers : settledUsers;
+                    if(!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0, winnerCode: null };
+                    target[b.userId].bets.push({ id: doc.id, ...b });
+                    if (b.status === 'won') target[b.userId].winnerCode = b.selection;
+                    if (b.status === 'lost' && !target[b.userId].winnerCode) target[b.userId].winnerCode = (b.selection === 'teamA' ? 'teamB' : 'teamA');
+                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                    if(b.selection === 'teamA') { target[b.userId].pnlA += winAmt; target[b.userId].pnlB -= b.amount; }
+                    else { target[b.userId].pnlB += winAmt; target[b.userId].pnlA -= b.amount; }
+                });
+                for(let userId in settledUsers) {
+                    let uData = settledUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    let netResult = uData.winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
+                    let originalAdjustment = lockedExposure + netResult;
+                    if (originalAdjustment !== 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-originalAdjustment) }, { merge: true });
+                    uData.bets.forEach(b => batch.update(db.collection("bets").doc(b.id), { status: 'pending' }));
+                }
+                for(let userId in voidedUsers) {
+                    let uData = voidedUsers[userId];
+                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                    if (lockedExposure > 0) batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-lockedExposure) }, { merge: true });
+                    uData.bets.forEach(b => batch.update(db.collection("bets").doc(b.id), { status: 'pending' }));
+                }
+                batch.update(db.collection("matches").doc(matchId), { status: 'open', winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                await batch.commit();
+            } catch(e) { console.error("Index auto-undo error:", e); await releaseUndoClaimOnFailure(matchId, originalStatus); }
+        }
+
+        async function syncFromHubIndex() {
+            try {
+                const res = await fetch(`${HUB_API_URL}?key=${HUB_SITE_API_KEY}&all=1`);
+                const data = await res.json();
+                if (!res.ok) { console.error("Index hub sync: API error →", data.error || res.status); return; }
+                console.warn("Index hub sync: OK, matches =", data.matches ? data.matches.length : 0, JSON.stringify((data.matches||[]).map(m=>({t:m.teamA+' vs '+m.teamB, s:m.status, w:m.winner}))));
+
+                for (const m of (data.matches || [])) {
+                    const prevStatus = hubSyncState[m.id] || 'open';
+
+                    if (prevStatus !== m.status) {
+                        if (m.status === 'closed' && m.winner) {
+                            const code = resolveWinnerCode(m.winner, m.teamA, m.teamB);
+                            if (code) {
+                                const claimed = await claimMatchForProcessing(m.id, 'closed');
+                                if (claimed) {
+                                    if (m.partialCutoffMs) await idxExecutePartialVoid(m.id, m.partialCutoffMs, code, m.winner);
+                                    else await idxExecuteSettlement(m.id, code, m.winner);
+                                }
+                            }
+                        } else if (m.status === 'void') {
+                            const claimed = await claimMatchForProcessing(m.id, 'void');
+                            if (claimed) await idxAutoVoidMatch(m.id);
+                        } else if (m.status === 'open' && (prevStatus === 'closed' || prevStatus === 'void')) {
+                           // 🌟 Hub-admin par "Undo" dabaya gaya — site ke bets bhi wapas reverse
+                            const originalStatus = await claimUndoForProcessing(m.id);
+                            if (originalStatus) await idxAutoUndoMatch(m.id, originalStatus);
+                        }
+                        hubSyncState[m.id] = m.status;
+                        try { localStorage.setItem(HUB_STATE_KEY, JSON.stringify(hubSyncState)); } catch(e) {}
+                    }
+
+                    const ref = db.collection("matches").doc(m.id);
+                    const existing = await ref.get();
+                    if (!existing.exists) {
+                        await ref.set({
+                            teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, lockTimeMs: m.lockTimeMs,
+                            tossTimeStr: new Date(m.tossTimeMs).toLocaleString(), oddsA: m.oddsA || 98, oddsB: m.oddsB || 98,
+                            status: 'open', source: 'Hub', hubSynced: true, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else if (existing.data().status === 'open') {
+                        await ref.update({ tossTimeMs: m.tossTimeMs, lockTimeMs: m.lockTimeMs, oddsA: m.oddsA || 98, oddsB: m.oddsB || 98 });
+                    }
+                }
+            } catch(e) { console.error("Index hub sync failed:", e); }
+        }
+        syncFromHubIndex();
+        setInterval(syncFromHubIndex, HUB_POLL_MS);
+
         let sessionCheckDone = false;
         function runCheckSessionOnce() {
             if (sessionCheckDone) return;

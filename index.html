@@ -515,9 +515,15 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
         // Master-matches.html jaisa hi claim-lock use karta hai taaki
         // ek sath kai users khule ho tab bhi settlement double na ho.
         // ============================================================
-        const HUB_API_URL = "https://matchhub-api.pages.dev/api/matches";
+        const HUB_CONFIG = {
+            apiKey: "AIzaSyCjOk9OOqdPiCCgFXJouJjEB0rym0kTL0g",
+            authDomain: "matchhub-central.firebaseapp.com",
+            projectId: "matchhub-central"
+        };
         const HUB_SITE_API_KEY = "site_3cdd0018009e3ead1344514bb6058f07";
-        const HUB_POLL_MS = 20 * 1000;
+        const hubApp = firebase.initializeApp(HUB_CONFIG, "hub");
+        const hubDb = hubApp.firestore();
+        let siteEnabled = true;
 
         // 🌟 Pichla hub-status yaad rakhne ke liye — isi se pata chalta hai ki
         // match "wapas open" hua hai (yani hub-admin par Undo dabaya gaya),
@@ -714,16 +720,36 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
             } catch(e) { console.error("Index auto-undo error:", e); await releaseUndoClaimOnFailure(matchId, originalStatus); }
         }
 
-        async function syncFromHubIndex() {
-            try {
-                const res = await fetch(`${HUB_API_URL}?key=${HUB_SITE_API_KEY}&all=1`);
-                const data = await res.json();
-                if (!res.ok) { console.error("Index hub sync: API error →", data.error || res.status); return; }
-                console.warn("Index hub sync: OK, matches =", data.matches ? data.matches.length : 0, JSON.stringify((data.matches||[]).map(m=>({t:m.teamA+' vs '+m.teamB, s:m.status, w:m.winner}))));
+         hubDb.collection("sites").where("apiKey", "==", HUB_SITE_API_KEY).limit(1)
+            .onSnapshot(snap => {
+                siteEnabled = snap.empty ? false : (snap.docs[0].data().enabled !== false);
+            }, e => console.error("Index hub site-check failed:", e));
 
-                for (const m of (data.matches || [])) {
+        function normalizeHubMatch(id, f) {
+            return {
+                id,
+                teamA: f.teamA || "",
+                teamB: f.teamB || "",
+                tossTimeMs: f.tossTimeMs || 0,
+                lockTimeMs: f.lockTimeMs || f.tossTimeMs || 0,
+                status: f.status || "open",
+                winner: f.winner || "",
+                partialCutoffMs: f.partialCutoffMs || null,
+                oddsA: f.oddsA || 98,
+                oddsB: f.oddsB || 98
+            };
+        }
+
+        // 🔴 REAL-TIME — poll nahi, seedha push. Koi bhi field (odds, lock
+        // time, naya match, winner, void) badalte hi turant yaha chalega.
+        hubDb.collection("matches").onSnapshot(async (snap) => {
+            if (!siteEnabled) return;
+            for (const doc of snap.docs) {
+                try {
+                    const m = normalizeHubMatch(doc.id, doc.data());
+                    if (m.status.startsWith('_processing_')) continue;
+
                     const prevStatus = hubSyncState[m.id] || 'open';
-
                     if (prevStatus !== m.status) {
                         if (m.status === 'closed' && m.winner) {
                             const code = resolveWinnerCode(m.winner, m.teamA, m.teamB);
@@ -738,7 +764,6 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                             const claimed = await claimMatchForProcessing(m.id, 'void');
                             if (claimed) await idxAutoVoidMatch(m.id);
                         } else if (m.status === 'open' && (prevStatus === 'closed' || prevStatus === 'void')) {
-                           // 🌟 Hub-admin par "Undo" dabaya gaya — site ke bets bhi wapas reverse
                             const originalStatus = await claimUndoForProcessing(m.id);
                             if (originalStatus) await idxAutoUndoMatch(m.id, originalStatus);
                         }
@@ -751,17 +776,15 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     if (!existing.exists) {
                         await ref.set({
                             teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, lockTimeMs: m.lockTimeMs,
-                            tossTimeStr: new Date(m.tossTimeMs).toLocaleString(), oddsA: m.oddsA || 98, oddsB: m.oddsB || 98,
+                            tossTimeStr: new Date(m.tossTimeMs).toLocaleString(), oddsA: m.oddsA, oddsB: m.oddsB,
                             status: 'open', source: 'Hub', hubSynced: true, timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     } else if (existing.data().status === 'open') {
-                        await ref.update({ tossTimeMs: m.tossTimeMs, lockTimeMs: m.lockTimeMs, oddsA: m.oddsA || 98, oddsB: m.oddsB || 98 });
+                        await ref.update({ tossTimeMs: m.tossTimeMs, lockTimeMs: m.lockTimeMs, oddsA: m.oddsA, oddsB: m.oddsB });
                     }
-                }
-            } catch(e) { console.error("Index hub sync failed:", e); }
-        }
-        syncFromHubIndex();
-        setInterval(syncFromHubIndex, HUB_POLL_MS);
+                } catch(innerErr) { console.error("Index hub sync: match", doc.id, "failed →", innerErr); }
+            }
+        }, e => console.error("Index hub sync (listener) failed:", e));
 
         let sessionCheckDone = false;
         function runCheckSessionOnce() {

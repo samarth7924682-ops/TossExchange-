@@ -156,6 +156,19 @@
   if(!session) window.location.href = "index.html";
   const user = JSON.parse(session);
   document.getElementById('top-user').innerText = user.username;
+  const OVEROUT_PENDING_KEY = `pendingOveroutBet_${user.id}`;
+  if (!user.isDemo) {
+      // Page khulte hi purana adhura round (agar tha) loss ke roop me settle kar do
+      if (window.recoverPendingOveroutBet) window.recoverPendingOveroutBet(true);
+      // Round chalte waqt heartbeat, taaki recovery live round ko abandoned na samjhe
+      setInterval(() => {
+          if (state !== 'playing') return;
+          try {
+              const p = JSON.parse(localStorage.getItem(OVEROUT_PENDING_KEY) || 'null');
+              if (p) { p.beat = Date.now(); localStorage.setItem(OVEROUT_PENDING_KEY, JSON.stringify(p)); }
+          } catch (e) {}
+      }, 3000);
+  }
 
   const TILE_COUNT = 25;
   const grid = document.getElementById('grid');
@@ -317,7 +330,9 @@
         user.balance = realBalance;
         localStorage.setItem('userSession', JSON.stringify(user));
         document.getElementById('top-bal').innerText = Math.floor(realBalance).toFixed(2);
-    } else {
+  } else {
+        // PEHLE pending save, PHIR balance kaato — beech me app band hui toh bhi loss entry recover hogi
+        localStorage.setItem(OVEROUT_PENDING_KEY, JSON.stringify({ amount: bet, ts: Date.now(), beat: Date.now() }));
         db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-bet) });
     }
     
@@ -412,6 +427,7 @@
             closingBalance: realBalance, 
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+        localStorage.removeItem(OVEROUT_PENDING_KEY); // round settle ho gaya
     }
 
     endRoundUI();
@@ -442,6 +458,7 @@
             closingBalance: realBalance + winnings, 
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+        localStorage.removeItem(OVEROUT_PENDING_KEY); // round settle ho gaya
     }
 
     statusMsg.textContent = 'WON ₹' + winnings;

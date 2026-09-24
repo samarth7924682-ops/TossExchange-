@@ -616,10 +616,7 @@
   }
 
   async function evaluateRoundResult(targetRoundId, isOfflineRecovery = false) {
-    const settledKey = `settledRound_${userSession.id}_${targetRoundId}`;
-    if (localStorage.getItem(settledKey)) { return; }
-    localStorage.setItem(settledKey, '1');
-
+    
     let outcome = getDeterministicOutcome(parseInt(targetRoundId));
 
     // isDemo check yahan se hata diya — actual result (jo Recent Results me dikhta hai)
@@ -660,38 +657,52 @@
     }
 
     if(currentActiveBet && currentActiveBet.roundId === targetRoundId && !currentActiveBet.processed) {
-      currentActiveBet.processed = true; 
-      const won = (currentActiveBet.side === outcome); 
-      const winAmt = won ? currentActiveBet.amount * 1.9 : 0;
-      
-      if(won) {
-        if (userSession.isDemo) {
-          realBalance += winAmt; userSession.balance = realBalance;
-          localStorage.setItem('userSession', JSON.stringify(userSession)); updateBalanceDisplay(realBalance);
-        } else if (typeof db !== 'undefined') {
-          await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
+      const settledKey = `settledRound_${userSession.id}_${targetRoundId}`;
+      const pendKey = `pendingBet_${userSession.id}`;
+      const st = recoveryStart(settledKey);
+      if (st === null) return; // app.js ya koi aur abhi settle kar raha hai
+      if (st === 'done') { currentActiveBet.processed = true; localStorage.removeItem(pendKey); renderHistoryTables(); return; }
+
+      const bet = currentActiveBet;
+      const won = (bet.side === outcome);
+      const winAmt = won ? bet.amount * 1.9 : 0;
+      let paid = (st === 'paid');
+
+      if(!isOfflineRecovery) triggerCenterResultText(won, won ? winAmt : bet.amount);
+
+      try {
+        if (won && !paid) {
+          if (userSession.isDemo) {
+            realBalance += winAmt; userSession.balance = realBalance;
+            localStorage.setItem('userSession', JSON.stringify(userSession)); updateBalanceDisplay(realBalance);
+          } else if (typeof db !== 'undefined') {
+            await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
+          }
+          paid = true;
+          localStorage.setItem(settledKey, 'paid');
         }
-        if(!isOfflineRecovery) triggerCenterResultText(true, winAmt);
-      } else if (!isOfflineRecovery) { 
-        triggerCenterResultText(false, currentActiveBet.amount); 
-      }
 
-      const profitStr = won ? `+₹${(currentActiveBet.amount * 0.9).toFixed(2)}` : `-₹${currentActiveBet.amount.toFixed(2)}`;
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      // Save to user history and keep strictly last 5 entries
-      saveAndSyncBetHistory({ amount: currentActiveBet.amount, side: currentActiveBet.side, result: won ? 'WIN' : 'LOSS', profit: profitStr, time: timeStr, roundDisplayId: getRoundDisplayId(parseInt(targetRoundId)) });
-      localStorage.removeItem(`pendingBet_${userSession.id}`);
+        // Firestore history (history.html me dikhegi) — pending tabhi hategi jab ye likh jaye
+        if (typeof db !== 'undefined' && !userSession.isDemo) {
+          await db.collection("chicken_history").add({
+            userId: userSession.id,
+            betAmount: bet.amount,
+            winAmount: won ? winAmt : 0,
+            selectedSide: bet.side,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
 
-      // Save to Firestore so it shows up in history.html (same as Coin Flip does)
-      if (typeof db !== 'undefined' && !userSession.isDemo) {
-        db.collection("chicken_history").add({
-          userId: userSession.id,
-          betAmount: currentActiveBet.amount,
-          winAmount: won ? winAmt : 0,
-          selectedSide: currentActiveBet.side,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        const profitStr = won ? `+₹${(bet.amount * 0.9).toFixed(2)}` : `-₹${bet.amount.toFixed(2)}`;
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        saveAndSyncBetHistory({ amount: bet.amount, side: bet.side, result: won ? 'WIN' : 'LOSS', profit: profitStr, time: timeStr, roundDisplayId: getRoundDisplayId(parseInt(targetRoundId)) });
+
+        bet.processed = true;
+        recoveryEnd(settledKey, 'done');
+        localStorage.removeItem(pendKey);
+      } catch (e) {
+        console.log("Chicken settle error:", e);
+        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, app.js dobara try karega
       }
     }
 

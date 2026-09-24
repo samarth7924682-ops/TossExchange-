@@ -127,6 +127,44 @@
         
         let matchDictionary = {};
         let masterLedgerData = []; 
+        // ⚡ LIVE LISTENERS — Firebase se sirf CHANGE (naya/badla hua doc) read hota hai, poora dobara nahi
+        let liveSnaps = {};
+        let matchesReady = new Promise(res => { window._resolveMatches = res; });
+        let rebuildTimer = null;
+        const LIVE_KEYS = ['transactions', 'bets', 'aviator_history', 'overout_history', 'coinflip_history', 'chicken_history', 'matches', 'user'];
+
+        function scheduleRebuild() {
+            if (!LIVE_KEYS.every(k => liveSnaps[k])) return; // sab ka pehla data aane do
+            clearTimeout(rebuildTimer);
+            rebuildTimer = setTimeout(fetchLiveHistory, 300);
+        }
+
+        function startLiveListeners() {
+            const uid = user.id;
+            const onErr = (name) => (e) => console.log('Listener error (' + name + '):', e);
+
+            ["transactions", "bets", "aviator_history", "overout_history", "coinflip_history", "chicken_history"].forEach(col => {
+                db.collection(col).where("userId", "==", uid).onSnapshot(snap => {
+                    liveSnaps[col] = snap; scheduleRebuild();
+                }, onErr(col));
+            });
+
+            db.collection("matches").onSnapshot(snap => {
+                liveSnaps.matches = snap;
+                if (window._resolveMatches) { window._resolveMatches(snap); window._resolveMatches = null; }
+                scheduleRebuild();
+            }, (e) => {
+                console.log('Listener error (matches):', e);
+                if (window._resolveMatches) { window._resolveMatches({ forEach: () => {} }); window._resolveMatches = null; }
+            });
+
+            db.collection("users").doc(uid).onSnapshot(d => {
+                liveSnaps.user = d; scheduleRebuild();
+            }, onErr('user'));
+
+            // Cleanup sirf ek baar (pehle har 10 sec me chalta tha)
+            if (window.runBackgroundCleanup) window.runBackgroundCleanup(uid);
+        }
 
         window.toggleMenu = function(menuId, e) { 
             e.stopPropagation(); 
@@ -149,7 +187,7 @@
         function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
 
         window.buildExposureDropdown = async function(userId) {
-            const matchSnap = await db.collection("matches").get();
+            const matchSnap = await matchesReady; // matches listener ka pehla snapshot, dobara read nahi
             let matchNames = {};
             matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
 
@@ -206,22 +244,11 @@
         // ⚡ FAST LIVE FIREBASE FETCHING (Promise.all) ⚡
         async function fetchLiveHistory() {
             try {
-                // Pehle check karein agar aaj ka background cleanup nahi hua, toh background me laga de
-                if (window.runBackgroundCleanup) window.runBackgroundCleanup(user.id);
-
-                const uid = user.id;
-                
-                // Saara data Firebase se ek saath parallel load karo
-                const [txnSnap, betSnap, aviatorSnap, overoutSnap, coinflipSnap, chickenSnap, matchSnap, userDoc] = await Promise.all([
-                    db.collection("transactions").where("userId", "==", uid).get(),
-                    db.collection("bets").where("userId", "==", uid).get(),
-                    db.collection("aviator_history").where("userId", "==", uid).get(),
-                    db.collection("overout_history").where("userId", "==", uid).get(),
-                    db.collection("coinflip_history").where("userId", "==", uid).get(),
-                    db.collection("chicken_history").where("userId", "==", uid).get(),
-                    db.collection("matches").get(),
-                    db.collection("users").doc(uid).get()
-                ]);
+                // Data listeners se aata hai (Firebase se dobara read nahi hota) — yahan sirf hisaab lagta hai
+                const txnSnap = liveSnaps.transactions, betSnap = liveSnaps.bets, aviatorSnap = liveSnaps.aviator_history,
+                      overoutSnap = liveSnaps.overout_history, coinflipSnap = liveSnaps.coinflip_history,
+                      chickenSnap = liveSnaps.chicken_history, matchSnap = liveSnaps.matches, userDoc = liveSnaps.user;
+                if (!LIVE_KEYS.every(k => liveSnaps[k])) return; // pehla data abhi aa raha hai
 
                 if (!userDoc.exists) {
                     document.getElementById('ledger-body').innerHTML = "<tr><td colspan='6' style='padding:20px; color:var(--red); font-weight:bold;'>User data not found.</td></tr>";
@@ -500,9 +527,9 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
+            startLiveListeners();
             setupHeader(); 
-            fetchLiveHistory(); 
-            setInterval(fetchLiveHistory, 10000);
+            setInterval(fetchLiveHistory, 10000); // ab sirf hisaab lagata hai (0 reads) — frozen ledger/adjustment timer ke liye
         });
     </script>
 </body>

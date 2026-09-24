@@ -103,62 +103,129 @@ window.checkSession = () => {
     return session ? JSON.parse(session) : null;
 };
 
-// 4. ROBUST Telegram Notification Logic (100% Guaranteed Delivery)
-window.sendTelegramNotification = async (subAdminId, type, userName, amount) => {
-    try {
-        const adminDoc = await db.collection("admins").doc(subAdminId).get();
-        if (!adminDoc.exists) return;
+// 4. TELEGRAM NOTIFICATION — SIRF DEPOSIT / WITHDRAWAL
+// Persistent queue: jab tak message Telegram par chala nahi jata, background me baar-baar
+// bhejta rahega. Page band/reload ho jaye tab bhi queue localStorage me bachi rehti hai aur
+// agli baar koi bhi page khulte hi wahin se dobara bhejna shuru ho jata hai.
+const TG_QUEUE_KEY = 'telegramQueue_v1';
+const TG_TAB_ID = Math.random().toString(36).slice(2);
+window._tgWaiters = window._tgWaiters || {};
 
-        const data = adminDoc.data();
+function tgReadQueue() {
+    try { return JSON.parse(localStorage.getItem(TG_QUEUE_KEY) || '[]'); } catch (e) { return []; }
+}
+function tgWriteQueue(q) {
+    try { localStorage.setItem(TG_QUEUE_KEY, JSON.stringify(q)); } catch (e) {}
+}
+function tgUpdate(id, patch) {
+    tgWriteQueue(tgReadQueue().map(e => e.id === id ? Object.assign({}, e, patch) : e));
+}
+function tgFinish(id, ok) {
+    tgWriteQueue(tgReadQueue().filter(e => e.id !== id));
+    const w = window._tgWaiters[id];
+    if (w) { delete window._tgWaiters[id]; w(ok); }
+}
+
+// Ek attempt: 'sent' (chali gayi) | 'drop' (kabhi nahi jayegi, config galat) | 'retry' (dobara koshish)
+async function tgTrySend(entry) {
+    try {
+        // Admin ka bot token/chatId ek baar padho, phir memory se — retry par dobara Firebase read nahi hoga
+        window._tgAdminCache = window._tgAdminCache || {};
+        let data = window._tgAdminCache[entry.subAdminId];
+        if (!data) {
+            const adminDoc = await db.collection("admins").doc(entry.subAdminId).get();
+            if (!adminDoc.exists) return 'drop';
+            data = adminDoc.data();
+            window._tgAdminCache[entry.subAdminId] = data;
+        }
         const botToken = data.botToken;
         const chatId = data.chatId;
-
         if (!botToken || !chatId) {
             console.log("Telegram details missing for SubAdmin");
-            return; 
+            return 'drop';
         }
 
-        const message = `🔔 *New Transaction Request!*\n\n` +
-                        `👤 *User:* ${userName}\n` +
-                        `📌 *Type:* ${type}\n` +
-                        `💰 *Amount:* ₹${amount}\n\n` +
-                        `👉 Check your panel to process.`;
+        const text = entry.plain
+            ? `🔔 New Transaction Request!\n\n👤 User: ${entry.userName}\n📌 Type: ${entry.type}\n💰 Amount: ₹${entry.amount}\n\n👉 Check your panel to process.`
+            : `🔔 *New Transaction Request!*\n\n` +
+              `👤 *User:* ${entry.userName}\n` +
+              `📌 *Type:* ${entry.type}\n` +
+              `💰 *Amount:* ₹${entry.amount}\n\n` +
+              `👉 Check your panel to process.`;
 
-      const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-        const payload = { chat_id: chatId, text: message, parse_mode: "Markdown" };
+        const payload = { chat_id: chatId, text: text };
+        if (!entry.plain) payload.parse_mode = "Markdown";
 
-        let attempt = 1;
-        const maxAttempts = 10;
-        let success = false;
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-        while (attempt <= maxAttempts && !success) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (response.ok) {
-                    console.log(`Telegram notification sent successfully on attempt ${attempt}!`);
-                    success = true;
-                } else {
-                    console.warn(`Telegram send failed (Attempt ${attempt}): HTTP ${response.status}`);
-                }
-            } catch (fetchError) {
-                console.warn(`Telegram fetch error (Attempt ${attempt}):`, fetchError);
-            }
+        if (response.ok) return 'sent';
 
-            if (!success) {
-                const waitTime = Math.min(2000 * Math.pow(1.5, attempt - 1), 15000); 
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-                attempt++;
-            }
-        }
+        console.warn(`Telegram send failed: HTTP ${response.status}`);
+        // Username me _ * jaise characters se Markdown fail ho sakta hai -> plain text me dobara bhejo
+        if (response.status === 400 && !entry.plain) { tgUpdate(entry.id, { plain: true }); return 'retry'; }
+        if ([400, 401, 403, 404].includes(response.status)) return 'drop'; // token/chat galat — retry se fayda nahi
+        return 'retry'; // 429, 5xx etc — dobara try
     } catch (e) {
-        console.error("Telegram Initialization Error:", e);
+        console.warn("Telegram fetch error:", e);
+        return 'retry'; // net/network issue — dobara try
+    }
+}
+
+window.processTelegramQueue = async function() {
+    if (window._tgBusy) { window._tgAgain = true; return; }
+    window._tgBusy = true;
+    try {
+        const now = Date.now();
+        for (const item of tgReadQueue()) {
+            if ((item.nextTry || 0) > now || (item.lock || 0) > now) continue;
+
+            // Dusre tab se duplicate na jaye — pehle claim karo
+            tgUpdate(item.id, { lock: now + 30000, owner: TG_TAB_ID });
+            const fresh = tgReadQueue().find(e => e.id === item.id);
+            if (!fresh || fresh.owner !== TG_TAB_ID) continue;
+
+            const res = await tgTrySend(fresh);
+            if (res === 'sent') {
+                console.log(`Telegram notification sent (attempts: ${(fresh.attempts || 0) + 1})`);
+                tgFinish(item.id, true);
+            } else if (res === 'drop') {
+                tgFinish(item.id, false);
+            } else {
+                const n = (fresh.attempts || 0) + 1;
+                const wait = Math.min(2000 * Math.pow(1.5, n - 1), 30000);
+                tgUpdate(item.id, { attempts: n, lock: 0, nextTry: Date.now() + wait });
+            }
+        }
+    } finally {
+        window._tgBusy = false;
+        if (window._tgAgain) { window._tgAgain = false; setTimeout(window.processTelegramQueue, 0); }
     }
 };
+
+// Sirf deposit/withdrawal ki notification. Promise tab resolve hota hai jab message
+// Telegram par chala jaye (true) — agar caller `await` karta hai toh submit tab complete hoga.
+window.sendTelegramNotification = (subAdminId, type, userName, amount) => {
+    const t = String(type || '').toLowerCase();
+    if (!t.includes('deposit') && !t.includes('withdraw')) return Promise.resolve(false);
+
+    const id = 'tg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const q = tgReadQueue();
+    q.push({ id: id, subAdminId: subAdminId, type: type, userName: userName, amount: amount, ts: Date.now(), attempts: 0, nextTry: 0, lock: 0 });
+    tgWriteQueue(q);
+
+    const p = new Promise(resolve => { window._tgWaiters[id] = resolve; });
+    window.processTelegramQueue();
+    return p;
+};
+
+// Background retry: page khulte hi, har 5 sec, aur net wapas aate hi
+setTimeout(() => window.processTelegramQueue(), 2000);
+setInterval(() => window.processTelegramQueue(), 5000);
+window.addEventListener('online', () => window.processTelegramQueue());
 
 window.getTrueTime = () => {
     return Date.now();
@@ -171,6 +238,11 @@ window.runBackgroundCleanup = async (forceUserId = null) => {
     const session = window.checkSession();
     const uid = forceUserId || (session ? session.id : null);
     if (!uid) return;
+
+    // Har page load par user doc na padhna pade — 6 ghante me sirf ek baar check
+    const checkKey = 'lastCleanupCheck_' + uid;
+    if (Date.now() - parseInt(localStorage.getItem(checkKey) || '0') < 6 * 60 * 60 * 1000) return;
+    localStorage.setItem(checkKey, String(Date.now()));
 
     try {
         const userRef = db.collection("users").doc(uid);
@@ -229,6 +301,22 @@ setTimeout(() => {
 // ==========================================
 const COINFLIP_CYCLE_TIME = 15000;
 
+// Recovery lock — same tab ya dusre tab me ek hi baar settle ho, aur fail hone par retry ho
+window._recBusy = window._recBusy || {};
+function recoveryStart(key) {
+    if (window._recBusy[key]) return null;
+    const st = localStorage.getItem(key) || '';
+    if (st && st !== 'paid' && st !== 'retry' && !st.startsWith('busy:')) return 'done';
+    if (st.startsWith('busy:') && Date.now() - parseInt(st.slice(5)) < 60000) return null;
+    window._recBusy[key] = true;
+    if (st !== 'paid') localStorage.setItem(key, 'busy:' + Date.now());
+    return st;
+}
+function recoveryEnd(key, state) {
+    delete window._recBusy[key];
+    localStorage.setItem(key, state);
+}
+
 async function coinflipFetchRoundResult(roundId, isDemo) {
     let chaos1 = Math.sin(roundId * 12.9898 + 78.233) * 43758.5453;
     let randVal1 = chaos1 - Math.floor(chaos1);
@@ -261,18 +349,20 @@ window.recoverPendingCoinflipBet = async function() {
 
     const pending = JSON.parse(pendingRaw);
     const nowRoundId = Math.floor(Date.now() / COINFLIP_CYCLE_TIME);
-    if (pending.roundId >= nowRoundId) return; // round abhi bhi live hai — coinflip.html khud handle karega
+    if (Date.now() < (pending.roundId + 1) * COINFLIP_CYCLE_TIME + 10000) return; // round live ya abhi khatam — coinflip.html ko 10 sec do
 
     const settledKey = `settledCoinflipRound_${session.id}_${pending.roundId}`;
-    if (localStorage.getItem(settledKey)) { localStorage.removeItem(pendingKey); return; }
-    localStorage.setItem(settledKey, '1');
+    const st = recoveryStart(settledKey);
+    if (st === null) return;
+    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
+    let paid = (st === 'paid');
 
     try {
         const outcome = await coinflipFetchRoundResult(pending.roundId, session.isDemo);
         const won = pending.side === outcome;
         const winAmount = won ? (pending.amount * 2) : 0;
 
-        if (won) {
+        if (won && !paid) {
             if (session.isDemo) {
                 const freshSession = window.checkSession();
                 freshSession.balance = parseFloat(freshSession.balance || 0) + winAmount;
@@ -280,6 +370,8 @@ window.recoverPendingCoinflipBet = async function() {
             } else {
                 await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmount) });
             }
+            paid = true;
+            localStorage.setItem(settledKey, 'paid');
         }
 
         if (!session.isDemo) {
@@ -288,17 +380,19 @@ window.recoverPendingCoinflipBet = async function() {
                 sidePicked: pending.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
+
+        recoveryEnd(settledKey, 'done');
+        localStorage.removeItem(pendingKey);
     } catch (e) {
         console.log("Coinflip recovery error:", e);
+        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, dobara try hoga
     }
-
-    localStorage.removeItem(pendingKey);
 };
 
-// Har page load hote hi 1.5 second baad check karo
-setTimeout(() => {
+// Har 4 second me check karo (page load par bhi turant chalega)
+setInterval(() => {
     window.recoverPendingCoinflipBet();
-}, 1500);
+}, 4000);
 
 // ==========================================
 // 7. GLOBAL PENDING LOST CHICKEN (EGG) BET RECOVERY
@@ -354,18 +448,20 @@ window.recoverPendingChickenBet = async function() {
 
     const pending = JSON.parse(pendingRaw);
     const nowRoundId = Math.floor(Date.now() / CHICKEN_CYCLE_TIME);
-    if (parseInt(pending.roundId) >= nowRoundId) return; // round abhi bhi live hai — game.html khud handle karega
+    if (Date.now() < (parseInt(pending.roundId) + 1) * CHICKEN_CYCLE_TIME + 10000) return; // round live ya abhi khatam — game.html ko 10 sec do
 
     const settledKey = `settledRound_${session.id}_${pending.roundId}`;
-    if (localStorage.getItem(settledKey)) { localStorage.removeItem(pendingKey); return; }
-    localStorage.setItem(settledKey, '1');
+    const st = recoveryStart(settledKey);
+    if (st === null) return;
+    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
+    let paid = (st === 'paid');
 
     try {
         const outcome = await chickenFetchRoundOutcome(pending.roundId);
         const won = pending.side === outcome;
         const winAmt = won ? pending.amount * 1.9 : 0;
 
-        if (won) {
+        if (won && !paid) {
             if (session.isDemo) {
                 const freshSession = window.checkSession();
                 freshSession.balance = parseFloat(freshSession.balance || 0) + winAmt;
@@ -373,9 +469,18 @@ window.recoverPendingChickenBet = async function() {
             } else {
                 await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
             }
+            paid = true;
+            localStorage.setItem(settledKey, 'paid');
         }
 
-        // game.html ke "Your Bet History (Last 5)" panel ke liye bhi local record sync kar do
+        if (!session.isDemo) {
+            await db.collection("chicken_history").add({
+                userId: session.id, betAmount: pending.amount, winAmount: winAmt,
+                selectedSide: pending.side, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        // game.html ke "Your Bet History (Last 5)" panel ke liye local record
         const profitStr = won ? `+₹${(pending.amount * 0.9).toFixed(2)}` : `-₹${pending.amount.toFixed(2)}`;
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const histKey = `chicken_history_${session.id}`;
@@ -384,22 +489,17 @@ window.recoverPendingChickenBet = async function() {
         hist = hist.slice(0, 5);
         localStorage.setItem(histKey, JSON.stringify(hist));
 
-        if (!session.isDemo) {
-            await db.collection("chicken_history").add({
-                userId: session.id, betAmount: pending.amount, winAmount: winAmt,
-                selectedSide: pending.side, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
+        recoveryEnd(settledKey, 'done');
+        localStorage.removeItem(pendingKey);
     } catch (e) {
         console.log("Chicken recovery error:", e);
+        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, dobara try hoga
     }
-
-    localStorage.removeItem(pendingKey);
 };
 
-setTimeout(() => {
+setInterval(() => {
     window.recoverPendingChickenBet();
-}, 1500);
+}, 4000);
 // ==========================================
 // 8. GLOBAL PENDING SIXER (AVIATOR) BET RECOVERY
 // Agar sixer me bet lock hone ke baad (TAKEOFF phase) tab/app band ho gaya ho
@@ -418,8 +518,9 @@ window.recoverPendingSixerBet = async function() {
     if (!pending.timestamp || (Date.now() - pending.timestamp) < 40000) return; // round abhi khatam nahi hua hoga — sixer.html khud handle karega
 
     const settledKey = `settledSixerBet_${pending.timestamp}`;
-    if (localStorage.getItem(settledKey)) { localStorage.removeItem('pendingSixerBet'); return; }
-    localStorage.setItem(settledKey, '1');
+    const st = recoveryStart(settledKey);
+    if (st === null) return;
+    if (st === 'done') { localStorage.removeItem('pendingSixerBet'); return; }
 
     try {
         if (!session.isDemo) {
@@ -428,13 +529,52 @@ window.recoverPendingSixerBet = async function() {
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
+        recoveryEnd(settledKey, 'done');
+        localStorage.removeItem('pendingSixerBet');
     } catch (e) {
         console.log("Sixer recovery error:", e);
+        recoveryEnd(settledKey, 'retry'); // pending rahegi, dobara try hoga
     }
-
-    localStorage.removeItem('pendingSixerBet');
 };
 
-setTimeout(() => {
+setInterval(() => {
     window.recoverPendingSixerBet();
-}, 1500);
+}, 4000);
+
+// ==========================================
+// 9. GLOBAL PENDING OVER OUT BET RECOVERY
+// Over Out me bet start hote hi kat jati hai. Round beech me chhoda (app/tab band)
+// toh heartbeat 60 sec se purana ho jata hai -> loss entry history me chhap jati hai.
+// ==========================================
+window.recoverPendingOveroutBet = async function(force) {
+    const session = window.checkSession();
+    if (!session || session.isDemo) return;
+
+    const pendingKey = `pendingOveroutBet_${session.id}`;
+    const pendingRaw = localStorage.getItem(pendingKey);
+    if (!pendingRaw) return;
+
+    const pending = JSON.parse(pendingRaw);
+    if (!force && (Date.now() - (pending.beat || pending.ts || 0)) < 60000) return; // round abhi live hai
+
+    const settledKey = `settledOveroutBet_${session.id}_${pending.ts}`;
+    const st = recoveryStart(settledKey);
+    if (st === null) return;
+    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
+
+    try {
+        await db.collection("overout_history").add({
+            userId: session.id, betAmount: pending.amount, cashoutMult: 0, winAmount: 0,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        recoveryEnd(settledKey, 'done');
+        localStorage.removeItem(pendingKey);
+    } catch (e) {
+        console.log("Over Out recovery error:", e);
+        recoveryEnd(settledKey, 'retry');
+    }
+};
+
+setInterval(() => {
+    window.recoverPendingOveroutBet();
+}, 4000);

@@ -454,7 +454,7 @@
       } else if (elapsedTotal < (PHASE_BET + PHASE_SPIN)) {
           gamePhase = 'SPINNING';
           
-          if (!hasStartedSpin) {
+         if (!hasStartedSpin) {
               hasStartedSpin = true;
               currentRoundResult = null; 
 
@@ -548,39 +548,45 @@
       if (inputBetAmount > realBalance) { showToastMsg("INSUFFICIENT BALANCE!"); return; }
       if (activeBet) return; 
       
-      const betData = { side: pickedSide, amount: inputBetAmount, roundId: currentRoundId };
-      
-      if (userSession.isDemo) {
-          realBalance -= inputBetAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
-      } else {
-          await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(-inputBetAmount) });
-          const targetRoundId = currentRoundId;
-          await db.collection("round_bets").doc(targetRoundId.toString()).set({
-              [pickedSide]: firebase.firestore.FieldValue.increment(inputBetAmount)
-          }, { merge: true });
-      }
+     const betData = { side: pickedSide, amount: inputBetAmount, roundId: currentRoundId };
+      const betAmt = inputBetAmount;
 
-      // Bet localStorage me bhi save karo — tab band/reload/background hone pe bhi
-      // recoverPendingCoinflipBet() isko settle kar payega.
+      // PEHLE pending save + lock (double-tap bhi nahi hoga), PHIR balance kaato.
+      // Beech me tab band hua toh bhi entry recover hogi.
       localStorage.setItem(COINFLIP_PENDING_KEY, JSON.stringify(betData));
-
       activeBet = betData;
       inputBetAmount = 0; betAmountEl.textContent = "0.00";
+
+      if (userSession.isDemo) {
+          realBalance -= betAmt; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession));
+      } else {
+          try {
+              await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(-betAmt) });
+          } catch (e) {
+              // Balance nahi kata toh pending bhi hata do, warna bina kate settle ho jayegi
+              localStorage.removeItem(COINFLIP_PENDING_KEY);
+              activeBet = null;
+              showToastMsg("BET FAILED, TRY AGAIN!");
+              return;
+          }
+          try {
+              await db.collection("round_bets").doc(betData.roundId.toString()).set({
+                  [betData.side]: firebase.firestore.FieldValue.increment(betAmt)
+              }, { merge: true });
+          } catch (e) { console.log("round_bets update failed:", e); }
+      }
   });
   // Agar tab band/reload/background ho jaye bet place hone ke baad, result aane se pehle —
   // ye us missed round ko wapas fetch karke settle karta hai, taaki balance bina kisi
   // ledger entry ke kabhi "chupke se" na kate.
   async function recoverPendingCoinflipBet() {
       const pendingRaw = localStorage.getItem(COINFLIP_PENDING_KEY);
-      if (!pendingRaw) return;
+      if (!pendingRaw || activeBet) return;
       const pending = JSON.parse(pendingRaw);
       const nowRoundId = Math.floor(getTrueTime() / CYCLE_TIME);
       if (pending.roundId >= nowRoundId) return; // round abhi bhi live hai, normal gameLoop hi handle karega
 
-      const settledKey = `settledCoinflipRound_${userSession.id}_${pending.roundId}`;
-      if (localStorage.getItem(settledKey)) { localStorage.removeItem(COINFLIP_PENDING_KEY); return; }
-      localStorage.setItem(settledKey, '1');
-
+      // settled-check ab processWinnings me hota hai (lock + retry ke saath)
       activeBet = pending;
       await fetchRoundResult(pending.roundId);
       await processWinnings(currentRoundResult, true);
@@ -588,39 +594,51 @@
 
   async function processWinnings(outcome, isRecovery = false) {
       if (!activeBet) return;
-      const won = activeBet.side === outcome;
-      const winAmount = won ? (activeBet.amount * 2) : 0;
+      const bet = activeBet;
+      const won = bet.side === outcome;
+      const winAmount = won ? (bet.amount * 2) : 0;
 
       if (!isRecovery) {
-          floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${activeBet.amount.toFixed(2)}`;
+          floatingAmount.textContent = won ? `+₹${winAmount.toFixed(2)}` : `-₹${bet.amount.toFixed(2)}`;
           floatingAmount.className = `floating-amount ${won ? 'pop-win' : 'pop-lose'}`;
       }
 
       if (userSession.isDemo) {
           if (won) { realBalance += winAmount; userSession.balance = realBalance; localStorage.setItem('userSession', JSON.stringify(userSession)); }
-      } else {
-          // Sirf last 3 history entries rakhni hain — naya sabse upar, purana 4th apne aap hat jayega
-          const newEntry = { side: activeBet.side, amount: activeBet.amount, outcome: outcome, won: won };
-          const newHistory = [newEntry, ...firestoreHistoryMirror].slice(0, 3);
+          addToHistory(bet.side, bet.amount, outcome, won);
+          localStorage.removeItem(COINFLIP_PENDING_KEY);
+          activeBet = null;
+          return;
+      }
 
+      // Real user: payout + history dono step-by-step track hote hain (fail hua toh retry, double payout nahi)
+      const settledKey = `settledCoinflipRound_${userSession.id}_${bet.roundId}`;
+      const st = recoveryStart(settledKey);
+      if (st === null) return; // koi aur (app.js) abhi settle kar raha hai
+      if (st === 'done') { localStorage.removeItem(COINFLIP_PENDING_KEY); activeBet = null; return; }
+      let paid = (st === 'paid');
+
+      try {
+          // Sirf last 3 history entries rakhni hain — naya sabse upar
+          const newHistory = [{ side: bet.side, amount: bet.amount, outcome: outcome, won: won }, ...firestoreHistoryMirror].slice(0, 3);
           const updatePayload = { recentCoinflipHistory: newHistory };
-          if (won) updatePayload.balance = firebase.firestore.FieldValue.increment(winAmount);
-
+          if (won && !paid) updatePayload.balance = firebase.firestore.FieldValue.increment(winAmount);
           await db.collection("users").doc(userSession.id).update(updatePayload);
-      }
+          if (won) { paid = true; localStorage.setItem(settledKey, 'paid'); }
 
-      if (!userSession.isDemo) {
-          db.collection("coinflip_history").add({
-              userId: userSession.id, betAmount: activeBet.amount, winAmount: winAmount,
-              sidePicked: activeBet.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          await db.collection("coinflip_history").add({
+              userId: userSession.id, betAmount: bet.amount, winAmount: winAmount,
+              sidePicked: bet.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
           });
-      }
-      
-      addToHistory(activeBet.side, activeBet.amount, outcome, won);
-      localStorage.removeItem(COINFLIP_PENDING_KEY);
-      activeBet = null; 
-  }
 
+          recoveryEnd(settledKey, 'done');
+          localStorage.removeItem(COINFLIP_PENDING_KEY);
+          activeBet = null;
+      } catch (e) {
+          console.log("Coinflip settle error:", e);
+          recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, app.js dobara try karega
+      }
+  }
   function addToHistory(side, amount, outcome, won) {
       if (!userSession.isDemo) return; // Real users ke liye history ab Firestore listener se aayegi
       myHistoryData.unshift({ side, amount, outcome, won });

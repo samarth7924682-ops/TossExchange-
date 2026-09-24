@@ -239,6 +239,7 @@
             }
         });
 
+        if (!subAdmin) { window.location.replace("subadmin-login.html"); throw new Error("SubAdmin session missing"); }
         document.getElementById('sa-name').innerText = subAdmin.username;
         
         db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {

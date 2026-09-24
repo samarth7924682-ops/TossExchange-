@@ -303,12 +303,12 @@
                         let finalTeamBetOn = pnlA > pnlB ? mInfo.teamA : mInfo.teamB;
                         
                         if (isCancelled) {
-                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
+                            freshLedgerData.push({ key: 'toss_' + mId, dateObj: settledDate, placedDate: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
                         } else if (group.netResult !== 0) {
                             let isWin = group.netResult > 0;
                             let resultText = isWin ? 'Won' : 'Lost';
                             let color = isWin ? 'var(--green)' : 'var(--red)';
-                            freshLedgerData.push({ dateObj: settledDate, placedDate: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>`, balanceSnapshot: group.balanceSnapshot });
+                            freshLedgerData.push({ key: 'toss_' + mId, dateObj: settledDate, placedDate: group.dateObj, type: isWin ? 'match_profit' : 'match_loss', amount: Math.abs(group.netResult), remark: `Toss Match: ${mInfo.title}<br><span style="color:${color}; font-weight:bold;">${resultText} on (${finalTeamBetOn})</span>`, balanceSnapshot: group.balanceSnapshot });
                         }
                     } else {
                         let pnlA = 0, pnlB = 0;
@@ -358,45 +358,66 @@
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'chicken_loss', amount: Math.abs(pnl), remark: `Loss in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
                 });
 
+               // ==========================================
+                // FROZEN LEDGER — ek baar chhapi entry + uska balance hamesha wahi rahega
                 // ==========================================
-                // FIX: Calculate Balance From Current Wallet Balance
-                // ==========================================
-                
-                // 1. Fetch current wallet balance
-                let currentWalletBalance = parseFloat(userDoc.data().balance) || 0;
+                const r2 = (n) => Math.round(n * 100) / 100;
+                const CREDIT_TYPES = ['deposit', 'bonus', 'lossback', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'];
+                const signed = (it) => CREDIT_TYPES.includes(it.type) ? it.amount : -it.amount;
+                const mk = (it) => it.key || (it.type + '|' + it.dateObj.getTime() + '|' + it.amount.toFixed(2) + '|' + it.remark);
 
-               // 2. Sort by Date (Oldest First) — taaki forward balance sahi banay
-                freshLedgerData.sort((a, b) => {
+                const walletBal = r2(parseFloat(userDoc.data().balance) || 0);
+                const now = Date.now();
+                const LKEY = 'ledgerFrozen_' + user.id;
+                let frozen = [];
+                try { frozen = JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { frozen = []; }
+                const known = new Set(frozen.map(f => f.k));
+
+                // Jo entries abhi frozen nahi hain — purani se nayi order me
+                const fresh = freshLedgerData.filter(it => !known.has(mk(it)));
+                fresh.sort((a, b) => {
                     let diff = a.dateObj - b.dateObj;
                     if (diff !== 0) return diff;
-                    // Same timestamp ho toh Bonus ko Deposit se pehle count karo
                     if (a.type === 'bonus' && b.type === 'deposit') return -1;
                     if (a.type === 'deposit' && b.type === 'bonus') return 1;
                     return 0;
                 });
 
-                // 3. Forward Calculate Balance — jis waqt transaction hua, uss waqt ka fixed balance
-                let tempBal = 0;
+                let bal = frozen.length ? frozen[frozen.length - 1].b : 0;
+                const tail = []; // bilkul abhi-abhi (20 sec) ki entries — thodi der baad freeze hongi
+                const addEntry = (it, force) => {
+                    bal = r2(bal + signed(it));
+                    it.histBalance = bal;
+                    if (!force && (tail.length || it.dateObj.getTime() > now - 20000)) { tail.push(it); return; }
+                    frozen.push({ k: mk(it), t: it.dateObj.getTime(), p: it.placedDate ? it.placedDate.getTime() : null, ty: it.type, a: it.amount, r: it.remark, b: bal });
+                };
 
-                freshLedgerData.forEach((item) => {
-                    if (['deposit', 'bonus', 'lossback', 'aviator_profit', 'overout_profit', 'coinflip_profit', 'chicken_profit', 'match_profit', 'match_cancelled'].includes(item.type)) { 
-                        tempBal += item.amount; 
-                    } else if (['withdraw', 'aviator_loss', 'overout_loss', 'coinflip_loss', 'chicken_loss', 'match_loss'].includes(item.type)) { 
-                        tempBal -= item.amount; 
+                // Pehli baar: agar cleanup se purane records delete ho chuke hain toh negative na dikhe
+                if (frozen.length === 0 && fresh.length) {
+                    let run = 0, minBal = 0;
+                    fresh.forEach(it => { run = r2(run + signed(it)); if (run < minBal) minBal = run; });
+                    if (minBal < 0 && walletBal - run > 0) {
+                        addEntry({ dateObj: new Date(fresh[0].dateObj.getTime() - 1000), type: 'lossback', amount: r2(walletBal - run), remark: 'Opening Balance (Old Records)' }, true);
                     }
-                    item.histBalance = tempBal;
-                });
+                }
+                fresh.forEach(it => addEntry(it, false));
 
-                // 4. Display ke liye wapas Newest First order me sort karo
-                // 4. Display ke liye wapas Newest First order me sort karo
-                freshLedgerData.sort((a, b) => {
-                    let diff = b.dateObj - a.dateObj;
-                    if (diff !== 0) return diff;
-                    // Same timestamp ho toh display me Deposit upar, Bonus neeche (calculation ke ulta)
-                    if (a.type === 'deposit' && b.type === 'bonus') return -1;
-                    if (a.type === 'bonus' && b.type === 'deposit') return 1;
-                    return 0;
-                });
+                // Wallet vs ledger check — 90 sec tak same difference rahe toh missing entry adjust
+                const hasPending = !!(localStorage.getItem('pendingCoinflipBet_' + user.id) || localStorage.getItem('pendingBet_' + user.id) || localStorage.getItem('pendingSixerBet'));
+                const diff = r2(walletBal - bal);
+                if (Math.abs(diff) < 0.01 || hasPending || targetUserId || activeExposure > 0 || tail.length) {
+                    window._mmDiff = null;
+                } else if (window._mmDiff !== diff) {
+                    window._mmDiff = diff; window._mmSince = now;
+                } else if (now - window._mmSince >= 90000) {
+                    addEntry({ dateObj: new Date(now), type: diff > 0 ? 'lossback' : 'withdraw', amount: Math.abs(diff), remark: 'Balance Adjustment (Missing Entry)' }, true);
+                    window._mmDiff = null;
+                }
+
+                try { localStorage.setItem(LKEY, JSON.stringify(frozen)); } catch (e) {}
+
+                // Display: newest upar
+                freshLedgerData = frozen.map(f => ({ dateObj: new Date(f.t), placedDate: f.p ? new Date(f.p) : undefined, type: f.ty, amount: f.a, remark: f.r, histBalance: f.b })).concat(tail).reverse();
 
                 // ==========================================
 

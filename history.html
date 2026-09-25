@@ -333,7 +333,7 @@
 
                     if (t.status === 'approved') {
                         let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : (t.type === 'lossback' ? (t.remark || 'Lossback') : 'Approved Withdrawal'));
-                        freshLedgerData.push({ dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
+                        freshLedgerData.push({ key: 'txn_' + doc.id, dateObj: docDate, type: t.type, amount: parseFloat(t.amount) || 0, remark: remarkText });
                     } else if (t.status === 'pending' && t.type === 'withdraw') {
                         lockedWithdrawals += parseFloat(t.amount) || 0;
                     }
@@ -412,24 +412,24 @@
                     let a = doc.data();
                     let docDate = (a.timestamp && typeof a.timestamp.toDate === 'function') ? a.timestamp.toDate() : new Date();
                     let pnl = parseFloat(a.winAmount || 0) > 0 ? (parseFloat(a.winAmount) - parseFloat(a.betAmount)) : -parseFloat(a.betAmount); 
-                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
-                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
+                    if (pnl > 0) freshLedgerData.push({ key: 'aviator_' + doc.id, dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
+                    else if (pnl < 0) freshLedgerData.push({ key: 'aviator_' + doc.id, dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
                 });
 
                 overoutSnap.forEach(doc => {
                     let o = doc.data();
                     let docDate = (o.timestamp && typeof o.timestamp.toDate === 'function') ? o.timestamp.toDate() : new Date();
                     let pnl = parseFloat(o.winAmount || 0) > 0 ? (parseFloat(o.winAmount) - parseFloat(o.betAmount)) : -parseFloat(o.betAmount); 
-                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
-                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
+                    if (pnl > 0) freshLedgerData.push({ key: 'overout_' + doc.id, dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
+                    else if (pnl < 0) freshLedgerData.push({ key: 'overout_' + doc.id, dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
                 });
 
                 coinflipSnap.forEach(doc => {
                     let c = doc.data();
                     let docDate = (c.timestamp && typeof c.timestamp.toDate === 'function') ? c.timestamp.toDate() : new Date();
                     let pnl = parseFloat(c.winAmount || 0) > 0 ? (parseFloat(c.winAmount) - parseFloat(c.betAmount)) : -parseFloat(c.betAmount); 
-                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
-                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+                    if (pnl > 0) freshLedgerData.push({ key: 'coinflip_' + doc.id, dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
+                   else if (pnl < 0) freshLedgerData.push({ key: 'coinflip_' + doc.id, dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
                 });
 
                 chickenSnap.forEach(doc => {
@@ -438,10 +438,9 @@
                     let betAmt = parseFloat(ch.betAmount || 0);
                     let winAmt = parseFloat(ch.winAmount || 0);
                     let pnl = winAmt > 0 ? (winAmt - betAmt) : -betAmt; 
-                    if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'chicken_profit', amount: pnl, remark: `Profit in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
-                    else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'chicken_loss', amount: Math.abs(pnl), remark: `Loss in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
-                });
-
+                    if (pnl > 0) freshLedgerData.push({ key: 'chicken_' + doc.id, dateObj: docDate, type: 'chicken_profit', amount: pnl, remark: `Profit in Lost Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
+                    else if (pnl < 0) freshLedgerData.push({ key: 'chicken_' + doc.id, dateObj: docDate, type: 'chicken_loss', amount: Math.abs(pnl), remark: `Loss in Chicken (${(ch.selectedSide||'').toUpperCase()} EGG)` });
+                    });
                // ==========================================
                 // FROZEN LEDGER — ek baar chhapi entry + uska balance hamesha wahi rahega
                 // ==========================================
@@ -502,6 +501,7 @@
 
                 // Display: newest upar
                 freshLedgerData = frozen.map(f => ({ dateObj: (f.t && !isNaN(new Date(f.t).getTime())) ? new Date(f.t) : new Date(), placedDate: f.p ? new Date(f.p) : undefined, type: f.ty, amount: f.a, remark: f.r, histBalance: f.b })).concat(tail).reverse();
+                
                 // ==========================================
 
                 masterLedgerData = freshLedgerData;

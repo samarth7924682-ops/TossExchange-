@@ -160,7 +160,7 @@
             const since = Math.max(cache.lastSync || 0, floor);
 
             const snap = await db.collection(col).where("userId", "==", uid)
-                .where("timestamp", ">", firebase.firestore.Timestamp.fromMillis(since)).get();
+                .where("timestamp", ">=", firebase.firestore.Timestamp.fromMillis(since)).get();
 
             let maxTs = cache.lastSync || 0;
             snap.forEach(doc => {

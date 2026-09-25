@@ -303,21 +303,41 @@ setTimeout(() => {
 // ==========================================
 const COINFLIP_CYCLE_TIME = 15000;
 
-// Recovery lock — same tab ya dusre tab me ek hi baar settle ho, aur fail hone par retry ho
+// Recovery lock — sirf isi tab ke andar wasteful duplicate calls rokta hai.
+// Asli race-safety (multi-tab/multi-device) ab Firestore transaction (settleOnce) se aati hai.
 window._recBusy = window._recBusy || {};
 function recoveryStart(key) {
     if (window._recBusy[key]) return null;
-    const st = localStorage.getItem(key) || '';
-    if (st && st !== 'paid' && st !== 'retry' && !st.startsWith('busy:')) return 'done';
-    if (st.startsWith('busy:') && Date.now() - parseInt(st.slice(5)) < 60000) return null;
     window._recBusy[key] = true;
-    if (st !== 'paid') localStorage.setItem(key, 'busy:' + Date.now());
-    return st;
+    return true;
 }
-function recoveryEnd(key, state) {
+function recoveryEnd(key) {
     delete window._recBusy[key];
-    localStorage.setItem(key, state);
 }
+
+// ==========================================
+// FIRESTORE-ATOMIC SETTLEMENT — balance credit + history + "settled" marker
+// ek hi transaction ke andar likhte hain. Isse 2 tabs/devices kabhi bhi
+// double payout nahi kar sakte, aur balance credit hote hi history bhi
+// guaranteed likhi jaati hai (dono ek saath ya dono nahi hoga).
+// ==========================================
+window.settleOnce = async function(settleId, userId, winAmount, historyCollection, historyData) {
+    const settleRef = db.collection("settlements").doc(settleId);
+    const userRef = db.collection("users").doc(userId);
+    const historyRef = db.collection(historyCollection).doc(settleId);
+
+    return await db.runTransaction(async (t) => {
+        const settleDoc = await t.get(settleRef);
+        if (settleDoc.exists) return { alreadySettled: true };
+
+        if (winAmount > 0) {
+            t.update(userRef, { balance: firebase.firestore.FieldValue.increment(winAmount) });
+        }
+        t.set(historyRef, Object.assign({}, historyData, { timestamp: firebase.firestore.FieldValue.serverTimestamp() }));
+        t.set(settleRef, { userId: userId, winAmount: winAmount, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        return { alreadySettled: false };
+    });
+};
 
 async function coinflipFetchRoundResult(roundId, isDemo) {
     let chaos1 = Math.sin(roundId * 12.9898 + 78.233) * 43758.5453;
@@ -354,40 +374,31 @@ window.recoverPendingCoinflipBet = async function() {
     if (Date.now() < (pending.roundId + 1) * COINFLIP_CYCLE_TIME + 10000) return; // round live ya abhi khatam — coinflip.html ko 10 sec do
 
     const settledKey = `settledCoinflipRound_${session.id}_${pending.roundId}`;
-    const st = recoveryStart(settledKey);
-    if (st === null) return;
-    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
-    let paid = (st === 'paid');
+    if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
     try {
         const outcome = await coinflipFetchRoundResult(pending.roundId, session.isDemo);
         const won = pending.side === outcome;
         const winAmount = won ? (pending.amount * 2) : 0;
 
-        if (won && !paid) {
-            if (session.isDemo) {
+        if (session.isDemo) {
+            if (won) {
                 const freshSession = window.checkSession();
                 freshSession.balance = parseFloat(freshSession.balance || 0) + winAmount;
                 localStorage.setItem('userSession', JSON.stringify(freshSession));
-            } else {
-                await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmount) });
             }
-            paid = true;
-            localStorage.setItem(settledKey, 'paid');
-        }
-
-        if (!session.isDemo) {
-            await db.collection("coinflip_history").add({
+        } else {
+            await window.settleOnce(settledKey, session.id, winAmount, 'coinflip_history', {
                 userId: session.id, betAmount: pending.amount, winAmount: winAmount,
-                sidePicked: pending.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                sidePicked: pending.side, outcome: outcome
             });
         }
 
-        recoveryEnd(settledKey, 'done');
         localStorage.removeItem(pendingKey);
     } catch (e) {
-        console.log("Coinflip recovery error:", e);
-        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, dobara try hoga
+        console.log("Coinflip recovery error:", e); // pending rahegi, dobara try hoga
+    } finally {
+        recoveryEnd(settledKey);
     }
 };
 
@@ -453,32 +464,23 @@ window.recoverPendingChickenBet = async function() {
     if (Date.now() < (parseInt(pending.roundId) + 1) * CHICKEN_CYCLE_TIME + 10000) return; // round live ya abhi khatam — game.html ko 10 sec do
 
     const settledKey = `settledRound_${session.id}_${pending.roundId}`;
-    const st = recoveryStart(settledKey);
-    if (st === null) return;
-    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
-    let paid = (st === 'paid');
+    if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
     try {
         const outcome = await chickenFetchRoundOutcome(pending.roundId);
         const won = pending.side === outcome;
         const winAmt = won ? pending.amount * 1.9 : 0;
 
-        if (won && !paid) {
-            if (session.isDemo) {
+        if (session.isDemo) {
+            if (won) {
                 const freshSession = window.checkSession();
                 freshSession.balance = parseFloat(freshSession.balance || 0) + winAmt;
                 localStorage.setItem('userSession', JSON.stringify(freshSession));
-            } else {
-                await db.collection("users").doc(session.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
             }
-            paid = true;
-            localStorage.setItem(settledKey, 'paid');
-        }
-
-        if (!session.isDemo) {
-            await db.collection("chicken_history").add({
+        } else {
+            await window.settleOnce(settledKey, session.id, winAmt, 'chicken_history', {
                 userId: session.id, betAmount: pending.amount, winAmount: winAmt,
-                selectedSide: pending.side, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                selectedSide: pending.side
             });
         }
 
@@ -491,11 +493,11 @@ window.recoverPendingChickenBet = async function() {
         hist = hist.slice(0, 5);
         localStorage.setItem(histKey, JSON.stringify(hist));
 
-        recoveryEnd(settledKey, 'done');
         localStorage.removeItem(pendingKey);
     } catch (e) {
-        console.log("Chicken recovery error:", e);
-        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, dobara try hoga
+        console.log("Chicken recovery error:", e); // pending rahegi, dobara try hoga
+    } finally {
+        recoveryEnd(settledKey);
     }
 };
 
@@ -519,23 +521,20 @@ window.recoverPendingSixerBet = async function() {
     const pending = JSON.parse(pendingRaw);
     if (!pending.timestamp || (Date.now() - pending.timestamp) < 40000) return; // round abhi khatam nahi hua hoga — sixer.html khud handle karega
 
-    const settledKey = `settledSixerBet_${pending.timestamp}`;
-    const st = recoveryStart(settledKey);
-    if (st === null) return;
-    if (st === 'done') { localStorage.removeItem('pendingSixerBet'); return; }
+    const settledKey = `settledSixerBet_${session.id}_${pending.timestamp}`;
+    if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
     try {
         if (!session.isDemo) {
-            await db.collection("aviator_history").add({
-                userId: session.id, betAmount: pending.betAmount, cashoutMult: 0, winAmount: 0,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            await window.settleOnce(settledKey, session.id, 0, 'aviator_history', {
+                userId: session.id, betAmount: pending.betAmount, cashoutMult: 0, winAmount: 0
             });
         }
-        recoveryEnd(settledKey, 'done');
         localStorage.removeItem('pendingSixerBet');
     } catch (e) {
-        console.log("Sixer recovery error:", e);
-        recoveryEnd(settledKey, 'retry'); // pending rahegi, dobara try hoga
+        console.log("Sixer recovery error:", e); // pending rahegi, dobara try hoga
+    } finally {
+        recoveryEnd(settledKey);
     }
 };
 
@@ -560,20 +559,17 @@ window.recoverPendingOveroutBet = async function(force) {
     if (!force && (Date.now() - (pending.beat || pending.ts || 0)) < 60000) return; // round abhi live hai
 
     const settledKey = `settledOveroutBet_${session.id}_${pending.ts}`;
-    const st = recoveryStart(settledKey);
-    if (st === null) return;
-    if (st === 'done') { localStorage.removeItem(pendingKey); return; }
+    if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
     try {
-        await db.collection("overout_history").add({
-            userId: session.id, betAmount: pending.amount, cashoutMult: 0, winAmount: 0,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        await window.settleOnce(settledKey, session.id, 0, 'overout_history', {
+            userId: session.id, betAmount: pending.amount, cashoutMult: 0, winAmount: 0
         });
-        recoveryEnd(settledKey, 'done');
         localStorage.removeItem(pendingKey);
     } catch (e) {
         console.log("Over Out recovery error:", e);
-        recoveryEnd(settledKey, 'retry');
+    } finally {
+        recoveryEnd(settledKey);
     }
 };
 

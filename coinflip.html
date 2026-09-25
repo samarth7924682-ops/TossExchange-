@@ -611,32 +611,28 @@
           return;
       }
 
-      // Real user: payout + history dono step-by-step track hote hain (fail hua toh retry, double payout nahi)
+      // Real user: Firestore transaction se atomically settle hota hai — isliye
+      // koi bhi tab/device kabhi bhi double payout ya duplicate history nahi kar sakta.
       const settledKey = `settledCoinflipRound_${userSession.id}_${bet.roundId}`;
-      const st = recoveryStart(settledKey);
-      if (st === null) return; // koi aur (app.js) abhi settle kar raha hai
-      if (st === 'done') { localStorage.removeItem(COINFLIP_PENDING_KEY); activeBet = null; return; }
-      let paid = (st === 'paid');
+      if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
       try {
-          // Sirf last 3 history entries rakhni hain — naya sabse upar
-          const newHistory = [{ side: bet.side, amount: bet.amount, outcome: outcome, won: won }, ...firestoreHistoryMirror].slice(0, 3);
-          const updatePayload = { recentCoinflipHistory: newHistory };
-          if (won && !paid) updatePayload.balance = firebase.firestore.FieldValue.increment(winAmount);
-          await db.collection("users").doc(userSession.id).update(updatePayload);
-          if (won) { paid = true; localStorage.setItem(settledKey, 'paid'); }
-
-          await db.collection("coinflip_history").add({
+          const result = await window.settleOnce(settledKey, userSession.id, winAmount, 'coinflip_history', {
               userId: userSession.id, betAmount: bet.amount, winAmount: winAmount,
-              sidePicked: bet.side, outcome: outcome, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+              sidePicked: bet.side, outcome: outcome
           });
 
-          recoveryEnd(settledKey, 'done');
+          if (!result.alreadySettled) {
+              const newHistory = [{ side: bet.side, amount: bet.amount, outcome: outcome, won: won }, ...firestoreHistoryMirror].slice(0, 3);
+              await db.collection("users").doc(userSession.id).update({ recentCoinflipHistory: newHistory });
+          }
+
           localStorage.removeItem(COINFLIP_PENDING_KEY);
           activeBet = null;
       } catch (e) {
-          console.log("Coinflip settle error:", e);
-          recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, app.js dobara try karega
+          console.log("Coinflip settle error:", e); // pending rahegi, app.js dobara try karega
+      } finally {
+          recoveryEnd(settledKey);
       }
   }
   function addToHistory(side, amount, outcome, won) {

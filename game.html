@@ -659,37 +659,27 @@
     if(currentActiveBet && currentActiveBet.roundId === targetRoundId && !currentActiveBet.processed) {
       const settledKey = `settledRound_${userSession.id}_${targetRoundId}`;
       const pendKey = `pendingBet_${userSession.id}`;
-      const st = recoveryStart(settledKey);
-      if (st === null) return; // app.js ya koi aur abhi settle kar raha hai
-      if (st === 'done') { currentActiveBet.processed = true; localStorage.removeItem(pendKey); renderHistoryTables(); return; }
+      if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
       const bet = currentActiveBet;
       const won = (bet.side === outcome);
       const winAmt = won ? bet.amount * 1.9 : 0;
-      let paid = (st === 'paid');
 
       if(!isOfflineRecovery) triggerCenterResultText(won, won ? winAmt : bet.amount);
 
       try {
-        if (won && !paid) {
-          if (userSession.isDemo) {
+        if (userSession.isDemo) {
+          if (won) {
             realBalance += winAmt; userSession.balance = realBalance;
             localStorage.setItem('userSession', JSON.stringify(userSession)); updateBalanceDisplay(realBalance);
-          } else if (typeof db !== 'undefined') {
-            await db.collection("users").doc(userSession.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
           }
-          paid = true;
-          localStorage.setItem(settledKey, 'paid');
-        }
-
-        // Firestore history (history.html me dikhegi) — pending tabhi hategi jab ye likh jaye
-        if (typeof db !== 'undefined' && !userSession.isDemo) {
-          await db.collection("chicken_history").add({
-            userId: userSession.id,
-            betAmount: bet.amount,
-            winAmount: won ? winAmt : 0,
-            selectedSide: bet.side,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        } else if (typeof db !== 'undefined') {
+          // Firestore transaction se atomically settle hota hai — balance credit +
+          // history ek saath likhte hain, isliye double payout ya missing history
+          // kabhi bhi possible nahi rahega, chahe kitne bhi tabs khule hon.
+          await window.settleOnce(settledKey, userSession.id, winAmt, 'chicken_history', {
+            userId: userSession.id, betAmount: bet.amount,
+            winAmount: won ? winAmt : 0, selectedSide: bet.side
           });
         }
 
@@ -698,11 +688,11 @@
         saveAndSyncBetHistory({ amount: bet.amount, side: bet.side, result: won ? 'WIN' : 'LOSS', profit: profitStr, time: timeStr, roundDisplayId: getRoundDisplayId(parseInt(targetRoundId)) });
 
         bet.processed = true;
-        recoveryEnd(settledKey, 'done');
         localStorage.removeItem(pendKey);
       } catch (e) {
-        console.log("Chicken settle error:", e);
-        recoveryEnd(settledKey, paid ? 'paid' : 'retry'); // pending rahegi, app.js dobara try karega
+        console.log("Chicken settle error:", e); // pending rahegi, app.js dobara try karega
+      } finally {
+        recoveryEnd(settledKey);
       }
     }
 

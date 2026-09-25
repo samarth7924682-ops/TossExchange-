@@ -127,42 +127,98 @@
         
         let matchDictionary = {};
         let masterLedgerData = []; 
-        // ⚡ LIVE LISTENERS — Firebase se sirf CHANGE (naya/badla hua doc) read hota hai, poora dobara nahi
+        // ⚡ LOCAL CACHE + INCREMENTAL SYNC — ek baar padha data localStorage me rehta hai.
+        // Agli baar sirf NAYA data (last-sync ke baad ka) Firestore se aata hai. 10 din se purana kabhi read/cache nahi hota.
         let liveSnaps = {};
         let matchesReady = new Promise(res => { window._resolveMatches = res; });
-        let rebuildTimer = null;
         const LIVE_KEYS = ['transactions', 'bets', 'aviator_history', 'overout_history', 'coinflip_history', 'chicken_history', 'matches', 'user'];
+        const CACHE_COLS = ['transactions', 'bets', 'aviator_history', 'overout_history', 'coinflip_history', 'chicken_history'];
+        const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
 
-        function scheduleRebuild() {
-            if (!LIVE_KEYS.every(k => liveSnaps[k])) return; // sab ka pehla data aane do
-            clearTimeout(rebuildTimer);
-            rebuildTimer = setTimeout(fetchLiveHistory, 300);
+        function cacheKey(col, uid) { return 'histCache_' + col + '_' + uid; }
+        function loadCache(col, uid) {
+            try { return JSON.parse(localStorage.getItem(cacheKey(col, uid)) || '{}'); } catch (e) { return {}; }
+        }
+        function saveCache(col, uid, cache) {
+            try { localStorage.setItem(cacheKey(col, uid), JSON.stringify(cache)); } catch (e) {}
+        }
+        function wrapTS(obj, fields) {
+            const w = Object.assign({}, obj);
+            fields.forEach(f => { if (typeof w[f] === 'number') w[f] = { toDate: () => new Date(w[f]) }; });
+            return w;
+        }
+        function fakeSnap(docsMap, tsFields) {
+            return { forEach: (cb) => Object.keys(docsMap).forEach(id => cb({ id, data: () => wrapTS(docsMap[id], tsFields) })) };
         }
 
-        function startLiveListeners() {
+        // Naya data sirf last-sync se aage ka aayega. Pehli baar (ya 10 din se purana ho gaya) sirf 10 din tak fetch hoga.
+        async function syncCollection(col, uid) {
+            const cache = loadCache(col, uid);
+            cache.docs = cache.docs || {};
+            const floor = Date.now() - TEN_DAYS_MS;
+            const since = Math.max(cache.lastSync || 0, floor);
+
+            const snap = await db.collection(col).where("userId", "==", uid)
+                .where("timestamp", ">", firebase.firestore.Timestamp.fromMillis(since)).get();
+
+            let maxTs = cache.lastSync || 0;
+            snap.forEach(doc => {
+                const d = doc.data();
+                const ms = d.timestamp ? d.timestamp.toMillis() : Date.now();
+                cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms });
+                if (ms > maxTs) maxTs = ms;
+            });
+
+            Object.keys(cache.docs).forEach(id => { if (cache.docs[id].timestamp < floor) delete cache.docs[id]; }); // 10 din se purana cache se bhi hata do
+            cache.lastSync = Math.max(maxTs, since);
+            saveCache(col, uid, cache);
+            return fakeSnap(cache.docs, ['timestamp']);
+        }
+
+        // Matches poora collection nahi — sirf un matchIds ke docs jo user ke bets me hain, wo bhi ek baar hi (settle hone ke baad permanent cache)
+        async function syncMatches(uid) {
+            const betsCache = loadCache('bets', uid);
+            const matchIds = [...new Set(Object.values(betsCache.docs || {}).map(b => b.matchId).filter(Boolean))];
+            let matchCache = {};
+            try { matchCache = JSON.parse(localStorage.getItem('matchCache') || '{}'); } catch (e) {}
+
+            const missing = matchIds.filter(id => !matchCache[id] || !matchCache[id].settledAt);
+            for (let i = 0; i < missing.length; i += 10) {
+                const chunk = missing.slice(i, i + 10);
+                const snap = await db.collection("matches").where(firebase.firestore.FieldPath.documentId(), "in", chunk).get();
+                snap.forEach(m => {
+                    const d = m.data();
+                    matchCache[m.id] = { teamA: d.teamA, teamB: d.teamB, settledAt: d.settledAt ? d.settledAt.toMillis() : null };
+                });
+            }
+            try { localStorage.setItem('matchCache', JSON.stringify(matchCache)); } catch (e) {}
+            return fakeSnap(matchCache, ['settledAt']);
+        }
+
+        async function startLiveListeners() {
             const uid = user.id;
-            const onErr = (name) => (e) => console.log('Listener error (' + name + '):', e);
 
-            ["transactions", "bets", "aviator_history", "overout_history", "coinflip_history", "chicken_history"].forEach(col => {
-                db.collection(col).where("userId", "==", uid).onSnapshot(snap => {
-                    liveSnaps[col] = snap; scheduleRebuild();
-                }, onErr(col));
-            });
-
-            db.collection("matches").onSnapshot(snap => {
-                liveSnaps.matches = snap;
-                if (window._resolveMatches) { window._resolveMatches(snap); window._resolveMatches = null; }
-                scheduleRebuild();
-            }, (e) => {
-                console.log('Listener error (matches):', e);
-                if (window._resolveMatches) { window._resolveMatches({ forEach: () => {} }); window._resolveMatches = null; }
-            });
+            for (const col of CACHE_COLS) liveSnaps[col] = await syncCollection(col, uid);
+            liveSnaps.matches = await syncMatches(uid);
+            if (window._resolveMatches) { window._resolveMatches(liveSnaps.matches); window._resolveMatches = null; }
 
             db.collection("users").doc(uid).onSnapshot(d => {
-                liveSnaps.user = d; scheduleRebuild();
-            }, onErr('user'));
+                liveSnaps.user = d; fetchLiveHistory();
+                if (d.exists) {
+                    const balEl = document.getElementById('top-bal');
+                    if (balEl) balEl.innerText = Math.floor(d.data().balance || 0).toFixed(2);
+                }
+            }, (e) => console.log('Listener error (user):', e));
 
-            // Cleanup sirf ek baar (pehle har 10 sec me chalta tha)
+            fetchLiveHistory();
+
+            // Naya data check karo har 20 sec me — ab sirf incremental (last-sync ke baad ka) read hota hai
+            setInterval(async () => {
+                for (const col of CACHE_COLS) liveSnaps[col] = await syncCollection(col, uid);
+                liveSnaps.matches = await syncMatches(uid);
+                fetchLiveHistory();
+            }, 20000);
+
             if (window.runBackgroundCleanup) window.runBackgroundCleanup(uid);
         }
 

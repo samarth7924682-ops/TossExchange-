@@ -264,11 +264,13 @@ window.runBackgroundCleanup = async (forceUserId = null) => {
             let deleteCount = 0;
 
             for (let col of collections) {
-                const snap = await db.collection(col).where("userId", "==", uid).get();
+               const snap = await db.collection(col)
+                    .where("userId", "==", uid)
+                    .where("timestamp", "<=", firebase.firestore.Timestamp.fromDate(tenDaysAgo))
+                    .get();
                 snap.forEach(doc => {
-                    let docDate = doc.data().timestamp ? doc.data().timestamp.toDate() : new Date();
                     // Sirf settled/completed data delete karo, pending chhod do
-                    if (docDate < tenDaysAgo && doc.data().status !== 'pending') {
+                    if (doc.data().status !== 'pending') {
                         batch.delete(doc.ref);
                         deleteCount++;
                     }

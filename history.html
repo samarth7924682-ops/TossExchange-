@@ -165,7 +165,7 @@
             let maxTs = cache.lastSync || 0;
             snap.forEach(doc => {
                 const d = doc.data();
-                const ms = d.timestamp ? d.timestamp.toMillis() : Date.now();
+                const ms = (d.timestamp && typeof d.timestamp.toMillis === 'function') ? d.timestamp.toMillis() : Date.now();
                 cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms });
                 if (ms > maxTs) maxTs = ms;
             });
@@ -189,7 +189,7 @@
                 const snap = await db.collection("matches").where(firebase.firestore.FieldPath.documentId(), "in", chunk).get();
                 snap.forEach(m => {
                     const d = m.data();
-                    matchCache[m.id] = { teamA: d.teamA, teamB: d.teamB, settledAt: d.settledAt ? d.settledAt.toMillis() : null };
+                    matchCache[m.id] = { teamA: d.teamA, teamB: d.teamB, settledAt: (d.settledAt && typeof d.settledAt.toMillis === 'function') ? d.settledAt.toMillis() : null };
                 });
             }
             try { localStorage.setItem('matchCache', JSON.stringify(matchCache)); } catch (e) {}
@@ -318,7 +318,7 @@
                         title: `${d.teamA} vs ${d.teamB}`, 
                         teamA: d.teamA, 
                         teamB: d.teamB,
-                        settledAt: d.settledAt ? d.settledAt.toDate() : null
+                        settledAt: (d.settledAt && typeof d.settledAt.toDate === 'function') ? d.settledAt.toDate() : null
                     };
                 });
 
@@ -329,7 +329,7 @@
                 // Process Transactions
                 txnSnap.forEach(doc => {
                     let t = doc.data();
-                    let docDate = t.timestamp ? t.timestamp.toDate() : new Date();
+                    let docDate = (t.timestamp && typeof t.timestamp.toDate === 'function') ? t.timestamp.toDate() : new Date();
 
                     if (t.status === 'approved') {
                         let remarkText = t.type === 'deposit' ? 'Approved Deposit' : (t.type === 'bonus' ? 'Deposit Bonus' : (t.type === 'lossback' ? (t.remark || 'Lossback') : 'Approved Withdrawal'));
@@ -343,7 +343,7 @@
                 let matchGroups = {};
                 betSnap.forEach(doc => {
                     let b = doc.data();
-                    let docDate = b.timestamp ? b.timestamp.toDate() : new Date();
+                    let docDate = (b.timestamp && typeof b.timestamp.toDate === 'function') ? b.timestamp.toDate() : new Date();
                     if (b.status === 'pending') return; 
 
                     if (!matchGroups[b.matchId]) {
@@ -364,7 +364,7 @@
                     if (group.status === 'settled') {
                         let isCancelled = false;
                         let pnlA = 0, pnlB = 0;
-                        let settledDate = mInfo.settledAt || group.dateObj; // Use Settled Time for history sorting
+                        let settledDate = (mInfo.settledAt && !isNaN(mInfo.settledAt.getTime())) ? mInfo.settledAt : group.dateObj; // Use Settled Time for history sorting
 
                         group.bets.forEach(b => {
                             let bAmt = parseFloat(b.amount) || 0;
@@ -410,7 +410,7 @@
               // Process Games
                 aviatorSnap.forEach(doc => {
                     let a = doc.data();
-                    let docDate = a.timestamp ? a.timestamp.toDate() : new Date();
+                    let docDate = (a.timestamp && typeof a.timestamp.toDate === 'function') ? a.timestamp.toDate() : new Date();
                     let pnl = parseFloat(a.winAmount || 0) > 0 ? (parseFloat(a.winAmount) - parseFloat(a.betAmount)) : -parseFloat(a.betAmount); 
                     if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_profit', amount: pnl, remark: `Profit in Aviator (${parseFloat(a.cashoutMult||0).toFixed(2)}x)` });
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'aviator_loss', amount: Math.abs(pnl), remark: `Loss in Aviator` });
@@ -418,7 +418,7 @@
 
                 overoutSnap.forEach(doc => {
                     let o = doc.data();
-                    let docDate = o.timestamp ? o.timestamp.toDate() : new Date();
+                    let docDate = (o.timestamp && typeof o.timestamp.toDate === 'function') ? o.timestamp.toDate() : new Date();
                     let pnl = parseFloat(o.winAmount || 0) > 0 ? (parseFloat(o.winAmount) - parseFloat(o.betAmount)) : -parseFloat(o.betAmount); 
                     if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_profit', amount: pnl, remark: `Profit in Over Out (${parseFloat(o.cashoutMult||0).toFixed(2)}x)` });
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'overout_loss', amount: Math.abs(pnl), remark: `Loss in Over Out` });
@@ -426,7 +426,7 @@
 
                 coinflipSnap.forEach(doc => {
                     let c = doc.data();
-                    let docDate = c.timestamp ? c.timestamp.toDate() : new Date();
+                    let docDate = (c.timestamp && typeof c.timestamp.toDate === 'function') ? c.timestamp.toDate() : new Date();
                     let pnl = parseFloat(c.winAmount || 0) > 0 ? (parseFloat(c.winAmount) - parseFloat(c.betAmount)) : -parseFloat(c.betAmount); 
                     if (pnl > 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_profit', amount: pnl, remark: `Profit in Coin Flip (${(c.outcome||'').toUpperCase()})` });
                     else if (pnl < 0) freshLedgerData.push({ dateObj: docDate, type: 'coinflip_loss', amount: Math.abs(pnl), remark: `Loss in Coin Flip (${(c.outcome||'').toUpperCase()})` });
@@ -434,7 +434,7 @@
 
                 chickenSnap.forEach(doc => {
                     let ch = doc.data();
-                    let docDate = ch.timestamp ? ch.timestamp.toDate() : new Date();
+                    let docDate = (ch.timestamp && typeof ch.timestamp.toDate === 'function') ? ch.timestamp.toDate() : new Date();
                     let betAmt = parseFloat(ch.betAmount || 0);
                     let winAmt = parseFloat(ch.winAmount || 0);
                     let pnl = winAmt > 0 ? (winAmt - betAmt) : -betAmt; 
@@ -473,7 +473,7 @@
                     bal = r2(bal + signed(it));
                     it.histBalance = bal;
                     if (!force && (tail.length || it.dateObj.getTime() > now - 20000)) { tail.push(it); return; }
-                    frozen.push({ k: mk(it), t: it.dateObj.getTime(), p: it.placedDate ? it.placedDate.getTime() : null, ty: it.type, a: it.amount, r: it.remark, b: bal });
+                    frozen.push({ k: mk(it), t: (it.dateObj && !isNaN(it.dateObj.getTime())) ? it.dateObj.getTime() : Date.now(), p: (it.placedDate && !isNaN(it.placedDate.getTime())) ? it.placedDate.getTime() : null, ty: it.type, a: it.amount, r: it.remark, b: bal });
                 };
 
                 // Pehli baar: agar cleanup se purane records delete ho chuke hain toh negative na dikhe
@@ -501,8 +501,7 @@
                 try { localStorage.setItem(LKEY, JSON.stringify(frozen)); } catch (e) {}
 
                 // Display: newest upar
-                freshLedgerData = frozen.map(f => ({ dateObj: new Date(f.t), placedDate: f.p ? new Date(f.p) : undefined, type: f.ty, amount: f.a, remark: f.r, histBalance: f.b })).concat(tail).reverse();
-
+                freshLedgerData = frozen.map(f => ({ dateObj: (f.t && !isNaN(new Date(f.t).getTime())) ? new Date(f.t) : new Date(), placedDate: f.p ? new Date(f.p) : undefined, type: f.ty, amount: f.a, remark: f.r, histBalance: f.b })).concat(tail).reverse();
                 // ==========================================
 
                 masterLedgerData = freshLedgerData;

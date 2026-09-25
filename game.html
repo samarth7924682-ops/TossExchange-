@@ -486,8 +486,12 @@
     if(!selectedSide) return alert("Pehle Egg Select Karein!");
     if(inputBetAmount <= 0) return alert("Please Enter/Select Bet Amount!");
     if(inputBetAmount > realBalance) return alert("INSUFFICIENT BALANCE!");
-    
+    if(currentActiveBet || document.getElementById('placeBetBtn').disabled) return;
+
     playClickSound();
+    document.getElementById('placeBetBtn').disabled = true;
+    document.getElementById('placeBetBtn').innerText = "PLACING...";
+
     const roundId = Math.floor(getSyncedNow() / 30000).toString();
     currentActiveBet = { side: selectedSide, amount: inputBetAmount, roundId: roundId };
     localStorage.setItem(`pendingBet_${userSession.id}`, JSON.stringify(currentActiveBet));
@@ -500,7 +504,7 @@
       db.collection("round_bets").doc(roundId).set({ [selectedSide]: firebase.firestore.FieldValue.increment(inputBetAmount) }, { merge: true });
     }
 
-    document.getElementById('placeBetBtn').disabled = true; document.getElementById('placeBetBtn').innerText = `PLACED (₹${inputBetAmount} ON ${selectedSide})`;
+    document.getElementById('placeBetBtn').innerText = `PLACED (₹${inputBetAmount} ON ${selectedSide})`;
     inputBetAmount = 0; document.getElementById('betAmountInput').value = 0;
   }
 

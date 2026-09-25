@@ -135,7 +135,8 @@
         const CACHE_COLS = ['transactions', 'bets', 'aviator_history', 'overout_history', 'coinflip_history', 'chicken_history'];
         const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
 
-        function cacheKey(col, uid) { return 'histCache_' + col + '_' + uid; }
+        const CACHE_VERSION = 'v2'; // isse badhane se purani (corrupted) cache automatically ignore ho jaati hai
+        function cacheKey(col, uid) { return 'histCache_' + CACHE_VERSION + '_' + col + '_' + uid; }
         function loadCache(col, uid) {
             try { return JSON.parse(localStorage.getItem(cacheKey(col, uid)) || '{}'); } catch (e) { return {}; }
         }
@@ -451,7 +452,7 @@
 
                 const walletBal = r2(parseFloat(userDoc.data().balance) || 0);
                 const now = Date.now();
-                const LKEY = 'ledgerFrozen_' + user.id;
+                const LKEY = 'ledgerFrozen_' + CACHE_VERSION + '_' + user.id;
                 let frozen = [];
                 try { frozen = JSON.parse(localStorage.getItem(LKEY) || '[]'); } catch (e) { frozen = []; }
                 const known = new Set(frozen.map(f => f.k));

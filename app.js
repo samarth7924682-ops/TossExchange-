@@ -521,7 +521,7 @@ window.recoverPendingSixerBet = async function() {
     const pending = JSON.parse(pendingRaw);
     if (!pending.timestamp || (Date.now() - pending.timestamp) < 40000) return; // round abhi khatam nahi hua hoga — sixer.html khud handle karega
 
-    const settledKey = `settledSixerBet_${session.id}_${pending.timestamp}`;
+    const settledKey = `settledSixerBet_${session.id}_${pending.roundIndex}`;
     if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai
 
     try {

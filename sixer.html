@@ -600,22 +600,27 @@ function triggerWinPopup(winAmt, mult) {
         triggerCoinAnimation();
         triggerWinPopup(winAmt, multAtCashout);
         betState = 'IDLE';
-        localStorage.removeItem('pendingSixerBet');
         
         if (user.isDemo) {
+            localStorage.removeItem('pendingSixerBet');
             realBalance += winAmt;
             user.balance = realBalance;
             localStorage.setItem('userSession', JSON.stringify(user));
             document.getElementById('balanceText').innerText = Math.floor(realBalance).toFixed(2);
             isCashingOut = false;
         } else {
-            setTimeout(() => { 
-                db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(winAmt) });
+            // Firestore transaction se atomically settle hota hai — balance + history
+            // ek saath likhte hain, aur pending flag TABHI hataate hain jab write
+            // confirm ho jaye. Isse tab band hone par entry kabhi miss nahi hogi.
+            const settledKey = `settledSixerBet_${user.id}_${currentRoundIndex}`;
+            window.settleOnce(settledKey, user.id, winAmt, 'aviator_history', {
+                userId: user.id, betAmount: myBetAmount, cashoutMult: multAtCashout, winAmount: winAmt, closingBalance: realBalance + winAmt
+            }).then(() => {
+                localStorage.removeItem('pendingSixerBet');
+            }).catch((e) => {
+                console.log("Cashout settle error:", e); // pending flag rehne do — recovery isse pick karega
+            }).finally(() => {
                 isCashingOut = false;
-            }, 800); 
-
-            db.collection("aviator_history").add({
-                userId: user.id, betAmount: myBetAmount, cashoutMult: multAtCashout, winAmount: winAmt, closingBalance: realBalance + winAmt, timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
 
@@ -773,15 +778,23 @@ function triggerWinPopup(winAmt, mult) {
                 updateRecentHistoryUI(); updateFakeBets(globalState.cp);
             }
 
-            if (betState === 'IN_PLAY') {
+        if (betState === 'IN_PLAY') {
                 betState = 'IDLE'; 
-                localStorage.removeItem('pendingSixerBet');
                 actionBtn.className = 'action-btn btn-bet'; 
                 actionBtn.innerHTML = `<span style="font-size: 16px; font-weight: 900;">BET</span>`; 
                 actionBtn.disabled = false; betInput.disabled = false;
                 
                 if (!user.isDemo) {
-                    db.collection("aviator_history").add({ userId: user.id, betAmount: myBetAmount, cashoutMult: 0, winAmount: 0, closingBalance: realBalance, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                    const settledKey = `settledSixerBet_${user.id}_${currentRoundIndex}`;
+                    window.settleOnce(settledKey, user.id, 0, 'aviator_history', {
+                        userId: user.id, betAmount: myBetAmount, cashoutMult: 0, winAmount: 0, closingBalance: realBalance
+                    }).then(() => {
+                        localStorage.removeItem('pendingSixerBet');
+                    }).catch((e) => {
+                        console.log("Crash settle error:", e); // pending flag rehne do — recovery isse pick karega
+                    });
+                } else {
+                    localStorage.removeItem('pendingSixerBet');
                 }
             }
         }
@@ -1039,27 +1052,14 @@ function triggerWinPopup(winAmt, mult) {
     }
     
 
-    // RECOVERY: agar tab/chrome band hote waqt bet chalu tha aur round khatam ho gaya, use loss maan kar history me likho
-    async function recoverPendingSixerBet() {
-        try {
-            const pendingRaw = localStorage.getItem('pendingSixerBet');
-            if (!pendingRaw) return;
-            const pending = JSON.parse(pendingRaw);
-            const state = getGlobalGameState();
-            if (pending.roundIndex === state.roundIndex) return;
-            localStorage.removeItem('pendingSixerBet');
-            if (!user.isDemo) {
-                await db.collection("aviator_history").add({
-                    userId: user.id, betAmount: pending.betAmount, cashoutMult: 0, winAmount: 0,
-                    closingBalance: realBalance, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            }
-        } catch(e) { console.log("recoverPendingSixerBet error:", e); }
-    }
+// RECOVERY: ab sirf app.js ka global recovery use hota hai (Firestore transaction
+    // se atomic + cross-tab safe). Pehle yahan ek alag local function tha jo isi naam
+    // (recoverPendingSixerBet) ka hone ki wajah se app.js ke fixed version ko silently
+    // overwrite kar deta tha — isliye recovery reliably kabhi kaam nahi kar raha tha.
 
     // START GAME
     syncServerTime().then(() => {
-    recoverPendingSixerBet();
+    if (window.recoverPendingSixerBet) window.recoverPendingSixerBet();
     requestAnimationFrame(gameTick);
 });
 

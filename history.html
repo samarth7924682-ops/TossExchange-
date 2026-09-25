@@ -196,10 +196,31 @@
             return fakeSnap(matchCache, ['settledAt']);
         }
 
+        // bets collection alag hai: status 'pending' -> 'won'/'lost'/'cancelled' admin se update hota hai,
+        // lekin timestamp badalta nahi — isliye normal incremental (timestamp-based) sync isse kabhi
+        // pakad nahi paata. Isliye jo bets abhi 'pending' cached hain unko har baar explicitly re-check karte hain.
+        async function syncBets(uid) {
+            await syncCollection('bets', uid); // naye bets (timestamp-based) pehle normally sync ho jaayein
+            const cache = loadCache('bets', uid);
+            const pendingIds = Object.keys(cache.docs).filter(id => cache.docs[id].status === 'pending');
+
+            for (let i = 0; i < pendingIds.length; i += 10) {
+                const chunk = pendingIds.slice(i, i + 10);
+                const snap = await db.collection("bets").where(firebase.firestore.FieldPath.documentId(), "in", chunk).get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const ms = (d.timestamp && typeof d.timestamp.toMillis === 'function') ? d.timestamp.toMillis() : Date.now();
+                    cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms });
+                });
+            }
+            saveCache('bets', uid, cache);
+            return fakeSnap(cache.docs, ['timestamp']);
+        }
+
         async function startLiveListeners() {
             const uid = user.id;
 
-            for (const col of CACHE_COLS) liveSnaps[col] = await syncCollection(col, uid);
+            for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
             liveSnaps.matches = await syncMatches(uid);
             if (window._resolveMatches) { window._resolveMatches(liveSnaps.matches); window._resolveMatches = null; }
 
@@ -215,7 +236,7 @@
 
             // Naya data check karo har 20 sec me — ab sirf incremental (last-sync ke baad ka) read hota hai
             setInterval(async () => {
-                for (const col of CACHE_COLS) liveSnaps[col] = await syncCollection(col, uid);
+                for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
                 liveSnaps.matches = await syncMatches(uid);
                 fetchLiveHistory();
             }, 20000);

@@ -34,6 +34,14 @@
         .u-bal-exp { font-size: 9.5px; color: #7a6b4a; text-align: right; line-height: 1.2;}
         .u-bal-exp strong { color: var(--green); font-size: 11.5px;}
         .exp-clickable { color: var(--red); font-weight: bold; cursor: pointer; text-decoration: underline; padding: 0 2px; }
+        .u-refer { font-size: 9px; color: #a07c1f; font-weight: 800; margin-top: 1px; }
+
+        /* 🌟 REFER SUMMARY STRIP 🌟 */
+        .refer-strip { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; border-bottom: 1px solid #f3e6b8; font-size: 11.5px; }
+        .refer-strip:last-child { border-bottom: none; }
+        .refer-code-name { font-weight: 900; color: #2b2410; }
+        .refer-code-meta { font-size: 9.5px; color: #7a6b4a; }
+        .refer-code-total { font-weight: 900; color: var(--green); text-align: right; }
 
         /* 🌟 THIN FULL-NAME BUTTONS (GOLDEN OUTLINE) 🌟 */
         .u-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -96,7 +104,18 @@
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
             <input type="number" id="new-bal" placeholder="Opening Balance">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="new-refer" placeholder="Refer Code (optional)">
             <button class="btn-small" style="background:var(--green); width:100%; padding: 7px;" onclick="createNewUser()">CREATE</button>
+        </div>
+    </div>
+
+    <!-- 🌟 REFER CODE SUMMARY — sirf subadmin ko dikhta hai, kitna deposit kaunse refer code se aaya 🌟 -->
+    <div class="card" style="max-width: 100%;" id="refer-summary-card">
+        <h3><span>📊 Refer Code Summary</span></h3>
+        <div id="refer-summary-list">
+            <p style="text-align:center; color:#888; font-size:11px; margin: 4px 0;">Koi refer code use nahi hua abhi tak.</p>
         </div>
     </div>
 
@@ -210,10 +229,15 @@
                 let lockBtnText = isLocked ? 'Unlock' : 'Lock';
                 let nameIcon = isLocked ? '🚫' : '👤';
 
+                const referBadge = u.referCode ? `<div class="u-refer">🔗 Ref: ${u.referCode}</div>` : '';
+
                 return `
                     <div class="user-card" data-username="${u.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
                         <div class="u-info">
-                            <span class="u-name">${nameIcon} ${u.username}</span>
+                            <div>
+                                <span class="u-name">${nameIcon} ${u.username}</span>
+                                ${referBadge}
+                            </div>
                             <div class="u-bal-exp">
                                 <strong>🪙 ${Math.floor(u.balance || 0)}</strong><br>
                                 Exp: <span class="exp-clickable" onclick="openExpModal('${userId}', '${u.username}')">${Math.floor(totalExposure)}</span>
@@ -275,6 +299,42 @@
                 }, err => console.log("Users listener error:", err));
         }
 
+        // 🌟 REFER CODE SUMMARY — live listener, sirf is subadmin ke refer codes 🌟
+        function loadReferSummary() {
+            db.collection("referStats").where("subAdminId", "==", subAdmin.id)
+                .onSnapshot(snap => {
+                    const rows = snap.docs.map(doc => doc.data())
+                        .sort((a, b) => (b.totalDeposit || 0) - (a.totalDeposit || 0));
+                    renderReferSummary(rows);
+                }, err => console.log("Refer stats listener error:", err));
+        }
+
+        function renderReferSummary(rows) {
+            const wrap = document.getElementById('refer-summary-list');
+            if (!rows.length) {
+                wrap.innerHTML = '<p style="text-align:center; color:#888; font-size:11px; margin: 4px 0;">Koi refer code use nahi hua abhi tak.</p>';
+                return;
+            }
+            wrap.innerHTML = rows.map(r => {
+                const dep = r.totalDeposit || 0;
+                const wdr = r.totalWithdrawal || 0;
+                const net = dep - wdr;
+                return `
+                <div class="refer-strip">
+                    <div>
+                        <div class="refer-code-name">🔗 ${r.code}</div>
+                        <div class="refer-code-meta">${r.userCount || 0} user${(r.userCount || 0) === 1 ? '' : 's'}</div>
+                    </div>
+                    <div class="refer-code-total">
+                        <div>🪙 Dep: ${Math.floor(dep)}</div>
+                        <div style="color:var(--red); font-weight:900;">🪙 Wdr: ${Math.floor(wdr)}</div>
+                        <div style="color:#4a3a0f; font-size:9.5px; font-weight:900;">Net: ${Math.floor(net)}</div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
       // 🌟 LOCK / UNLOCK USER LOGIC 🌟
         async function toggleLock(userId, currentStatus, username) {
             const newStatus = !currentStatus;
@@ -289,7 +349,7 @@
             }
         }
 
-        // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
+       // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
         // 🌟 DELETE USER & REFUND BALANCE LOGIC 🌟
         async function delUser(id, username, balance) { 
             if(confirm(`🚨 WARNING: Are you sure you want to permanently delete user '${username}'?\n\n💰 Their remaining balance of 🪙${Math.floor(balance)} will be REFUNDED to your Admin Wallet.`)) {
@@ -404,6 +464,18 @@
                     remark: 'Manual by Admin'
                 });
 
+                // 🌟 REFER CODE STATS — deposit aur withdrawal dono track hote hain
+                const referredUser = allUsers.find(u => u.id === userId);
+                if (referredUser && referredUser.referCode) {
+                    const referStatRef = db.collection("referStats").doc(subAdmin.id + '_' + referredUser.referCode.toLowerCase());
+                    batch.set(referStatRef, {
+                        code: referredUser.referCode,
+                        subAdminId: subAdmin.id,
+                        totalDeposit: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : 0),
+                        totalWithdrawal: firebase.firestore.FieldValue.increment(type === 'withdraw' ? val : 0)
+                    }, { merge: true });
+                }
+
                await batch.commit();
                 alert(`✅ Transaction Successful! ${val} coins updated.`);
                 // 🌟 Live listener khud hi balance update dikha dega — dobara load karne ki zaroorat nahi
@@ -428,6 +500,7 @@
             const username = document.getElementById('new-user').value.trim();
             const password = document.getElementById('new-pass').value.trim();
             const balance = Math.floor(parseFloat(document.getElementById('new-bal').value) || 0);
+            const referCode = document.getElementById('new-refer').value.trim();
             
             if(!username || !password) { alert("Username and Password are required!"); return; }
             if(/\s/.test(username)) { alert("❌ Username me space allowed nahi hai!"); return; }
@@ -450,6 +523,7 @@
                     locked: false,
                     passwordChanged: false, 
                     linkedSubAdminId: subAdmin.id,
+                    referCode: referCode || null,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
@@ -469,6 +543,18 @@
                     });
                 }
 
+                // 🌟 REFER CODE STATS — sirf subadmin ko dikhta hai, kis code se kitna deposit aaya
+                if (referCode) {
+                    const referStatRef = db.collection("referStats").doc(subAdmin.id + '_' + referCode.toLowerCase());
+                    batch.set(referStatRef, {
+                        code: referCode,
+                        subAdminId: subAdmin.id,
+                        userCount: firebase.firestore.FieldValue.increment(1),
+                        totalDeposit: firebase.firestore.FieldValue.increment(balance),
+                        totalWithdrawal: firebase.firestore.FieldValue.increment(0)
+                    }, { merge: true });
+                }
+
                 await batch.commit();
                 alert("✅ User Created Successfully!");
                 document.getElementById('new-user').value = '';
@@ -476,6 +562,7 @@
                 // 🌟 RESTORING DEFAULT PASSWORD AFTER CREATION 🌟
                 document.getElementById('new-pass').value = '123456';
                 document.getElementById('new-bal').value = '';
+                document.getElementById('new-refer').value = '';
                 // 🌟 Live listener naya user khud hi list me dikha dega — dobara load karne ki zaroorat nahi
             } catch(e) { alert("Error creating user."); }
         }
@@ -490,6 +577,7 @@
         }
 
         loadMyUsers();
+        loadReferSummary();
         window.createNewUser = createNewUser;
         window.toggleLock = toggleLock;
         window.delUser = delUser;

@@ -145,7 +145,7 @@
         }
         function wrapTS(obj, fields) {
             const w = Object.assign({}, obj);
-            fields.forEach(f => { if (typeof w[f] === 'number') w[f] = { toDate: () => new Date(w[f]) }; });
+            fields.forEach(f => { const v = w[f]; if (typeof v === 'number') w[f] = { toDate: () => new Date(v) }; });
             return w;
         }
         function fakeSnap(docsMap, tsFields) {

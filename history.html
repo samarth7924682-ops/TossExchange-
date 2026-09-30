@@ -506,16 +506,12 @@
                 }
                 fresh.forEach(it => addEntry(it, false));
 
-                // Wallet vs ledger check — 90 sec tak same difference rahe toh missing entry adjust
-                const hasPending = !!(localStorage.getItem('pendingCoinflipBet_' + user.id) || localStorage.getItem('pendingBet_' + user.id) || localStorage.getItem('pendingSixerBet'));
+                // 🌟 PASSBOOK RULE: ab koi bhi synthetic "Balance Adjustment" entry kabhi
+                // ledger me inject nahi hogi. Jo entry ek baar chhap gayi, sirf wahi rahegi —
+                // kabhi khud-ba-khud badlegi ya nayi fake entry nahi banegi.
                 const diff = r2(walletBal - bal);
-                if (Math.abs(diff) < 0.01 || hasPending || targetUserId || activeExposure > 0 || tail.length) {
-                    window._mmDiff = null;
-                } else if (window._mmDiff !== diff) {
-                    window._mmDiff = diff; window._mmSince = now;
-                } else if (now - window._mmSince >= 90000) {
-                    addEntry({ dateObj: new Date(now), type: diff > 0 ? 'lossback' : 'withdraw', amount: Math.abs(diff), remark: 'Balance Adjustment (Missing Entry)' }, true);
-                    window._mmDiff = null;
+                if (Math.abs(diff) >= 0.01) {
+                    console.log('⚠️ Wallet/Ledger mismatch (sirf debugging ke liye, user ko nahi dikhega):', diff);
                 }
 
                 try { localStorage.setItem(LKEY, JSON.stringify(frozen)); } catch (e) {}

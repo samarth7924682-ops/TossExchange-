@@ -226,6 +226,9 @@
 
             db.collection("users").doc(uid).onSnapshot(d => {
                 liveSnaps.user = d; fetchLiveHistory();
+                const uSig = d.exists ? ((d.data().balance || 0) + '|' + (d.data().totalExposure || 0)) : '';
+                if (window._userSig !== undefined && window._userSig !== uSig) scheduleSync(); // sirf balance/exposure badle tab
+                window._userSig = uSig;
                 if (d.exists) {
                     const balEl = document.getElementById('top-bal');
                     if (balEl) balEl.innerText = Math.floor(d.data().balance || 0).toFixed(2);
@@ -234,12 +237,23 @@
 
             fetchLiveHistory();
 
-            // Naya data check karo har 20 sec me — ab sirf incremental (last-sync ke baad ka) read hota hai
-            setInterval(async () => {
-                for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
-                liveSnaps.matches = await syncMatches(uid);
-                fetchLiveHistory();
-            }, 20000);
+            // Koi polling nahi — sync sirf tab jab balance/exposure badle (neeche listener se)
+            let syncTimer = null, syncBusy = false;
+            window._scheduleSync = scheduleSync; // dusre listener se bhi sync trigger ho sake
+            window.addEventListener('storage', (e) => { if (e.key && e.key.indexOf('pending') === 0) scheduleSync(); });
+            function scheduleSync() {
+                clearTimeout(syncTimer);
+                syncTimer = setTimeout(async () => {
+                    if (syncBusy) { scheduleSync(); return; }
+                    syncBusy = true;
+                    try {
+                        for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
+                        liveSnaps.matches = await syncMatches(uid);
+                        fetchLiveHistory();
+                    } catch (e) { console.log('Sync error:', e); }
+                    syncBusy = false;
+                }, 2000);
+            }
 
             if (window.runBackgroundCleanup) window.runBackgroundCleanup(uid);
         }
@@ -268,8 +282,11 @@
             const matchSnap = await matchesReady; // matches listener ka pehla snapshot, dobara read nahi
             let matchNames = {};
             matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
-
-            db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").onSnapshot(snap => {
+db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").onSnapshot(snap => {
+                const pSig = snap.docs.map(x => x.id).sort().join(',');
+                if (window._pendSig !== undefined && window._pendSig !== pSig && window._scheduleSync) window._scheduleSync(); // bet settle/void hua
+                window._pendSig = pSig;
+            
                 let matchPnL = {}; 
                 snap.forEach(doc => {
                     let b = doc.data();
@@ -408,7 +425,7 @@
                         // Jis team par Net PnL highest tha, history mein wahi winning team aayegi
                         let finalTeamBetOn = pnlA > pnlB ? mInfo.teamA : mInfo.teamB;
                         
-                        if (isCancelled) {
+                      if (isCancelled && group.netResult === 0) {
                             freshLedgerData.push({ key: 'toss_' + mId, dateObj: settledDate, placedDate: group.dateObj, type: 'match_cancelled', amount: 0, remark: `Refund: Match Voided<br><span style="color:#777">${mInfo.title}</span>` });
                         } else if (group.netResult !== 0) {
                             let isWin = group.netResult > 0;
@@ -522,9 +539,14 @@ const SKEY = 'ledgerSeen_' + CACHE_VERSION + '_' + user.id;
                     window._mmDiff = null;
                 } else if (window._mmDiff !== diff) {
                     window._mmDiff = diff; window._mmSince = now;
-                } else if (now - window._mmSince >= 90000) {
-                    addEntry({ dateObj: new Date(now), type: diff > 0 ? 'lossback' : 'withdraw', amount: Math.abs(diff), remark: 'Balance Adjustment (Missing Entry)' }, true);
-                    window._mmDiff = null;
+                } else if (now - window._mmSince >= 30000) {
+                    if (window._mmChecked !== diff) {
+                        window._mmChecked = diff;
+                        if (window._scheduleSync) window._scheduleSync(); // entry late to nahi, ek baar confirm
+                    } else if (now - window._mmSince >= 45000) {
+                        addEntry({ dateObj: new Date(now), type: diff > 0 ? 'lossback' : 'withdraw', amount: Math.abs(diff), remark: 'Balance Adjustment (Missing Entry)' }, true);
+                        window._mmDiff = null; window._mmChecked = null;
+                    }
                 }
 
                 try { localStorage.setItem(LKEY, JSON.stringify(frozen)); } catch (e) {}

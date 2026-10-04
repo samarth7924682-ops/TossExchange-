@@ -326,7 +326,7 @@ window.settleOnce = async function(settleId, userId, winAmount, historyCollectio
     const userRef = db.collection("users").doc(userId);
     const historyRef = db.collection(historyCollection).doc(settleId);
 
-    return await db.runTransaction(async (t) => {
+    const res = await db.runTransaction(async (t) => {
         const settleDoc = await t.get(settleRef);
         if (settleDoc.exists) return { alreadySettled: true };
 
@@ -337,6 +337,8 @@ window.settleOnce = async function(settleId, userId, winAmount, historyCollectio
         t.set(settleRef, { userId: userId, winAmount: winAmount, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         return { alreadySettled: false };
     });
+    if (window._scheduleSync) window._scheduleSync(); // history khuli ho toh nayi entry turant pakad le
+    return res;
 };
 
 async function coinflipFetchRoundResult(roundId, isDemo) {

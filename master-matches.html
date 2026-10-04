@@ -71,8 +71,7 @@
 
         <div class="input-group">
             <label>🔒 Auto-Lock Betting — <span id="lockMinsLabel" style="color:var(--primary);">30</span> Minute(s) Before Toss</label>
-            <input type="range" id="lockMins" min="1" max="45" step="1" value="30" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
-        </div>
+            <input type="range" id="lockMins" min="0" max="45" step="1" value="30" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
 
         <div class="input-group" style="border-top: 2px dashed #ddd; padding-top: 10px;">
             <label>🏆 Predict Pro Winner (optional — sirf Predict Pro site ke liye)</label>
@@ -82,6 +81,42 @@
         <button class="btn btn-primary" id="publishBtn" onclick="createMatch()">Publish Live Match</button>
         <button class="btn" style="background:#888; margin-top:6px;" onclick="cancelEdit()">✖ Cancel Edit</button>
     </div>
+
+
+    <!-- 1b. BULK ADD MATCHES -->
+    <div class="card" style="border-top: 3px solid var(--accent);">
+        <h3 class="card-title">📋 Bulk Add Matches (poora schedule paste karo)</h3>
+        <div class="input-group">
+            <label>Schedule paste karo. Format 1: TEAM A 🆚 TEAM B [01:15 AM] &nbsp;|&nbsp; Format 2: site ki table seedha copy-paste (naam + 2 time + ratio, 2nd time use hoga)</label>
+            <textarea id="bulkText" rows="8" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; font-size:13px; font-family:inherit;" placeholder="WHITE ROCK WARRIORS 🆚 VANCOUVER ANCHORS [01:15 AM]&#10;MISSISSAUGA MASTERS 🆚 TORONTO SIXERS [04:00 AM]"></textarea>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;">
+                <label>Schedule ki Date</label>
+                <select id="bulkDate">
+                    <option value="0">Today</option>
+                    <option value="1">Tomorrow</option>
+                    <option value="2">Day After Tomorrow</option>
+                </select>
+            </div>
+            <div class="input-group" style="flex:1;">
+                <label>📌 Source</label>
+                <select id="bulkSource">
+                    <option value="Crex">Crex</option>
+                    <option value="PlayCode">PlayCode</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;"><label>Odds A (%)</label><input type="number" id="bulkOddsA" value="98"></div>
+            <div class="input-group" style="flex:1;"><label>Odds B (%)</label><input type="number" id="bulkOddsB" value="98"></div>
+            <div class="input-group" style="flex:1;"><label>Lock (min pehle)</label><input type="number" id="bulkLock" value="30" min="0" max="45"></div>
+        </div>
+        <button class="btn btn-warning" style="width:100%;" onclick="previewBulk()">👁 Preview</button>
+        <div id="bulkPreview" style="margin-top:10px;"></div>
+        <button class="btn btn-primary" id="bulkPublishBtn" style="display:none; margin-top:6px;" onclick="publishBulk()">Publish All Selected</button>
+    </div>
+    <div id="bulkResult" style="margin-top:12px;"></div>
 
     <!-- 2. LIVE MATCHES -->
     <div class="card" style="border-top: 3px solid var(--green);">
@@ -258,7 +293,304 @@
             document.getElementById('predictWinner').value = '';
         }
 
+
+        // ==========================================
+        // 1b. BULK ADD LOGIC
+        // ==========================================
+        let bulkParsed = [];
+
+        // ---- Naam saaf karne ke helpers ----
+        const BULK_SMALL_WORDS = new Set(['of', 'and', 'the', 'de', 'da', 'del', 'la']);
+
+        // "PAKISTAN W" -> "Pakistan Women", "FORT CITY CHAMPIONS" -> "Fort City Champions"
+        // Chhote acronym (CC, XI, HC, RCS, KZN) aur mixed-case naam (HKU Sundries) jaise ke taise rehte hain
+        function formatTeamName(raw) {
+            let toks = String(raw).trim().replace(/\s+/g, ' ').split(' ').filter(Boolean);
+            let women = false;
+            if (toks.length > 1 && /^\(?w\)?$/i.test(toks[toks.length - 1])) { women = true; toks.pop(); }
+            const letters = toks.join('').replace(/[^A-Za-z]/g, '');
+            const allCaps = letters.length > 0 && letters === letters.toUpperCase();
+            toks = toks.map((t, i) => {
+                const l = t.replace(/[^A-Za-z]/g, '');
+                if (!l) return t;
+                if (allCaps) {
+                    if (l.length >= 4 && /[AEIOU]/.test(l)) {
+                        return t.toLowerCase().replace(/(^|[-'])([a-z])/g, (m, pre, c) => pre + c.toUpperCase());
+                    }
+                    return t;
+                }
+                if (/^[a-z]/.test(t)) {
+                    if (i > 0 && BULK_SMALL_WORDS.has(t)) return t;
+                    return t.charAt(0).toUpperCase() + t.slice(1);
+                }
+                return t;
+            });
+            let name = toks.join(' ');
+            if (women && !/\bwomen$/i.test(name)) name += ' Women';
+            return name;
+        }
+
+        // Team A: shuru ka "Match 12" hatao
+        function cleanTeamA(a) {
+            return a.replace(/^\s*Match\s*\d+\s*[:.\-]?\s*/i, '').trim();
+        }
+
+        // Team B: pehle comma tak ka hissa hi team ka naam hai, uske baad ka tournament/venue info hatao
+        function cleanTeamB(b) {
+            let t = b.split(',')[0];
+            t = t.replace(/\s+Day\s*\d+.*$/i, '');
+            t = t.replace(/\s+\d+(?:st|nd|rd|th)\s+Match\b.*$/i, '');
+            t = t.replace(/\s+Match\s*\d+\b.*$/i, '');
+            t = t.replace(/\s+Pool\s+[A-Z]\b.*$/i, '');
+            t = t.replace(/\s*\(N\)\s*$/i, '');
+            return t.trim();
+        }
+
+        function parseBulkTime(str) {
+            const m = String(str).match(/(\d{1,2})[:.](\d{2})\s*(AM|PM)?/i);
+            if (!m) return null;
+            let h = parseInt(m[1]), min = parseInt(m[2]);
+            const ap = (m[3] || '').toUpperCase();
+            if (ap === 'PM' && h < 12) h += 12;
+            if (ap === 'AM' && h === 12) h = 0;
+            if (h > 23 || min > 59) return null;
+            return { h, min };
+        }
+
+       // Do formats samajhta hai:
+        //  1) TEAM A 🆚 TEAM B [01:15 AM]
+        //  2) 7 <tab> Match 12 Team A vs Team B, tournament... <tab> 08:25 AM <tab> 08:30 AM <tab> 97%80%
+        //     (yaha 1st time aur ratio ignore, 2nd time toss time maana jata hai)
+        function parseBulkLine(line) {
+            let desc, timeStr;
+            let m = line.match(/^(.*?)\s*\[\s*(\d{1,2}[:.]\d{2}\s*(?:AM|PM)?)\s*\]\s*$/i);
+            if (m) {
+                desc = m[1]; timeStr = m[2];
+            } else {
+                m = line.match(/^(.*?)\s+(\d{1,2}:\d{2}\s*[AP]M)\s+(\d{1,2}:\d{2}\s*[AP]M)\s+\d+(?:\.\d+)?\s*%\s*\d+(?:\.\d+)?\s*%\s*$/i);
+                if (!m) return null;
+                desc = m[1].replace(/^\s*\d{1,3}\s+/, ''); // shuru ka serial number
+                timeStr = m[3];
+            }
+            const t = parseBulkTime(timeStr);
+            if (!t) return null;
+
+            const sm = desc.match(/\s*🆚\s*|\s+vs\.?\s+|\s+v\s+/i);
+            if (!sm) return null;
+            const rawA = desc.slice(0, sm.index);
+            const rawB = desc.slice(sm.index + sm[0].length);
+
+            let bClean = cleanTeamB(rawB);
+            const trunc = /(…|\.{2,})\s*$/.test(bClean) || /(…|\.{2,})\s*$/.test(rawA.trim());
+            bClean = bClean.replace(/\s*(…|\.{2,})\s*$/, '');
+            const aClean = cleanTeamA(rawA).replace(/\s*(…|\.{2,})\s*$/, '');
+            if (!aClean || !bClean) return null;
+
+            return { teamA: formatTeamName(aClean), teamB: formatTeamName(bClean), h: t.h, min: t.min, trunc };
+        }
+
+        // Open matches me se same teams (ya reverse order) wala match dhundo
+        function findOpenMatch(teamA, teamB) {
+            const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+            const nA = norm(teamA), nB = norm(teamB);
+            return cachedOpenMatches.find(m => {
+                const mA = norm(m.teamA), mB = norm(m.teamB);
+                return (mA === nA && mB === nB) || (mA === nB && mB === nA);
+            }) || null;
+        }
+
+        function previewBulk() {
+            const lines = document.getElementById('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
+            if (!lines.length) { alert('Pehle schedule paste karo!'); return; }
+
+            const baseOffset = parseInt(document.getElementById('bulkDate').value);
+            const lv = parseInt(document.getElementById('bulkLock').value);
+            const lockMins = isNaN(lv) ? 30 : Math.min(Math.max(lv, 0), 45); // 0 min bhi allowed
+            const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+            const fmt = ms => new Date(ms).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+            const seen = new Set();
+            const now = Date.now();
+            let dayAdd = 0, lastMin = -1;
+            bulkParsed = [];
+
+            lines.forEach(line => {
+                const p = parseBulkLine(line);
+                if (!p) { bulkParsed.push({ raw: line, status: 'invalid', note: '❌ Format samajh nahi aaya', checked: false }); return; }
+
+                // time pichle match se kam ho gaya (jaise 10:30 PM ke baad 01:00 AM) => agla din
+                const totalMin = p.h * 60 + p.min;
+                if (lastMin !== -1 && totalMin < lastMin) dayAdd++;
+                lastMin = totalMin;
+
+                const d = new Date();
+                d.setDate(d.getDate() + baseOffset + dayAdd);
+                d.setHours(p.h, p.min, 0, 0);
+
+                const item = { raw: line, teamA: p.teamA, teamB: p.teamB, date: d, tossMs: d.getTime(), lockMs: d.getTime() - lockMins * 60000, status: 'ok', note: '', checked: true };
+
+                const key = [norm(p.teamA), norm(p.teamB)].sort().join('|');
+                const existing = findOpenMatch(p.teamA, p.teamB);
+
+                if (norm(p.teamA) === 'tbc' || norm(p.teamB) === 'tbc') { item.status = 'tbc'; item.note = '⏭ TBC — skip'; item.checked = false; }
+                else if (seen.has(key)) { item.status = 'dup'; item.note = '⚠️ Isi list me dobara hai — skip'; item.checked = false; }
+                else if (existing) {
+                    // Match pehle se open hai => naya time alag ho to sirf time update hoga
+                    item.teamA = existing.teamA; item.teamB = existing.teamB;
+                    if (Math.abs(existing.tossTimeMs - item.tossMs) < 60000) { item.status = 'same'; item.note = '✔ Time pehle se yehi hai — skip'; item.checked = false; }
+                    else if (item.tossMs < now) { item.status = 'past'; item.note = '⏰ Naya time nikal chuka — update skip'; item.checked = false; }
+                    else { item.status = 'update'; item.existingId = existing.id; item.note = `🔄 Time update: ${fmt(existing.tossTimeMs)} → ${fmt(item.tossMs)}`; }
+                }
+                else if (item.tossMs < now) { item.status = 'past'; item.note = '⏰ Time nikal chuka'; item.checked = false; }
+                if (p.trunc && item.status === 'ok') { item.status = 'trunc'; item.note = '✂️ Naam adhura (…) — poora naam bharo, phir tick karo'; item.checked = false; }
+                seen.add(key);
+                bulkParsed.push(item);
+            });
+            renderBulkPreview();
+        }
+
+        function esc(v) { return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+        function renderBulkPreview() {
+            const box = document.getElementById('bulkPreview');
+            const inp = 'width:100%; padding:5px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; font-size:12px;';
+            box.innerHTML = bulkParsed.map((it, i) => {
+                if (it.status === 'invalid') return `<div class="match-row" style="border-left-color:#c62828;"><div style="font-size:12px;">${esc(it.raw)}</div><div style="font-size:11px; color:#c62828;">${it.note}</div></div>`;
+                const when = it.date.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                const col = (it.status === 'ok' || it.status === 'update') ? 'var(--green)' : '#f57c00';
+                return `<div class="match-row" style="display:flex; gap:8px; align-items:center; border-left-color:${col};">
+                    <input type="checkbox" id="bulkChk${i}" style="width:auto;" ${it.checked ? 'checked' : ''} onchange="bulkParsed[${i}].checked=this.checked; updateBulkCount()">
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; gap:4px; align-items:center;">
+                            <input type="text" style="${inp}" value="${esc(it.teamA)}" onchange="bulkParsed[${i}].teamA=this.value.trim()">
+                            <span style="font-size:11px; color:#888;">vs</span>
+                            <input type="text" style="${inp}" value="${esc(it.teamB)}" onchange="bulkParsed[${i}].teamB=this.value.trim()">
+                        </div>
+                        <div style="margin-top:3px;"><span class="time-badge">${when}</span> <span style="font-size:11px; color:#888;">${it.note}</span></div>
+                    </div></div>`;
+            }).join('');
+            document.getElementById('bulkPublishBtn').style.display = 'block';
+            updateBulkCount();
+        }
+
+        function updateBulkCount() {
+            const n = bulkParsed.filter(x => x.checked).length;
+            const btn = document.getElementById('bulkPublishBtn');
+            btn.innerText = `Publish ${n} Match${n === 1 ? '' : 'es'}`;
+            btn.disabled = n === 0;
+            // Copy Schedule button preview me hi dikhao (publish se pehle bhi) — tick/untick ke saath update hota hai
+            bulkSchedule = bulkParsed.filter(x => x.checked || x.status === 'same').sort((a, b) => a.tossMs - b.tossMs);
+            renderBulkResult();
+        }
+
+        async function publishBulk() {
+            const sel = bulkParsed.filter(x => x.checked);
+            if (!sel.length) return;
+            const source = document.getElementById('bulkSource').value;
+            const oddsA = document.getElementById('bulkOddsA').value;
+            const oddsB = document.getElementById('bulkOddsB').value;
+            const btn = document.getElementById('bulkPublishBtn');
+            btn.disabled = true; btn.innerText = 'Publishing...';
+
+            let masterOk = false, newCount = 0, updCount = 0;
+            try {
+                // Firestore batch limit 500 — chunks me bhejo
+                for (let i = 0; i < sel.length; i += 200) {
+                    const chunk = sel.slice(i, i + 200);
+                    const mBatch = db.batch();
+                    const pBatch = predictDb.batch();
+                    chunk.forEach(it => {
+                        const timeShort = it.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        if (it.existingId) {
+                            // Pehle se open match — sirf toss + lock time update
+                            mBatch.update(db.collection('matches').doc(it.existingId), {
+                                tossTimeMs: it.tossMs, lockTimeMs: it.lockMs,
+                                tossTimeStr: it.date.toLocaleString()
+                            });
+                            pBatch.set(predictDb.collection('matches').doc(it.existingId), {
+                                team1: it.teamA, team2: it.teamB, time: timeShort,
+                                timestamp: firebase.firestore.Timestamp.fromDate(it.date)
+                            }, { merge: true });
+                            updCount++;
+                        } else {
+                            const ref = db.collection('matches').doc();
+                            mBatch.set(ref, {
+                                teamA: it.teamA, teamB: it.teamB, source, oddsA, oddsB,
+                                tossTimeMs: it.tossMs, lockTimeMs: it.lockMs,
+                                tossTimeStr: it.date.toLocaleString(),
+                                predictWinner: '', status: 'open',
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            // Predict Pro me wahi doc ID
+                            pBatch.set(predictDb.collection('matches').doc(ref.id), {
+                                team1: it.teamA, team2: it.teamB, time: timeShort,
+                                timestamp: firebase.firestore.Timestamp.fromDate(it.date)
+                            }, { merge: true });
+                            newCount++;
+                        }
+                    });
+                    await mBatch.commit();
+                    masterOk = true;
+                    try { await pBatch.commit(); }
+                    catch (e) { console.error('Predict Pro bulk sync error:', e); alert('⚠️ Master me save ho gaye, lekin Predict Pro sync fail hua: ' + e.message); }
+                }
+                alert(`✅ ${newCount} naye match LIVE, ${updCount} match ka time update ho gaya!`);
+                // Copy-schedule ke liye: publish hue + pehle se live (same time) matches, time ke order me
+                bulkSchedule = bulkParsed.filter(x => x.checked || x.status === 'same').sort((a, b) => a.tossMs - b.tossMs);
+                document.getElementById('bulkText').value = '';
+                document.getElementById('bulkPreview').innerHTML = '';
+                btn.style.display = 'none';
+                bulkParsed = [];
+                renderBulkResult();
+            } catch (e) {
+                console.error(e);
+                alert('❌ Error: ' + e.message + (masterOk ? '\n(Kuch matches save ho chuke ho sakte hain — list check karo)' : ''));
+                btn.disabled = false; updateBulkCount();
+            }
+        }
         // Match row ke "EDIT" button se call hota hai — form ko match ki current values se bhar deta hai
+        // ==========================================
+        // 1c. COPY FULL SCHEDULE (publish ke baad)
+        // ==========================================
+        const SCHEDULE_LINK = 'Texch98.ink'; // link yaha badlo
+        let bulkSchedule = [];
+
+        function schedDayLabel(d) {
+            const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+            const d0 = new Date(d); d0.setHours(0, 0, 0, 0);
+            const diff = Math.round((d0 - t0) / 86400000);
+            if (diff === 0) return 'TODAY';
+            if (diff === 1) return 'TOMORROW';
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase(); // 06 OCT
+        }
+
+        function buildScheduleText(list) {
+            const rows = list.map((it, i) => {
+                const tm = it.date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                return `${i + 1} ➖ ${it.teamA} vs ${it.teamB}\n[ ${tm} ${schedDayLabel(it.date)} ]`;
+            });
+            return `TOSS EXCHANGE ⚡\nINDIA'S NO 1 TOSS BETTING PLATFORM\n\n${rows.join('\n\n')}\n\nPLACE YOUR BETS AT ${SCHEDULE_LINK}\nPLACE YOUR BETS AT ${SCHEDULE_LINK}`;
+        }
+
+        function renderBulkResult() {
+            // Copy button ab sirf Live Markets ke Today / Tomorrow header ke bagal me hai
+            const box = document.getElementById('bulkResult');
+            if (box) box.innerHTML = '';
+        }
+
+        async function copyBulkSchedule() {
+            if (!bulkSchedule.length) return;
+            const text = buildScheduleText(bulkSchedule);
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('✅ Schedule copy ho gaya! Ab paste kar do.');
+            } catch (e) {
+                // Purane browser / http page ke liye fallback
+                const ta = document.getElementById('bulkScheduleText');
+                ta.value = text; ta.select();
+                try { document.execCommand('copy'); alert('✅ Schedule copy ho gaya! Ab paste kar do.'); }
+                catch (e2) { alert('Copy nahi hua — neeche box se manually copy kar lo.'); }
+            }
+        }
         function editMatch(id, teamA, teamB, oddsA, oddsB, tossTimeMs, lockTimeMs, source, predictWinner) {
             editingMatchId = id;
             document.getElementById('tA').value = teamA;
@@ -309,6 +641,27 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             if(d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
             return "Upcoming";
         }
+        // Live Matches ke Today / Tomorrow / Upcoming header ke bagal wale button se — us section ke saare open matches copy
+        async function copyCategorySchedule(cat) {
+            const list = cachedOpenMatches
+                .filter(m => m.tossTimeMs && getCategoryByMs(m.tossTimeMs) === cat)
+                .map(m => ({ teamA: m.teamA, teamB: m.teamB, date: new Date(m.tossTimeMs) }))
+                .sort((a, b) => a.date - b.date);
+            if (!list.length) { alert('Is section me koi match nahi hai!'); return; }
+            const text = buildScheduleText(list);
+            try {
+                await navigator.clipboard.writeText(text);
+                alert(`✅ ${cat}: ${list.length} matches ka schedule copy ho gaya! Ab paste kar do.`);
+            } catch (e) {
+                // Purane browser / http page ke liye fallback
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); alert(`✅ ${cat}: ${list.length} matches ka schedule copy ho gaya! Ab paste kar do.`); }
+                catch (e2) { alert('Copy nahi hua — browser ne mana kar diya.'); }
+                document.body.removeChild(ta);
+            }
+        }
 
         let cachedOpenMatches = []; // Reminder-checker isको use karega, Firestore ko baar-baar nahi chuegā
 
@@ -343,7 +696,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             matches.forEach(m => {
                 const cat = getCategoryByMs(m.tossTimeMs);
                 if(cat !== currentCat) {
-                    list.innerHTML += `<div class="category-header">${cat}</div>`;
+                    list.innerHTML += `<div class="category-header">${cat}</div> <button style="display:inline-block; width:auto; margin:15px 0 10px 6px; padding:5px 10px; font-size:12px; background:#2e7d32; color:#fff; border:none; border-radius:4px; cursor:pointer;" onclick="copyCategorySchedule('${cat}')">📋 Copy ${cat} Schedule</button>`;
                     currentCat = cat;
                 }
 

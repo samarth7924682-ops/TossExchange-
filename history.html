@@ -157,7 +157,7 @@
             const cache = loadCache(col, uid);
             cache.docs = cache.docs || {};
             const floor = Date.now() - TEN_DAYS_MS;
-            const since = Math.max(cache.lastSync || 0, floor);
+            const since = Math.max((cache.lastSync || 0) - 120000, floor);
 
             const snap = await db.collection(col).where("userId", "==", uid)
                 .where("timestamp", ">=", firebase.firestore.Timestamp.fromMillis(since)).get();
@@ -166,11 +166,11 @@
             snap.forEach(doc => {
                 const d = doc.data();
                 const ms = (d.timestamp && typeof d.timestamp.toMillis === 'function') ? d.timestamp.toMillis() : Date.now();
-                cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms });
+                cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms, _c: Date.now() });
                 if (ms > maxTs) maxTs = ms;
             });
 
-            Object.keys(cache.docs).forEach(id => { if (cache.docs[id].timestamp < floor) delete cache.docs[id]; }); // 10 din se purana cache se bhi hata do
+            Object.keys(cache.docs).forEach(id => { const dd = cache.docs[id]; if ((dd._c || dd.timestamp) < floor && dd.status !== 'pending') delete cache.docs[id]; }); // pending bet kabhi delete nahi hoga
             cache.lastSync = Math.max(maxTs, since);
             saveCache(col, uid, cache);
             return fakeSnap(cache.docs, ['timestamp']);
@@ -210,7 +210,7 @@
                 snap.forEach(doc => {
                     const d = doc.data();
                     const ms = (d.timestamp && typeof d.timestamp.toMillis === 'function') ? d.timestamp.toMillis() : Date.now();
-                    cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms });
+                    cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms, _c: Date.now() });
                 });
             }
             saveCache('bets', uid, cache);
@@ -346,6 +346,7 @@
                 let freshLedgerData = [];
                 let lockedWithdrawals = 0;
                 let activeExposure = 0;
+                let pendingBetCount = 0;
 
                 // Process Transactions
                 txnSnap.forEach(doc => {
@@ -365,7 +366,7 @@
                 betSnap.forEach(doc => {
                     let b = doc.data();
                     let docDate = (b.timestamp && typeof b.timestamp.toDate === 'function') ? b.timestamp.toDate() : new Date();
-                    if (b.status === 'pending') return; 
+                    if (b.status === 'pending') { pendingBetCount++; return; }
 
                     if (!matchGroups[b.matchId]) {
                         matchGroups[b.matchId] = { bets: [], status: 'pending', dateObj: docDate, netResult: 0 };
@@ -486,13 +487,21 @@
                     if (a.type === 'deposit' && b.type === 'bonus') return 1;
                     return 0;
                 });
-
+const SKEY = 'ledgerSeen_' + CACHE_VERSION + '_' + user.id;
+                let seen = {};
+                try { seen = JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { seen = {}; }
+                const isStable = (it) => {
+                    const k = mk(it), sg = it.type + '|' + it.amount.toFixed(2) + '|' + it.dateObj.getTime();
+                    if (!seen[k] || seen[k].s !== sg) { seen[k] = { s: sg, t: now }; return false; }
+                    return (now - seen[k].t) >= 30000;
+                };
                 let bal = frozen.length ? frozen[frozen.length - 1].b : 0;
                 const tail = []; // bilkul abhi-abhi (20 sec) ki entries — thodi der baad freeze hongi
                 const addEntry = (it, force) => {
                     bal = r2(bal + signed(it));
                     it.histBalance = bal;
-                    if (!force && (tail.length || it.dateObj.getTime() > now - 20000)) { tail.push(it); return; }
+                    const st = force || isStable(it); // entry 30 sec same na rahe toh freeze nahi hogi
+                    if (!force && (tail.length || !st)) { tail.push(it); return; }
                     frozen.push({ k: mk(it), t: (it.dateObj && !isNaN(it.dateObj.getTime())) ? it.dateObj.getTime() : Date.now(), p: (it.placedDate && !isNaN(it.placedDate.getTime())) ? it.placedDate.getTime() : null, ty: it.type, a: it.amount, r: it.remark, b: bal });
                 };
 
@@ -506,15 +515,21 @@
                 }
                 fresh.forEach(it => addEntry(it, false));
 
-                // 🌟 PASSBOOK RULE: ab koi bhi synthetic "Balance Adjustment" entry kabhi
-                // ledger me inject nahi hogi. Jo entry ek baar chhap gayi, sirf wahi rahegi —
-                // kabhi khud-ba-khud badlegi ya nayi fake entry nahi banegi.
+                // Wallet vs ledger check — 90 sec tak same difference rahe toh missing entry adjust
+                const hasPending = !!(localStorage.getItem('pendingCoinflipBet_' + user.id) || localStorage.getItem('pendingBet_' + user.id) || localStorage.getItem('pendingSixerBet'));
                 const diff = r2(walletBal - bal);
-                if (Math.abs(diff) >= 0.01) {
-                    console.log('⚠️ Wallet/Ledger mismatch (sirf debugging ke liye, user ko nahi dikhega):', diff);
+                if (Math.abs(diff) < 0.01 || hasPending || targetUserId || pendingBetCount > 0 || lockedWithdrawals > 0 || tail.length) {
+                    window._mmDiff = null;
+                } else if (window._mmDiff !== diff) {
+                    window._mmDiff = diff; window._mmSince = now;
+                } else if (now - window._mmSince >= 90000) {
+                    addEntry({ dateObj: new Date(now), type: diff > 0 ? 'lossback' : 'withdraw', amount: Math.abs(diff), remark: 'Balance Adjustment (Missing Entry)' }, true);
+                    window._mmDiff = null;
                 }
 
                 try { localStorage.setItem(LKEY, JSON.stringify(frozen)); } catch (e) {}
+                Object.keys(seen).forEach(k => { if (now - seen[k].t > 86400000) delete seen[k]; });
+                try { localStorage.setItem(SKEY, JSON.stringify(seen)); } catch (e) {}
 
                 // Display: newest upar
                 freshLedgerData = frozen.map(f => ({ dateObj: (f.t && !isNaN(new Date(f.t).getTime())) ? new Date(f.t) : new Date(), placedDate: f.p ? new Date(f.p) : undefined, type: f.ty, amount: f.a, remark: f.r, histBalance: f.b })).concat(tail).reverse();

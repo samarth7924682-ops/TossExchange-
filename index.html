@@ -309,7 +309,7 @@
         }
 let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne ke liye
 
-        window.checkSession = function() {
+        window.initHomeSession = function() {
             if (unsubBalance) { unsubBalance(); unsubBalance = null; }
             if (unsubExposure) { unsubExposure(); unsubExposure = null; }
             const s = localStorage.getItem('userSession');
@@ -334,7 +334,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     });
 
                     let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
-                    db.collection("matches").get().then(matchSnap => {
+                    db.collection("matches").where("status", "==", "open").get().then(matchSnap => {
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
                         
@@ -403,7 +403,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
 
                     
             
-                    db.collection("matches").get().then(matchSnap => {
+                    db.collection("matches").where("status", "==", "open").get().then(matchSnap => {
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
 
@@ -513,11 +513,11 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
         function runCheckSessionOnce() {
             if (sessionCheckDone) return;
             sessionCheckDone = true;
-            window.checkSession && window.checkSession();
+            window.initHomeSession && window.initHomeSession();
         }
         document.addEventListener("DOMContentLoaded", runCheckSessionOnce);
         if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(runCheckSessionOnce, 1); }
-        window.addEventListener("pageshow", function (event) { if (event.persisted) { window.checkSession && window.checkSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
+        window.addEventListener("pageshow", function (event) { if (event.persisted) {window.initHomeSession && window.initHomeSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
     </script>
 </body>
 </html>

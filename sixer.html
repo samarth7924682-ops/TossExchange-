@@ -191,37 +191,64 @@
     // ----------------------------------------------------
     // PERFECT DEVICE SYNC SYSTEM (Avoids Firebase Overlap)
     // ----------------------------------------------------
-    let serverTimeOffset = 0;
+    let _syncServerMs = Date.now();
+  let _syncPerfMs = performance.now();
+  let _timeSynced = false;
 
-    async function syncServerTime() {
-    try {
-        const beforeReq = Date.now();
-        const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
-        const data = await res.json();
-        const afterReq = Date.now();
-        const roundTrip = afterReq - beforeReq;
+  function getTrueTime() {
+    return _syncServerMs + (performance.now() - _syncPerfMs);
+  }
 
-        // Agar network slow tha (bada roundtrip), to ye sample skip karo — galat offset set nahi hoga
-        if (roundTrip > 1500) {
-            console.log("Time sync skipped: high latency", roundTrip);
-            return;
-        }
-
-        const serverMs = new Date(data.utc_datetime).getTime();
-        const estimatedServerNow = serverMs + (roundTrip / 2);
-        serverTimeOffset = estimatedServerNow - afterReq;
-    } catch(e) {
-        // Purana offset hi rakho, 0 pe reset mat karo — warna phone galat time pe chala jayega
-        console.log("Time sync failed, keeping previous offset", e);
+  function _timeDeviceId() {
+    let id = localStorage.getItem('_tsid');
+    if (!id) {
+      id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('_tsid', id);
     }
-}
+    return id;
+  }
 
-// Har 5 minute me dobara sync (free time API, koi Firestore read/write nahi)
-setInterval(syncServerTime, 60000);
+  async function _sampleFirestore() {
+    const ref = db.collection('_timeSync').doc(_timeDeviceId());
+    const t0 = performance.now();
+    await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+    const t1 = performance.now();
+    const snap = await ref.get({ source: 'server' });
+    return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+  }
 
-    window.getTrueTime = function() {
-        return Date.now() + serverTimeOffset;
-    };
+  async function _sampleWorldTime() {
+    const t0 = performance.now();
+    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+    const data = await res.json();
+    const t1 = performance.now();
+    return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+  }
+
+  async function syncServerTime(samples) {
+    let best = null;
+    for (let i = 0; i < (samples || 1); i++) {
+      try {
+        const s = await _sampleFirestore();
+        if (!best || s.rtt < best.rtt) best = s;
+      } catch (e) { console.log('Firestore time sync failed', e); }
+    }
+    if (!best) {
+      try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+    }
+    if (best && best.rtt < 3000) {
+      _syncServerMs = best.serverMs;
+      _syncPerfMs = best.perf;
+      _timeSynced = true;
+    }
+    return _timeSynced;
+  }
+
+  setInterval(() => syncServerTime(1), 300000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncServerTime(1);
+  });
+  window.getTrueTime = getTrueTime;
     
     // ----------------------------------------------------
     // 🌟 10,000 UNIQUE RANDOMIZED ROUNDS LOGIC (BIT-PERFECT) 🌟
@@ -233,20 +260,25 @@ setInterval(syncServerTime, 60000);
         };
     }
     
-               // NAYA LOGIC: Har ghante (Every Hour) naya unpredictable pattern banega!
-        // AI ya hacker koi bhi agla crash predict nahi kar payega.
-        let now = new Date();
-        // UTC time use kiya hai taaki duniya ke saare phones par crash ek sath ho
-        let dynamicSeed = now.getUTCFullYear() * 1000000 + (now.getUTCMonth() + 1) * 10000 + now.getUTCDate() * 100 + now.getUTCHours();
-        const rng = LCG(dynamicSeed);
-        
-    
-        const SPEED_RATE = 0.1215; // thodi si slow speed
-    const TAKEOFF_MS = 2000; // FIX: Sab round me plane exactly 2 seconds rukega (engine flame)
-    const ZERO_CRASH_FLY_MS = 0; // FIX: 1.00x turant crash hoga taaki koi cashout na kar sake
-    
-    const masterSequence = [];
-    const sequenceData = [];
+              const SPEED_RATE = 0.1215;
+    const TAKEOFF_MS = 2000;
+    const ZERO_CRASH_FLY_MS = 0;
+
+    let masterSequence = [];
+    let sequenceData = [];
+    let TOTAL_BLOCK_DURATION = 1;
+    let builtHourKey = null;
+
+    function getHourKey() {
+        const d = new Date(window.getTrueTime());
+        return d.getUTCFullYear() * 1000000 + (d.getUTCMonth() + 1) * 10000 + d.getUTCDate() * 100 + d.getUTCHours();
+    }
+
+    function buildSequence() {
+    builtHourKey = getHourKey();
+    const rng = LCG(builtHourKey);
+    masterSequence = [];
+    sequenceData = [];
     let accumulatedTime = 0;
 
     // 🔥 SHUFFLE LOGIC - Pattern aur clustering ko humesha ke liye khatam karne ke liye 🔥
@@ -326,7 +358,8 @@ setInterval(syncServerTime, 60000);
 
     
 
-    const TOTAL_BLOCK_DURATION = accumulatedTime; 
+    TOTAL_BLOCK_DURATION = accumulatedTime;
+    }
 
     function getGlobalGameState() {
         let now = window.getTrueTime(); 
@@ -1058,10 +1091,15 @@ function triggerWinPopup(winAmt, mult) {
     // overwrite kar deta tha — isliye recovery reliably kabhi kaam nahi kar raha tha.
 
     // START GAME
-    syncServerTime().then(() => {
-    if (window.recoverPendingSixerBet) window.recoverPendingSixerBet();
-    requestAnimationFrame(gameTick);
-});
+    (async () => {
+        while (!(await syncServerTime(3))) { await new Promise(r => setTimeout(r, 3000)); }
+        buildSequence();
+        setInterval(() => {
+            if (builtHourKey !== null && getHourKey() !== builtHourKey && betState === 'IDLE') location.reload();
+        }, 3000);
+        if (window.recoverPendingSixerBet) window.recoverPendingSixerBet();
+        requestAnimationFrame(gameTick);
+    })();
 
   </script>
 </body>

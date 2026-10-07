@@ -201,7 +201,71 @@
         if(!session) window.location.href = "index.html";
         const user = JSON.parse(session);
         document.getElementById('top-user').innerText = user.username;
-        
+        let _syncServerMs = Date.now();
+        let _syncPerfMs = performance.now();
+        let _timeSynced = false;
+
+        function getTrueTime() {
+            return _syncServerMs + (performance.now() - _syncPerfMs);
+        }
+
+        function _timeDeviceId() {
+            let id = localStorage.getItem('_tsid');
+            if (!id) {
+                id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+                localStorage.setItem('_tsid', id);
+            }
+            return id;
+        }
+
+        async function _sampleFirestore() {
+            const ref = db.collection('_timeSync').doc(_timeDeviceId());
+            const t0 = performance.now();
+            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+            const t1 = performance.now();
+            const snap = await ref.get({ source: 'server' });
+            return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function _sampleWorldTime() {
+            const t0 = performance.now();
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+            const data = await res.json();
+            const t1 = performance.now();
+            return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function syncServerTime(samples) {
+            let best = null;
+            for (let i = 0; i < (samples || 1); i++) {
+                try {
+                    const s = await _sampleFirestore();
+                    if (!best || s.rtt < best.rtt) best = s;
+                } catch (e) { console.log('Firestore time sync failed', e); }
+            }
+            if (!best) {
+                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+            }
+            if (best && best.rtt < 3000) {
+                _syncServerMs = best.serverMs;
+                _syncPerfMs = best.perf;
+                _timeSynced = true;
+            }
+            return _timeSynced;
+        }
+
+        setInterval(() => syncServerTime(1), 300000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') syncServerTime(1);
+        });
+
+        // Start: sync hone tak retry, phir lock state lagao
+        (function _retrySync() {
+            syncServerTime(3).then(ok => {
+                if (!ok) { setTimeout(_retrySync, 3000); return; }
+                applyLockState();
+            });
+        })();
         let currentMatch = null;
         let selectedTeamKey = null;
         let currentBalance = 0;
@@ -288,7 +352,8 @@
 // to onSnapshot upar wala turant naya lockTimeMs de dega aur ye interval usी se turant match kar lega.
 function applyLockState() {
     if (!currentMatch) return;
-    const nowMs = Date.now();
+    if (!_timeSynced) return; // sync hone tak buttons locked hi rahenge
+    const nowMs = getTrueTime();
 
     if (!currentMatch.lockTimeMs || nowMs < currentMatch.lockTimeMs) {
         document.getElementById('btn-teamA').classList.remove('locked-state');
@@ -454,7 +519,7 @@ setInterval(applyLockState, 1000);
         }
 
         function openBetSlip(teamKey) {
-            if (currentMatch.lockTimeMs && Date.now() >= currentMatch.lockTimeMs) {
+            if (currentMatch.lockTimeMs && getTrueTime() >= currentMatch.lockTimeMs) {
                 return; // Disabled click event logic backup
             }
             selectedTeamKey = teamKey;
@@ -478,8 +543,8 @@ setInterval(applyLockState, 1000);
 
         // 🌟 RACE-CONDITION FREE EXACT MATHEMATICAL BET PLACEMENT 🌟
         async function placeBet() {
-            if (currentMatch.lockTimeMs && Date.now() >= currentMatch.lockTimeMs) {
-                alert("Bet Rejected! Match locked."); closeBetSlip(); return;
+           if (currentMatch.lockTimeMs && getTrueTime() >= currentMatch.lockTimeMs) {
+                alert("Market Suspended"); closeBetSlip(); return;
             }
 
             let amt = parseFloat(document.getElementById('slip-stake').value);

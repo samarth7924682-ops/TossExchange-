@@ -442,30 +442,107 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                 window.loadLiveMatches();
             }
         }
+let _syncServerMs = Date.now();
+        let _syncPerfMs = performance.now();
+        let _timeSynced = false;
+
+        function getTrueTime() {
+            return _syncServerMs + (performance.now() - _syncPerfMs);
+        }
+
+        function _timeDeviceId() {
+            let id = localStorage.getItem('_tsid');
+            if (!id) {
+                id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+                localStorage.setItem('_tsid', id);
+            }
+            return id;
+        }
+
+        async function _sampleFirestore() {
+            const ref = db.collection('_timeSync').doc(_timeDeviceId());
+            const t0 = performance.now();
+            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+            const t1 = performance.now();
+            const snap = await ref.get({ source: 'server' });
+            return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function _sampleWorldTime() {
+            const t0 = performance.now();
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+            const data = await res.json();
+            const t1 = performance.now();
+            return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function syncServerTime(samples) {
+            let best = null;
+            for (let i = 0; i < (samples || 1); i++) {
+                try {
+                    const s = await _sampleFirestore();
+                    if (!best || s.rtt < best.rtt) best = s;
+                } catch (e) { console.log('Firestore time sync failed', e); }
+            }
+            if (!best) {
+                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+            }
+            if (best && best.rtt < 3000) {
+                _syncServerMs = best.serverMs;
+                _syncPerfMs = best.perf;
+                _timeSynced = true;
+            }
+            return _timeSynced;
+        }
+
+        setInterval(() => syncServerTime(1), 300000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') syncServerTime(1);
+        });
+        // ===== ADMIN TIME (IST) — phone ke time/timezone se koi matlab nahi =====
+        const ADMIN_TZ_OFFSET_MS = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30
+
+        function _adminDate(ms) { return new Date(ms + ADMIN_TZ_OFFSET_MS); } // isse hamesha getUTC* se padhna hai
+
+        function _dayKey(ms) {
+            const d = _adminDate(ms);
+            return d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate();
+        }
+
+        function _fmtTime(ms) {
+            const d = _adminDate(ms);
+            let h = d.getUTCHours();
+            const mi = d.getUTCMinutes();
+            const ap = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0') + ' ' + ap;
+        }
 
         function getRelativeDateLabel(ms) {
             if(!ms) return "UNKNOWN DATE";
-            const d = new Date(ms); const today = new Date(); const tmrw = new Date(); tmrw.setDate(today.getDate() + 1);
-            if(d.toDateString() === today.toDateString()) return "TODAY";
-            if(d.toDateString() === tmrw.toDateString()) return "TOMORROW";
+            const nowMs = getTrueTime();
+            if (_dayKey(ms) === _dayKey(nowMs)) return "TODAY";
+            if (_dayKey(ms) === _dayKey(nowMs + 86400000)) return "TOMORROW";
             const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-            return `${d.getDate()} ${months[d.getMonth()]}`;
+            const d = _adminDate(ms);
+            return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
         }
 
-        window.loadLiveMatches = function() {
-            db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
-                const list = document.getElementById('matches-list');
-                if(!list) return;
-                list.innerHTML = "";
-                
-                if (snap.empty) {
-                    list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>No Toss Matches Active.</p>";
-                    return;
-                }
+        let _liveMatches = [];
+        let _liveLoaded = false;
+        let _lastMatchesHtml = null;
+        let _unsubMatches = null;
 
-                let matches = [];
-                snap.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
-                matches.sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+        function renderMatches() {
+            const list = document.getElementById('matches-list');
+            if(!list || !_liveLoaded) return;
+
+            let finalHtml = "";
+
+            if (_liveMatches.length === 0) {
+                finalHtml = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>No Toss Matches Active.</p>";
+            } else {
+                const matches = _liveMatches.slice().sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
 
                 let groupedMatches = {};
                 let categoryOrder = []; 
@@ -476,8 +553,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     groupedMatches[catLabel].push(m);
                 });
 
-                const nowMs = Date.now();
-                let finalHtml = "";
+                const nowMs = getTrueTime();
 
                 categoryOrder.forEach(cat => {
                     const group = groupedMatches[cat];
@@ -485,7 +561,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
 
                     group.forEach(m => {
                         let displayTime = m.tossTimeStr || m.tossTime; 
-                        if(m.tossTimeMs) { displayTime = new Date(m.tossTimeMs).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: true}); }
+                        if(m.tossTimeMs) { displayTime = _fmtTime(m.tossTimeMs); }
 
                         let isLocked = false, actionHtml = '', statusClass = 'status-play';
                         
@@ -504,10 +580,26 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                         `;
                     });
                 });
+            }
 
+            if (finalHtml !== _lastMatchesHtml) {
                 list.innerHTML = finalHtml;
+                _lastMatchesHtml = finalHtml;
+            }
+        }
+
+        window.loadLiveMatches = function() {
+            if (_unsubMatches) _unsubMatches();
+            _unsubMatches = db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
+                _liveMatches = [];
+                snap.forEach(doc => _liveMatches.push({ id: doc.id, ...doc.data() }));
+                _liveLoaded = true;
+                renderMatches();
             });
         }
+
+        syncServerTime(1).then(renderMatches);
+        setInterval(renderMatches, 5000);
         
         let sessionCheckDone = false;
         function runCheckSessionOnce() {

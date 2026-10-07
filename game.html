@@ -395,31 +395,76 @@
   if (typeof db === 'undefined' && typeof firebase !== 'undefined') {
     window.db = firebase.firestore();
   }
+let _syncServerMs = Date.now();
+  let _syncPerfMs = performance.now();
+  let _timeSynced = false;
 
-  // --- TIME SYNC LOGIC ---
-  let timeOffset = 0;
+  function getTrueTime() {
+    return _syncServerMs + (performance.now() - _syncPerfMs);
+  }
+
+  function _timeDeviceId() {
+    let id = localStorage.getItem('_tsid');
+    if (!id) {
+      id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('_tsid', id);
+    }
+    return id;
+  }
+
+  async function _sampleFirestore() {
+    const ref = db.collection('_timeSync').doc(_timeDeviceId());
+    const t0 = performance.now();
+    await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+    const t1 = performance.now();
+    const snap = await ref.get({ source: 'server' });
+    return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+  }
+
+  async function _sampleWorldTime() {
+    const t0 = performance.now();
+    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+    const data = await res.json();
+    const t1 = performance.now();
+    return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+  }
+
+  async function syncServerTime(samples) {
+    let best = null;
+    for (let i = 0; i < (samples || 1); i++) {
+      try {
+        const s = await _sampleFirestore();
+        if (!best || s.rtt < best.rtt) best = s;
+      } catch (e) { console.log('Firestore time sync failed', e); }
+    }
+    if (!best) {
+      try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+    }
+    if (best && best.rtt < 3000) {
+      _syncServerMs = best.serverMs;
+      _syncPerfMs = best.perf;
+      _timeSynced = true;
+    }
+    return _timeSynced;
+  }
+
+  setInterval(() => syncServerTime(1), 300000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncServerTime(1);
+  });
   let isTimeSynced = false;
+  function getSyncedNow() { return getTrueTime(); }
 
-  async function syncServerTime() {
-    try {
-      const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
-      const data = await res.json();
-      const serverTime = new Date(data.utc_datetime).getTime();
-      timeOffset = serverTime - Date.now();
+  function _startSync() {
+    syncServerTime(3).then(ok => {
+      if (!ok) { setTimeout(_startSync, 3000); return; }
       isTimeSynced = true;
       document.getElementById('placeBetBtn').innerText = "PLACE BET";
       document.getElementById('placeBetBtn').disabled = false;
-    } catch(e) {
-      console.log("Time sync failed, using local time.");
-      isTimeSynced = true; 
-      document.getElementById('placeBetBtn').innerText = "PLACE BET";
-      document.getElementById('placeBetBtn').disabled = false;
-    }
-    recoverPendingBets();
+      recoverPendingBets();
+    });
   }
-  syncServerTime();
-
-  function getSyncedNow() { return Date.now(); }
+  _startSync();
 
   const bgAudio = document.getElementById('bgMusic');
   function startBgMusic() { if(bgAudio.paused) { bgAudio.volume = 0.4; bgAudio.play().catch(e=>{}); } }
@@ -483,6 +528,7 @@
 
   async function placeBet() {
     if(!isTimeSynced) return alert("Please wait, syncing time...");
+    if (getSyncedNow() % 30000 >= 20000) return alert("Bets locked! Agle round ka wait karein.");
     if(!selectedSide) return alert("Pehle Egg Select Karein!");
     if(inputBetAmount <= 0) return alert("Please Enter/Select Bet Amount!");
     if(inputBetAmount > realBalance) return alert("INSUFFICIENT BALANCE!");
@@ -579,7 +625,7 @@
     }
   });
 
-  let activeRoundId = Math.floor(Date.now() / 30000).toString();
+  let activeRoundId = null;
   let resultEvaluatedRound = null;
 
   function gameLoop() {
@@ -588,7 +634,7 @@
     const now = getSyncedNow();
     const elapsed = now % 30000; 
     const roundId = Math.floor(now / 30000).toString();
-
+if (activeRoundId === null) activeRoundId = roundId;
     if(roundId !== activeRoundId) {
       activeRoundId = roundId; currentActiveBet = null; selectedSide = null;
       document.getElementById('btnLeft').classList.remove('selected'); document.getElementById('btnRight').classList.remove('selected');

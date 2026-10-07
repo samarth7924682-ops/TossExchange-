@@ -121,12 +121,16 @@
     <!-- 2. LIVE MATCHES -->
     <div class="card" style="border-top: 3px solid var(--green);">
         <h3 class="card-title">🟢 Active Live Markets</h3>
+        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+            <button class="btn btn-small" style="background:#455a64;" onclick="toggleSelectAllVoid()">☑ Select All</button>
+            <button class="btn btn-red btn-small" id="bulkVoidBtn" onclick="bulkVoidSelected()" disabled>🔴 Void Selected (0)</button>
+        </div>
         <div id="live-list">Loading...</div>
     </div>
 
     <!-- 3. MATCH HISTORY (Auto Delete > 4 days) -->
     <div class="card" style="border-top: 3px solid #555;">
-        <h3 class="card-title">📜 Match History (Last 4 Days)</h3>
+        <h3 class="card-title">📜 Match History (Today + Yesterday)</h3>
         <div id="history-list">Loading...</div>
     </div>
 
@@ -216,7 +220,64 @@
             document.getElementById('dup-modal-msg').innerText = `"${teamA} vs ${teamB}" (ya reverse order me) pehle se ek open match ke roop me maujood hai.`;
             document.getElementById('dup-modal').style.display = 'flex';
         }
+// ☁️ SERVER TIME (index.html jaisa) — phone ka time/date use nahi hota
+        let _syncServerMs = Date.now();
+        let _syncPerfMs = performance.now();
+        let _timeSynced = false;
 
+        function getTrueTime() { return _syncServerMs + (performance.now() - _syncPerfMs); }
+
+        function _timeDeviceId() {
+            let id = localStorage.getItem('_tsid');
+            if (!id) {
+                id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+                localStorage.setItem('_tsid', id);
+            }
+            return id;
+        }
+
+        async function _sampleFirestore() {
+            const ref = db.collection('_timeSync').doc(_timeDeviceId());
+            const t0 = performance.now();
+            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+            const t1 = performance.now();
+            const snap = await ref.get({ source: 'server' });
+            return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function _sampleWorldTime() {
+            const t0 = performance.now();
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+            const data = await res.json();
+            const t1 = performance.now();
+            return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function syncServerTime(samples) {
+            let best = null;
+            for (let i = 0; i < (samples || 1); i++) {
+                try {
+                    const s = await _sampleFirestore();
+                    if (!best || s.rtt < best.rtt) best = s;
+                } catch (e) { console.log('Firestore time sync failed', e); }
+            }
+            if (!best) {
+                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+            }
+            if (best && best.rtt < 3000) {
+                _syncServerMs = best.serverMs;
+                _syncPerfMs = best.perf;
+                _timeSynced = true;
+            }
+            return _timeSynced;
+        }
+
+        // Reads bachane ke liye: 30 min me ek baar, aur tab wapas aane par sirf agar 10 min se zyada ho gaya ho
+        setInterval(() => syncServerTime(1), 1800000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
+        });
+        const timeReady = syncServerTime(1);
         async function createMatch() {
             const tA = document.getElementById('tA').value.trim();
             const tB = document.getElementById('tB').value.trim();
@@ -228,14 +289,71 @@
             const lockMins = parseInt(document.getElementById('lockMins').value);
             const predictWinner = document.getElementById('predictWinner').value.trim();
 
-            if(!tA || !tB || !timeStr) { alert("Please fill all details!"); return; }
+           // ☁️ SERVER TIME (index.html jaisa) — phone ka time/date use nahi hota
+        let _syncServerMs = Date.now();
+        let _syncPerfMs = performance.now();
+        let _timeSynced = false;
+
+        function getTrueTime() { return _syncServerMs + (performance.now() - _syncPerfMs); }
+
+        function _timeDeviceId() {
+            let id = localStorage.getItem('_tsid');
+            if (!id) {
+                id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+                localStorage.setItem('_tsid', id);
+            }
+            return id;
+        }
+
+        async function _sampleFirestore() {
+            const ref = db.collection('_timeSync').doc(_timeDeviceId());
+            const t0 = performance.now();
+            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+            const t1 = performance.now();
+            const snap = await ref.get({ source: 'server' });
+            return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function _sampleWorldTime() {
+            const t0 = performance.now();
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+            const data = await res.json();
+            const t1 = performance.now();
+            return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        }
+
+        async function syncServerTime(samples) {
+            let best = null;
+            for (let i = 0; i < (samples || 1); i++) {
+                try {
+                    const s = await _sampleFirestore();
+                    if (!best || s.rtt < best.rtt) best = s;
+                } catch (e) { console.log('Firestore time sync failed', e); }
+            }
+            if (!best) {
+                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+            }
+            if (best && best.rtt < 3000) {
+                _syncServerMs = best.serverMs;
+                _syncPerfMs = best.perf;
+                _timeSynced = true;
+            }
+            return _timeSynced;
+        }
+
+        // Reads bachane ke liye: 30 min me ek baar, aur tab wapas aane par sirf agar 10 min se zyada ho gaya ho
+        setInterval(() => syncServerTime(1), 1800000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
+        });
+        const timeReady = syncServerTime(1);
 
             if (isDuplicateMatch(tA, tB, editingMatchId)) {
                 showDupWarning(tA, tB);
                 return;
             }
 
-            let matchDate = new Date();
+            let matchDate = new Date(getTrueTime());
             matchDate.setDate(matchDate.getDate() + dateOffset);
             const [hours, minutes] = timeStr.split(':');
             matchDate.setHours(hours, minutes, 0, 0);
@@ -401,7 +519,7 @@
 
         function previewBulk() {
             const lines = document.getElementById('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
-            if (!lines.length) { alert('Pehle schedule paste karo!'); return; }
+            let matchDate = new Date(getTrueTime());
 
             const baseOffset = parseInt(document.getElementById('bulkDate').value);
             const lv = parseInt(document.getElementById('bulkLock').value);
@@ -409,7 +527,7 @@
             const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
             const fmt = ms => new Date(ms).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             const seen = new Set();
-            const now = Date.now();
+            const now = getTrueTime();
             let dayAdd = 0, lastMin = -1;
             bulkParsed = [];
 
@@ -422,7 +540,7 @@
                 if (lastMin !== -1 && totalMin < lastMin) dayAdd++;
                 lastMin = totalMin;
 
-                const d = new Date();
+                const d = new Date(now);
                 d.setDate(d.getDate() + baseOffset + dayAdd);
                 d.setHours(p.h, p.min, 0, 0);
 
@@ -555,7 +673,7 @@
         let bulkSchedule = [];
 
         function schedDayLabel(d) {
-            const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+            const t0 = new Date(getTrueTime()); t0.setHours(0, 0, 0, 0);
             const d0 = new Date(d); d0.setHours(0, 0, 0, 0);
             const diff = Math.round((d0 - t0) / 86400000);
             if (diff === 0) return 'TODAY';
@@ -601,7 +719,7 @@
             document.getElementById('predictWinner').value = predictWinner || '';
 
             const d = new Date(tossTimeMs);
-            const today = new Date();
+            const today = new Date(getTrueTime());
             let diffDays = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 86400000);
             if (diffDays < 0) diffDays = 0;
             if (diffDays > 2) diffDays = 2;
@@ -634,7 +752,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
         // ==========================================
         function getCategoryByMs(ms) {
             const d = new Date(ms);
-            const today = new Date();
+            const today = new Date(getTrueTime());
             const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
             
             if(d.toDateString() === today.toDateString()) return "Today";
@@ -687,7 +805,11 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 
             matches.sort((a,b) => a.tossTimeMs - b.tossTimeMs);
             cachedOpenMatches = matches; // Local cache update — background checker isको padhega
-
+         updateBulkVoidUI();
+           if (!autoVoidStarted) { // page khulne par sirf ek baar
+                autoVoidStarted = true;
+                timeReady.then(autoVoidEmptyMatches);
+            }
             const list = document.getElementById('live-list');
             list.innerHTML = "";
             if(matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches.</p>"; return; }
@@ -714,7 +836,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 list.innerHTML += `
                     <div class="match-row">
-                        <div class="match-header">${m.teamA} vs ${m.teamB}</div>
+                        <div class="match-header"><input type="checkbox" class="void-chk" data-id="${m.id}" style="width:auto; margin-right:8px;" ${selectedVoidIds.has(m.id) ? 'checked' : ''} onchange="toggleVoidSel('${m.id}', this.checked)">${m.teamA} vs ${m.teamB}</div>
                         <div style="margin-bottom: 5px;">
                             <div class="time-badge">📢 Toss: ${tDisplay}</div>
                             ${lockDisplay}
@@ -799,7 +921,8 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             const cutoffDate = new Date(voidModalMatchData.tossTimeMs);
             const [hh, mm] = timeStr.split(':');
             cutoffDate.setHours(hh, mm, 0, 0);
-            const cutoffMs = cutoffDate.getTime();
+            // 🛡️ Cutoff kabhi toss time ke baad ka nahi ho sakta
+            const cutoffMs = Math.min(cutoffDate.getTime(), voidModalMatchData.tossTimeMs);
 
             const winnerName = partialSelectedWinner === 'teamA' ? voidModalMatchData.teamA : voidModalMatchData.teamB;
 
@@ -813,49 +936,36 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
        
        // ==========================================
-        // 3. LOAD HISTORY — INSTANT LOCALSTORAGE CACHE + DELTA LISTENER
-        // Turant localStorage se render hota hai (0 reads), phir sirf naye
-        // settle/void hue matches ke liye Firestore se delta fetch hota hai.
-        // List hamesha sirf LAST 8 matches tak simit rehti hai (fixed cap) —
-        // isliye reads kabhi unpredictable nahi honge, chahe roz kitne bhi settle ho.
+        // 3. LOAD HISTORY — sirf LAST 2 DIN (Today + Yesterday), cache + delta listener
+        // Pehli baar ek seed (2 din ke matches), phir sirf naye changes padhe jaate hain.
+        // Undo hone par match list se turant hat jata hai.
         // ==========================================
-        const MATCH_HISTORY_CACHE_KEY = 'masterMatchHistoryCache';
-        const MATCH_HISTORY_LASTFETCH_KEY = 'masterMatchHistoryLastFetch';
-        const HISTORY_MAX_COUNT = 8;
-        let historyMatchesMap = {}; // id -> match data (merge/dedupe ke liye)
+        const MATCH_HISTORY_CACHE_KEY = 'masterMatchHistoryCacheV2';
+        const MATCH_HISTORY_LASTFETCH_KEY = 'masterMatchHistoryLastFetchV2';
+        let historyMatchesMap = {}; // id -> match data
 
-        function pruneOldHistory() {
-            // Fixed-count cap — sirf sabse recent 8 hi rakhte hain
-            let ids = Object.keys(historyMatchesMap);
-            if (ids.length <= HISTORY_MAX_COUNT) return;
-            let sorted = ids.map(id => historyMatchesMap[id]).sort((a,b) => (b.settledAtMs||b.tossTimeMs||0) - (a.settledAtMs||a.tossTimeMs||0));
-            sorted.slice(HISTORY_MAX_COUNT).forEach(m => delete historyMatchesMap[m.id]);
+        function historyWindowStartMs() {
+            const d = new Date(getTrueTime());
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - 1); // kal subah 12 baje se
+            return d.getTime();
         }
 
-        function renderHistoryList() {
-            pruneOldHistory();
-            let matches = Object.values(historyMatchesMap);
-            matches.sort((a,b) => (b.settledAtMs||b.tossTimeMs||0) - (a.settledAtMs||a.tossTimeMs||0));
+        function histMs(m) { return m.settledAtMs || m.tossTimeMs || 0; }
 
-            const list = document.getElementById('history-list');
-            list.innerHTML = "";
-            if(matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No history available.</p>"; return; }
+        function histDayLabel(ms) {
+            const now = new Date(getTrueTime());
+            const y = new Date(now); y.setDate(y.getDate() - 1);
+            const d = new Date(ms);
+            if (d.toDateString() === now.toDateString()) return 'Today';
+            if (d.toDateString() === y.toDateString()) return 'Yesterday';
+            return d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+        }
 
-            matches.forEach(m => {
-                const tDisplay = new Date(m.tossTimeMs).toLocaleString([], {day:'2-digit', month:'short', hour: '2-digit', minute:'2-digit'});
-                let winText = m.status === 'cancelled' ? 'VOIDED' : `WINNER: ${m.winner}`;
-                let color = m.status === 'cancelled' ? '#c62828' : '#2e7d32';
-
-                const safeA = String(m.teamA).replace(/'/g, "\\'");
-                const safeB = String(m.teamB).replace(/'/g, "\\'");
-                list.innerHTML += `
-                    <div class="match-row" style="border-left-color: #999;">
-                        <div style="font-weight:bold; color:#555;">${m.teamA} vs ${m.teamB}</div>
-                        <div style="font-size: 11px; color:#888;">${tDisplay}</div>
-                        <div style="font-weight:bold; color:${color}; font-size:12px; margin-top:5px;">${winText}</div>
-                        <button class="btn btn-small" style="background:#795548; width:100%; margin-top:8px;" onclick="undoSettlement('${m.id}', '${safeA}', '${safeB}')">↩️ Undo Result</button>
-                    </div>
-                `;
+        function pruneOldHistory() {
+            const start = historyWindowStartMs();
+            Object.keys(historyMatchesMap).forEach(id => {
+                if (histMs(historyMatchesMap[id]) < start) delete historyMatchesMap[id];
             });
         }
 
@@ -865,57 +975,109 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             } catch(e) { console.log("History cache save error:", e); }
         }
 
-        // 🌟 STEP 1: localStorage se turant render — 0 second, 0 reads
-        try {
-            const cached = localStorage.getItem(MATCH_HISTORY_CACHE_KEY);
-            if (cached) {
-                JSON.parse(cached).forEach(m => { historyMatchesMap[m.id] = m; });
-                renderHistoryList();
-            }
-        } catch(e) { console.log("History cache load error:", e); }
-
-        // 🌟 STEP 2: Agar cache khaali hai (bilkul pehli baar / naya device) — sirf
-        // EK BAAR "last 8" ko seed karo. Uske baad poori history kabhi nahi padhni padegi.
-        async function seedHistoryIfEmpty() {
-            if (Object.keys(historyMatchesMap).length > 0) return; // Cache se already mil chuka
-            try {
-                const seedSnap = await db.collection("matches")
-                  .where("status", "in", ["closed", "cancelled"])
-                  .orderBy("settledAt", "desc")
-                  .limit(HISTORY_MAX_COUNT)
-                  .get();
-                seedSnap.forEach(doc => {
-                    const m = doc.data();
-                    historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner, settledAtMs: m.settledAt ? m.settledAt.toMillis() : 0 };
-                });
-                saveHistoryCache();
-                renderHistoryList();
-            } catch(e) { console.log("History seed error:", e); }
-        }
-        seedHistoryIfEmpty();
-
-        // 🌟 STEP 3: Ab sirf wahi matches padho jo abhi (page-load ke baad) se settle/void hue
-        const lastFetchMs = parseInt(localStorage.getItem(MATCH_HISTORY_LASTFETCH_KEY) || '0');
-        const historyCursorMs = lastFetchMs > 0 ? lastFetchMs : Date.now();
-
-        db.collection("matches")
-          .where("status", "in", ["closed", "cancelled"])
-          .where("settledAt", ">", firebase.firestore.Timestamp.fromMillis(historyCursorMs))
-          .onSnapshot(snap => {
-            if (snap.empty) return; // Kuch naya nahi — 0 extra kaam
-
-            let latestMs = historyCursorMs;
-            snap.forEach(doc => {
-                const m = doc.data();
-                const sMs = m.settledAt ? m.settledAt.toMillis() : Date.now();
-                historyMatchesMap[doc.id] = { id: doc.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner, settledAtMs: sMs };
-                if (sMs > latestMs) latestMs = sMs;
-            });
-
-            localStorage.setItem(MATCH_HISTORY_LASTFETCH_KEY, latestMs.toString());
+        function forgetHistoryMatch(id) {
+            delete historyMatchesMap[id];
             saveHistoryCache();
             renderHistoryList();
-        });
+        }
+
+        function renderHistoryList() {
+            pruneOldHistory();
+            const matches = Object.values(historyMatchesMap).sort((a, b) => histMs(b) - histMs(a));
+
+            const list = document.getElementById('history-list');
+            if (matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No history available.</p>"; return; }
+
+            let html = "", curCat = "";
+            matches.forEach(m => {
+                const cat = histDayLabel(histMs(m));
+                if (cat !== curCat) { html += `<div class="category-header">${cat}</div>`; curCat = cat; }
+
+                const tDisplay = new Date(m.tossTimeMs).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                const winText = m.status === 'cancelled' ? 'VOIDED' : `WINNER: ${m.winner}`;
+                const color = m.status === 'cancelled' ? '#c62828' : '#2e7d32';
+                const safeA = String(m.teamA).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const safeB = String(m.teamB).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                html += `
+                    <div class="match-row" style="border-left-color: #999;">
+                        <div style="font-weight:bold; color:#555;">${m.teamA} vs ${m.teamB}</div>
+                        <div style="font-size: 11px; color:#888;">Toss: ${tDisplay}</div>
+                        <div style="font-weight:bold; color:${color}; font-size:12px; margin-top:5px;">${winText}</div>
+                        <button class="btn btn-small" style="background:#795548; width:100%; margin-top:8px;" onclick="undoSettlement('${m.id}', '${safeA}', '${safeB}')">↩️ Undo Result</button>
+                    </div>
+                `;
+            });
+            list.innerHTML = html;
+        }
+
+        function histEntry(id, m, sMs) {
+            return { id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs, status: m.status, winner: m.winner, settledAtMs: sMs };
+        }
+
+        // Cache khaali / naya device => ek baar 2 din ka seed
+        async function seedHistory() {
+            const snap = await db.collection("matches")
+              .where("status", "in", ["closed", "cancelled"])
+              .where("settledAt", ">=", firebase.firestore.Timestamp.fromMillis(historyWindowStartMs()))
+              .get();
+            let latest = 0;
+            snap.forEach(doc => {
+                const m = doc.data();
+                const sMs = m.settledAt ? m.settledAt.toMillis() : 0;
+                historyMatchesMap[doc.id] = histEntry(doc.id, m, sMs);
+                if (sMs > latest) latest = sMs;
+            });
+            if (!latest) latest = getTrueTime();
+            localStorage.setItem(MATCH_HISTORY_LASTFETCH_KEY, String(latest));
+            saveHistoryCache();
+            renderHistoryList();
+            return latest;
+        }
+
+        function startHistoryListener(cursorMs) {
+            db.collection("matches")
+              .where("status", "in", ["closed", "cancelled"])
+              .where("settledAt", ">", firebase.firestore.Timestamp.fromMillis(cursorMs))
+              .onSnapshot(snap => {
+                let latest = cursorMs, changed = false;
+                snap.docChanges().forEach(ch => {
+                    if (ch.type === 'removed') { // undo hone par match history se hatao
+                        if (historyMatchesMap[ch.doc.id]) { delete historyMatchesMap[ch.doc.id]; changed = true; }
+                        return;
+                    }
+                    const m = ch.doc.data();
+                    const sMs = m.settledAt ? m.settledAt.toMillis() : getTrueTime();
+                    historyMatchesMap[ch.doc.id] = histEntry(ch.doc.id, m, sMs);
+                    if (sMs > latest) latest = sMs;
+                    changed = true;
+                });
+                if (!changed) return;
+                localStorage.setItem(MATCH_HISTORY_LASTFETCH_KEY, String(latest));
+                saveHistoryCache();
+                renderHistoryList();
+            });
+        }
+
+        async function initHistory() {
+            let cursor = parseInt(localStorage.getItem(MATCH_HISTORY_LASTFETCH_KEY) || '0');
+            let hadCache = false;
+            try {
+                const cached = localStorage.getItem(MATCH_HISTORY_CACHE_KEY);
+                if (cached) {
+                    JSON.parse(cached).forEach(m => { historyMatchesMap[m.id] = m; });
+                    hadCache = true;
+                    renderHistoryList();
+                }
+            } catch(e) { console.log("History cache load error:", e); }
+
+            if (!hadCache || !cursor) {
+                try { cursor = await seedHistory(); }
+                catch(e) { console.log("History seed error:", e); cursor = getTrueTime(); }
+            }
+            cursor = Math.max(cursor, historyWindowStartMs()); // 2 din se purana kabhi nahi padhna
+            startHistoryListener(cursor);
+        }
+        timeReady.then(initHistory, initHistory); // server time sync ke baad shuru
         // ==========================================
         // ↩️ UNDO RESULT — settlement/void/partial-void wapas reverse karta hai
         // (History list me sirf 4-din tak dikhne wale matches par hi button dikhta hai)
@@ -930,7 +1092,8 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "in", ["won", "lost", "cancelled"]).get();
 
                 if (betsSnap.empty) {
-                    await db.collection("matches").doc(matchId).update({ status: 'open', winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                    await db.collection("matches").doc(matchId).update({ status: 'open', autoVoidOff: true, winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                    forgetHistoryMatch(matchId);
                     alert("✅ Match reopened.");
                     return;
                 }
@@ -988,11 +1151,13 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
                 batch.update(db.collection("matches").doc(matchId), { 
                     status: 'open', 
+                    autoVoidOff: true,
                     winner: firebase.firestore.FieldValue.delete(), 
                     settledAt: firebase.firestore.FieldValue.delete() 
                 });
 
                 await batch.commit();
+                forgetHistoryMatch(matchId);
                 alert("✅ Result undone! Match wapas Active Live Markets me hai.");
             } catch(e) {
                 console.error(e);
@@ -1147,63 +1312,19 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         // 🌟 FIXED EXECUTE SETTLEMENT (Handles Deleted Users)
         // ==========================================
         async function executeSettlement(matchId, winnerCode, winnerName) {
-            try {
-                const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
-                
-                                if (betsSnap.empty) {
-                    await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
-                    alert("Match closed! No pending bets found.");
-                    return;
-                }
-                
-
-                const batch = db.batch();
-                let userBets = {}; 
-                
-                betsSnap.forEach(doc => {
-                    let b = doc.data();
-                    if(!userBets[b.userId]) {
-                        userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
-                    }
-                    userBets[b.userId].bets.push({ id: doc.id, ...b });
-
-                    let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
-                    if(b.selection === 'teamA') {
-                        userBets[b.userId].pnlA += winAmt;
-                        userBets[b.userId].pnlB -= b.amount;
-                    } else {
-                        userBets[b.userId].pnlB += winAmt;
-                        userBets[b.userId].pnlA -= b.amount;
-                    }
-                });
-
-                // 🌟 Ab koi pehle se GET nahi — seedha increment() likha jaata hai (0 extra reads).
-                // set({merge:true}) isliye taaki deleted user hone par bhi settlement fail na ho.
-                for(let userId in userBets) {
-                    let uData = userBets[userId];
-                    let worstCase = Math.min(uData.pnlA, uData.pnlB);
-                    let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
-                    let netResult = winnerCode === 'teamA' ? uData.pnlA : uData.pnlB;
-                    let balanceAdjustment = lockedExposure + netResult;
-
-                    if (balanceAdjustment !== 0) {
-                        batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(balanceAdjustment) }, { merge: true });
-                    }
-
-                    uData.bets.forEach(b => {
-                        let betStatus = b.selection === winnerCode ? 'won' : 'lost';
-                        batch.update(db.collection("bets").doc(b.id), { status: betStatus });
-                    });
-                }
-                
-                                batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
-                await batch.commit();
-                
-                alert("✅ Match Settled Perfectly!");
-            } catch(e) {
-                console.error(e);
-                alert("Error during settlement: " + e.message);
+            // 🛡️ Double safety: toss time ke BAAD lagi bets hamesha VOID (partial void jaisa).
+            // Bet ka time server timestamp hai, to hacker/phone-time se cheat nahi ho sakta.
+            let tossMs = null;
+            const cm = cachedOpenMatches.find(x => x.id === matchId);
+            if (cm && cm.tossTimeMs) tossMs = cm.tossTimeMs;
+            else {
+                try {
+                    const d = await db.collection("matches").doc(matchId).get();
+                    if (d.exists) tossMs = d.data().tossTimeMs || null;
+                } catch (e) { console.error(e); }
             }
+            if (!tossMs) { alert("❌ Match ka toss time nahi mila — settlement roka gaya."); return; }
+            await executePartialVoid(matchId, tossMs, winnerCode, winnerName);
         }
 
         // ==========================================
@@ -1275,7 +1396,9 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 batch.update(db.collection("matches").doc(matchId), { status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                 await batch.commit();
 
-                alert("✅ Partial Void Complete! Cutoff se pehle ki bets settle hui, baad ki refund hui.");
+                const sCnt = Object.values(settleUsers).reduce((a, u) => a + u.bets.length, 0);
+                const vCnt = Object.values(voidUsers).reduce((a, u) => a + u.bets.length, 0);
+                alert(`✅ Done! ${sCnt} bets settle hui (Winner: ${winnerName}), ${vCnt} bets cutoff ke baad ki thi — VOID/refund.`);
             } catch(e) {
                 console.error(e);
                 alert("Error during partial void: " + e.message);
@@ -1344,6 +1467,91 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 }
             }
         }
+        // =========================================================
+        // 🔴 BULK VOID — kai matches ek saath void
+        // =========================================================
+        let selectedVoidIds = new Set();
+
+        function toggleVoidSel(id, on) {
+            if (on) selectedVoidIds.add(id); else selectedVoidIds.delete(id);
+            updateBulkVoidUI();
+        }
+
+        function updateBulkVoidUI() {
+            const ids = new Set(cachedOpenMatches.map(m => m.id));
+            selectedVoidIds.forEach(id => { if (!ids.has(id)) selectedVoidIds.delete(id); });
+            const btn = document.getElementById('bulkVoidBtn');
+            if (btn) {
+                btn.innerText = `🔴 Void Selected (${selectedVoidIds.size})`;
+                btn.disabled = selectedVoidIds.size === 0;
+            }
+        }
+
+        function toggleSelectAllVoid() {
+            const all = cachedOpenMatches.length > 0 && selectedVoidIds.size === cachedOpenMatches.length;
+            selectedVoidIds = new Set(all ? [] : cachedOpenMatches.map(m => m.id));
+            document.querySelectorAll('.void-chk').forEach(c => { c.checked = selectedVoidIds.has(c.dataset.id); });
+            updateBulkVoidUI();
+        }
+
+        // Ek match void (bina prompt) — pending bets ka locked exposure refund
+        async function voidMatchCore(id) {
+            const betsSnap = await db.collection("bets").where("matchId", "==", id).where("status", "==", "pending").get();
+            const batch = db.batch();
+            let userBets = {};
+
+            betsSnap.forEach(doc => {
+                let b = doc.data();
+                if (!userBets[b.userId]) userBets[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                userBets[b.userId].bets.push({ id: doc.id, ...b });
+                let winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                if (b.selection === 'teamA') {
+                    userBets[b.userId].pnlA += winAmt;
+                    userBets[b.userId].pnlB -= b.amount;
+                } else {
+                    userBets[b.userId].pnlB += winAmt;
+                    userBets[b.userId].pnlA -= b.amount;
+                }
+            });
+
+            for (let userId in userBets) {
+                let uData = userBets[userId];
+                let worstCase = Math.min(uData.pnlA, uData.pnlB);
+                let lockedExposure = worstCase < 0 ? Math.abs(worstCase) : 0;
+                if (lockedExposure > 0) {
+                    batch.set(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(lockedExposure) }, { merge: true });
+                }
+                uData.bets.forEach(b => {
+                    batch.update(db.collection("bets").doc(b.id), { status: 'cancelled' });
+                });
+            }
+
+            batch.update(db.collection("matches").doc(id), { status: 'cancelled', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+            await batch.commit();
+        }
+
+        async function bulkVoidSelected() {
+            const ids = [...selectedVoidIds];
+            if (!ids.length) return;
+            const names = ids.map(id => {
+                const m = cachedOpenMatches.find(x => x.id === id);
+                return m ? `• ${m.teamA} vs ${m.teamB}` : null;
+            }).filter(Boolean);
+
+            const pin = prompt(`🔐 Enter Master PIN to VOID ${names.length} matches:`);
+            if (pin !== MASTER_PIN) { alert("❌ Access Denied: Incorrect PIN!"); return; }
+            if (!confirm(`${names.length} matches VOID honge (sabka locked exposure refund):\n\n${names.join('\n')}\n\nConfirm?`)) return;
+
+            const btn = document.getElementById('bulkVoidBtn');
+            if (btn) { btn.disabled = true; btn.innerText = 'Voiding...'; }
+            let ok = 0, fail = 0;
+            for (const id of ids) {
+                try { await voidMatchCore(id); ok++; selectedVoidIds.delete(id); }
+                catch (e) { fail++; console.error("Bulk void error:", id, e); }
+            }
+            updateBulkVoidUI();
+            alert(`✅ ${ok} match void ho gaye.` + (fail ? `\n⚠️ ${fail} fail hue — list check karke dobara try karo.` : ''));
+        }
 
         // =========================================================
         // 🤖 BACKGROUND TELEGRAM ALERT CHECKER (EVERY 30 SECONDS)
@@ -1352,7 +1560,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             // Check if Master configured Bot settings
             if (!masterTgSettings || !masterTgSettings.masterBotToken || !masterTgSettings.masterChatId) return;
 
-            const now = Date.now();
+            const now = getTrueTime();
             const ALERT_DELAY_MS = 15 * 60000; // Toss ke 15 min baad — sirf EK hi alert
 
             try {
@@ -1408,6 +1616,56 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 console.log("Alert checker error:", e);
             }
         }, 30000); // Har 30 second check karega — sirf local cache se, 0 Firestore reads jab tak kuch due na ho
+        // =========================================================
+        // 🤖 AUTO VOID — toss ho chuka + ek bhi bet nahi = match khud void
+        // =========================================================
+        const AUTO_VOID_GRACE_MS = 0; // toss time nikalte hi turant
+        const HASBETS_KEY = 'masterHasBetsIds';
+        let hasBetsIds = new Set();
+        try { hasBetsIds = new Set(JSON.parse(localStorage.getItem(HASBETS_KEY) || '[]')); } catch(e) {}
+        let autoVoidBusy = false;
+        let autoVoidStarted = false;
+
+        async function autoVoidEmptyMatches() {
+            if (autoVoidBusy) return;
+            if (!_timeSynced) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
+            autoVoidBusy = true;
+            try {
+                let openList = cachedOpenMatches;
+                try {
+                    const os = await db.collection("matches").where("status", "==", "open").get({ source: 'server' });
+                    openList = os.docs.map(d => ({ id: d.id, ...d.data() }));
+                } catch (e) { console.log('AUTOVOID: server fetch fail, cache use kar rahe', e); }
+                const now = getTrueTime();
+                const due = openList.filter(m =>
+                    m.tossTimeMs && !m.autoVoidOff && !hasBetsIds.has(m.id) &&
+                    now >= m.tossTimeMs + AUTO_VOID_GRACE_MS
+                );
+                console.log('AUTOVOID: open=' + openList.length + ', due=' + due.length);
+                if (!due.length) return;
+                for (const m of due) {
+                    // sirf 1 read, aur result localStorage me yaad rehta hai
+                    const q = await db.collection("bets").where("matchId", "==", m.id).limit(1).get();
+                    if (!q.empty) {
+                        hasBetsIds.add(m.id);
+                        try { localStorage.setItem(HASBETS_KEY, JSON.stringify([...hasBetsIds].slice(-300))); } catch(e) {}
+                        continue; // bets hain — admin manage karega
+                    }
+                    await db.runTransaction(async tx => {
+                        const ref = db.collection("matches").doc(m.id);
+                        const s = await tx.get(ref);
+                        if (s.exists && s.data().status === 'open') {
+                            tx.update(ref, { status: 'cancelled', autoVoided: true, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log("Auto void error:", e);
+            } finally {
+                autoVoidBusy = false;
+            }
+        }
+        timeReady.then(autoVoidEmptyMatches); // page khulte hi, server time sync ke baad ek baar
     </script>
 </body>
 </html>

@@ -289,17 +289,43 @@
             const t1 = performance.now();
             return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
         }
+        async function _fetchTimed(url, parse) {
+            const ctl = new AbortController();
+            const to = setTimeout(() => ctl.abort(), 4000);
+            try {
+                const t0 = performance.now();
+                const res = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+                const txt = await res.text();
+                const t1 = performance.now();
+                return { serverMs: parse(txt), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+            } finally { clearTimeout(to); }
+        }
+        const _FREE_TIME_SOURCES = [
+            ['cloudflare', 'https://www.cloudflare.com/cdn-cgi/trace', t => { const m = t.match(/ts=([0-9.]+)/); if (!m) throw new Error('no ts'); return Math.round(parseFloat(m[1]) * 1000); }],
+            ['timeapi.io', 'https://timeapi.io/api/Time/current/zone?timeZone=UTC', t => new Date(JSON.parse(t).dateTime.slice(0, 23) + 'Z').getTime()],
+            ['worldtimeapi', 'https://worldtimeapi.org/api/timezone/Etc/UTC', t => new Date(JSON.parse(t).utc_datetime).getTime()]
+        ];
+        async function _sampleFreeTime() {
+            for (const [name, url, parse] of _FREE_TIME_SOURCES) {
+                try {
+                    const s = await _fetchTimed(url, parse);
+                    if (s.serverMs && s.rtt < 3000) { console.log('TIME source: ' + name); return s; }
+                } catch (e) { console.log('TIME ' + name + ' failed'); }
+            }
+            return null;
+        }
 
         async function syncServerTime(samples) {
             let best = null;
-            for (let i = 0; i < (samples || 1); i++) {
-                try {
-                    const s = await _sampleFirestore();
-                    if (!best || s.rtt < best.rtt) best = s;
-                } catch (e) { console.log('Firestore time sync failed', e); }
-            }
-            if (!best) {
-                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
+            best = await _sampleFreeTime(); // 0 Firestore reads
+            if (!best || best.rtt >= 3000) { // world time na mile to hi Firestore
+                best = null;
+                for (let i = 0; i < (samples || 1); i++) {
+                    try {
+                        const s = await _sampleFirestore();
+                        if (!best || s.rtt < best.rtt) best = s;
+                    } catch (e) { console.log('Firestore time sync failed', e); }
+                }
             }
             if (best && best.rtt < 3000) {
                 _syncServerMs = best.serverMs;

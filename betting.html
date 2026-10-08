@@ -195,6 +195,12 @@
 
     <script>
         const matchId = new URLSearchParams(window.location.search).get('id');
+        function getCachedFirst(ref) {
+            return ref.get({ source: 'cache' }).catch(() => null).then(s => {
+                if (s && (s.exists === undefined ? !s.empty : s.exists)) return s;
+                return ref.get();
+            });
+        }
         if(!matchId) window.location.href = "index.html";
 
         const session = localStorage.getItem('userSession');
@@ -254,9 +260,9 @@
             return _timeSynced;
         }
 
-        setInterval(() => syncServerTime(1), 300000);
+        setInterval(() => syncServerTime(1), 1800000); // 30 min
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') syncServerTime(1);
+            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
         });
 
         // Start: sync hone tak retry, phir lock state lagao
@@ -398,9 +404,13 @@ setInterval(applyLockState, 1000);
                 let expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`;
                 let hasExp = false;
                 
-                const matchSnap = await db.collection("matches").get();
                 let matchNames = {};
-                matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+                await Promise.all(Object.keys(matchPnL).map(async id => {
+                    try {
+                        const m = await getCachedFirst(db.collection("matches").doc(id));
+                        if (m.exists) matchNames[id] = `${m.data().teamA} vs ${m.data().teamB}`;
+                    } catch (e) {}
+                }));
 
                 for(let mId in matchPnL) {
                     let w = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
@@ -451,9 +461,14 @@ setInterval(applyLockState, 1000);
                 let expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`;
                 let hasExp = false;
                 
-                const matchSnap = await db.collection("matches").get();
                 let matchNames = {};
-                matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+                await Promise.all(Object.keys(matchPnL).map(async id => {
+                    try {
+                        const m = await getCachedFirst(db.collection("matches").doc(id));
+                        if (m.exists) matchNames[id] = `${m.data().teamA} vs ${m.data().teamB}`;
+                    } catch (e) {}
+                }));
+                
 
                 for(let mId in matchPnL) {
                     let w = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);

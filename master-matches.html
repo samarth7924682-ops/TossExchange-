@@ -181,6 +181,41 @@
     <script src="app.js"></script>
 
     <script>
+        // 📊 READ COUNTER (temporary) — kaun sa source kitni reads kar raha hai
+        const RC_KEY = 'masterReadCounter';
+        let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
+        try { RC_DATA = JSON.parse(localStorage.getItem(RC_KEY) || '{}'); } catch (e) {}
+        function RC(name, n, snap) {
+            if (!n) return;
+            if (snap && snap.metadata && snap.metadata.fromCache) name += ' (cache-free)';
+            const day = new Date().toISOString().slice(0, 10);
+            if (!RC_DATA[day]) RC_DATA[day] = {};
+            RC_DATA[day][name] = (RC_DATA[day][name] || 0) + n;
+            RC_SESS[name] = (RC_SESS[name] || 0) + n;
+            try { localStorage.setItem(RC_KEY, JSON.stringify(RC_DATA)); } catch (e) {}
+            console.log('READS +' + n + ' ' + name);
+            RC_render();
+        }
+        function RC_sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
+        function RC_render() {
+            if (!document.body) return;
+            let el = document.getElementById('rc-box');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'rc-box';
+                el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;background:#000c;color:#0f0;font:11px monospace;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;';
+                el.onclick = () => { RC_OPEN = !RC_OPEN; RC_render(); };
+                document.body.appendChild(el);
+            }
+            const day = new Date().toISOString().slice(0, 10);
+            const d = RC_DATA[day] || {};
+            let txt = '📊 aaj ' + RC_sum(d) + ' | is baar ' + RC_sum(RC_SESS);
+            if (RC_OPEN) {
+                txt += '\n-- aaj --\n' + Object.keys(d).map(k => k + ': ' + d[k]).join('\n');
+                txt += '\n-- is baar --\n' + Object.keys(RC_SESS).map(k => k + ': ' + RC_SESS[k]).join('\n');
+            }
+            el.textContent = txt;
+        }
         // 🔗 Predict Pro (alag Firebase project) — sirf schedule + winner yahan se bhejne ke liye
         const predictFirebaseConfig = {
           apiKey: "AIzaSyCFKhWdoGWWjIs7Z6yIEOZdx58ybp07jD0",
@@ -198,6 +233,7 @@
 
         // Fetch TG Settings for alerts
         db.collection("system_settings").doc("global").onSnapshot(doc => {
+        RC('settings', 1, doc);
             if(doc.exists) masterTgSettings = doc.data();
         });
 
@@ -242,6 +278,7 @@
             await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
             const t1 = performance.now();
             const snap = await ref.get({ source: 'server' });
+            RC('time-sync', 1);
             return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
         }
 
@@ -289,64 +326,6 @@
             const lockMins = parseInt(document.getElementById('lockMins').value);
             const predictWinner = document.getElementById('predictWinner').value.trim();
 
-           // ☁️ SERVER TIME (index.html jaisa) — phone ka time/date use nahi hota
-        let _syncServerMs = Date.now();
-        let _syncPerfMs = performance.now();
-        let _timeSynced = false;
-
-        function getTrueTime() { return _syncServerMs + (performance.now() - _syncPerfMs); }
-
-        function _timeDeviceId() {
-            let id = localStorage.getItem('_tsid');
-            if (!id) {
-                id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-                localStorage.setItem('_tsid', id);
-            }
-            return id;
-        }
-
-        async function _sampleFirestore() {
-            const ref = db.collection('_timeSync').doc(_timeDeviceId());
-            const t0 = performance.now();
-            await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
-            const t1 = performance.now();
-            const snap = await ref.get({ source: 'server' });
-            return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
-        }
-
-        async function _sampleWorldTime() {
-            const t0 = performance.now();
-            const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
-            const data = await res.json();
-            const t1 = performance.now();
-            return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
-        }
-
-        async function syncServerTime(samples) {
-            let best = null;
-            for (let i = 0; i < (samples || 1); i++) {
-                try {
-                    const s = await _sampleFirestore();
-                    if (!best || s.rtt < best.rtt) best = s;
-                } catch (e) { console.log('Firestore time sync failed', e); }
-            }
-            if (!best) {
-                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
-            }
-            if (best && best.rtt < 3000) {
-                _syncServerMs = best.serverMs;
-                _syncPerfMs = best.perf;
-                _timeSynced = true;
-            }
-            return _timeSynced;
-        }
-
-        // Reads bachane ke liye: 30 min me ek baar, aur tab wapas aane par sirf agar 10 min se zyada ho gaya ho
-        setInterval(() => syncServerTime(1), 1800000);
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
-        });
-        const timeReady = syncServerTime(1);
 
             if (isDuplicateMatch(tA, tB, editingMatchId)) {
                 showDupWarning(tA, tB);
@@ -412,7 +391,7 @@
         }
 
 
-        // ==========================================
+         // ==========================================
         // 1b. BULK ADD LOGIC
         // ==========================================
         let bulkParsed = [];
@@ -793,6 +772,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
         db.collection("match_alerts")
           .where("sentAt", ">", firebase.firestore.Timestamp.fromMillis(Date.now() - ALERT_WINDOW_MS))
           .onSnapshot(snap => {
+          RC('alerts-listener', snap.docChanges().length, snap);
             snap.docChanges().forEach(change => {
                 if (change.type === "removed") alertedMatchIds.delete(change.doc.id);
                 else alertedMatchIds.add(change.doc.id);
@@ -802,14 +782,11 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
         db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             let matches = [];
             snap.forEach(doc => matches.push({id: doc.id, ...doc.data()}));
+            RC('open-listener', snap.docChanges().length, snap);
 
             matches.sort((a,b) => a.tossTimeMs - b.tossTimeMs);
             cachedOpenMatches = matches; // Local cache update — background checker isको padhega
          updateBulkVoidUI();
-           if (!autoVoidStarted) { // page khulne par sirf ek baar
-                autoVoidStarted = true;
-                timeReady.then(autoVoidEmptyMatches);
-            }
             const list = document.getElementById('live-list');
             list.innerHTML = "";
             if(matches.length === 0) { list.innerHTML = "<p style='color:#777; font-size:12px;'>No active matches.</p>"; return; }
@@ -1020,6 +997,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
               .where("status", "in", ["closed", "cancelled"])
               .where("settledAt", ">=", firebase.firestore.Timestamp.fromMillis(historyWindowStartMs()))
               .get();
+              RC('history-seed', snap.size);
             let latest = 0;
             snap.forEach(doc => {
                 const m = doc.data();
@@ -1039,6 +1017,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
               .where("status", "in", ["closed", "cancelled"])
               .where("settledAt", ">", firebase.firestore.Timestamp.fromMillis(cursorMs))
               .onSnapshot(snap => {
+              RC('history-listener', snap.docChanges().length, snap);
                 let latest = cursorMs, changed = false;
                 snap.docChanges().forEach(ch => {
                     if (ch.type === 'removed') { // undo hone par match history se hatao
@@ -1079,8 +1058,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         }
         timeReady.then(initHistory, initHistory); // server time sync ke baad shuru
         // ==========================================
-        // ↩️ UNDO RESULT — settlement/void/partial-void wapas reverse karta hai
-        // (History list me sirf 4-din tak dikhne wale matches par hi button dikhta hai)
+        // UNDO RESULT — settlement/void/partial-void wapas reverse karta hai
         // ==========================================
         async function undoSettlement(matchId, teamA, teamB) {
             const pin = prompt(`🔐 Enter Master PIN to UNDO result for ${teamA} vs ${teamB}:`);
@@ -1090,6 +1068,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
             try {
                 const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "in", ["won", "lost", "cancelled"]).get();
+                RC('bets-undo', Math.max(1, betsSnap.size));
 
                 if (betsSnap.empty) {
                     await db.collection("matches").doc(matchId).update({ status: 'open', autoVoidOff: true, winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
@@ -1320,6 +1299,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             else {
                 try {
                     const d = await db.collection("matches").doc(matchId).get();
+                    RC('match-doc', 1);
                     if (d.exists) tossMs = d.data().tossTimeMs || null;
                 } catch (e) { console.error(e); }
             }
@@ -1333,6 +1313,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         async function executePartialVoid(matchId, cutoffMs, winnerCode, winnerName) {
             try {
                 const betsSnap = await db.collection("bets").where("matchId", "==", matchId).where("status", "==", "pending").get();
+                RC('bets-settle', Math.max(1, betsSnap.size));
 
                 if (betsSnap.empty) {
                     await db.collection("matches").doc(matchId).update({ status: 'closed', winner: winnerName, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -1415,7 +1396,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             if(confirm("Are you sure you want to VOID this match? Exact locked exposure will be refunded.")) {
                 try {
                     const betsSnap = await db.collection("bets").where("matchId", "==", id).where("status", "==", "pending").get();
-                    
+  RC('bets-void', Math.max(1, betsSnap.size));                  
                                         if (betsSnap.empty) {
                         await db.collection("matches").doc(id).update({ status: 'cancelled', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                         alert("✅ Match Voided. No active bets found.");
@@ -1497,6 +1478,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         // Ek match void (bina prompt) — pending bets ka locked exposure refund
         async function voidMatchCore(id) {
             const betsSnap = await db.collection("bets").where("matchId", "==", id).where("status", "==", "pending").get();
+            RC('bets-bulkvoid', Math.max(1, betsSnap.size));
             const batch = db.batch();
             let userBets = {};
 
@@ -1628,12 +1610,14 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
         async function autoVoidEmptyMatches() {
             if (autoVoidBusy) return;
-            if (!_timeSynced) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
             autoVoidBusy = true;
             try {
+                if (!_timeSynced) await syncServerTime(2); // pehli try slow network par fail ho sakti hai
+                if (!_timeSynced) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
                 let openList = cachedOpenMatches;
                 try {
                     const os = await db.collection("matches").where("status", "==", "open").get({ source: 'server' });
+                    RC('autovoid-open-fetch', os.size);
                     openList = os.docs.map(d => ({ id: d.id, ...d.data() }));
                 } catch (e) { console.log('AUTOVOID: server fetch fail, cache use kar rahe', e); }
                 const now = getTrueTime();
@@ -1646,6 +1630,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 for (const m of due) {
                     // sirf 1 read, aur result localStorage me yaad rehta hai
                     const q = await db.collection("bets").where("matchId", "==", m.id).limit(1).get();
+                    RC('autovoid-bets', Math.max(1, q.size));
                     if (!q.empty) {
                         hasBetsIds.add(m.id);
                         try { localStorage.setItem(HASBETS_KEY, JSON.stringify([...hasBetsIds].slice(-300))); } catch(e) {}
@@ -1654,6 +1639,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     await db.runTransaction(async tx => {
                         const ref = db.collection("matches").doc(m.id);
                         const s = await tx.get(ref);
+                        RC('autovoid-tx', 1);
                         if (s.exists && s.data().status === 'open') {
                             tx.update(ref, { status: 'cancelled', autoVoided: true, settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                         }

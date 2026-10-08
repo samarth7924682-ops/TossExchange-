@@ -779,6 +779,8 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
             });
         });
 
+        let openLoadedResolve;
+        const openLoaded = new Promise(r => { openLoadedResolve = r; });
         db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             let matches = [];
             snap.forEach(doc => matches.push({id: doc.id, ...doc.data()}));
@@ -786,6 +788,7 @@ document.getElementById('lockMinsLabel').innerText = document.getElementById('lo
 
             matches.sort((a,b) => a.tossTimeMs - b.tossTimeMs);
             cachedOpenMatches = matches; // Local cache update — background checker isको padhega
+            openLoadedResolve(); // auto void ab is list par chalega
          updateBulkVoidUI();
             const list = document.getElementById('live-list');
             list.innerHTML = "";
@@ -1614,12 +1617,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             try {
                 if (!_timeSynced) await syncServerTime(2); // pehli try slow network par fail ho sakti hai
                 if (!_timeSynced) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
-                let openList = cachedOpenMatches;
-                try {
-                    const os = await db.collection("matches").where("status", "==", "open").get({ source: 'server' });
-                    RC('autovoid-open-fetch', os.size);
-                    openList = os.docs.map(d => ({ id: d.id, ...d.data() }));
-                } catch (e) { console.log('AUTOVOID: server fetch fail, cache use kar rahe', e); }
+                const openList = cachedOpenMatches; // listener wali list, 0 extra reads
                 const now = getTrueTime();
                 const due = openList.filter(m =>
                     m.tossTimeMs && !m.autoVoidOff && !hasBetsIds.has(m.id) &&
@@ -1651,7 +1649,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 autoVoidBusy = false;
             }
         }
-        timeReady.then(autoVoidEmptyMatches); // page khulte hi, server time sync ke baad ek baar
+        Promise.all([timeReady, openLoaded]).then(autoVoidEmptyMatches); // server time + open list dono aane ke baad ek baar
     </script>
 </body>
 </html>

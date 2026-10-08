@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Time test</title>
+</head>
+<body style="font:16px sans-serif;padding:16px">
+<h3>Time test</h3>
+<pre id="out">Test chal raha hai...</pre>
+<script>
+fetch(location.pathname + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+  .then(r => {
+    const d = r.headers.get('date'), a = r.headers.get('age');
+    const diff = d ? Math.round((new Date(d).getTime() - Date.now()) / 1000) : 'NA';
+    document.getElementById('out').textContent =
+      'Server DATE: ' + d + '\nAGE: ' + a + '\nPhone time: ' + new Date().toUTCString() + '\nFarq (sec): ' + diff + '\nStatus: ' + r.status;
+  })
+  .catch(e => { document.getElementById('out').textContent = 'ERROR: ' + e; });
+</script>
+</body>
+</html>

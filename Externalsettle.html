@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f7f6f2">
+<title>Result Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg: #f7f6f2;
+        --surface: #ffffff;
+        --surface-2: #f2f0e9;
+        --line: rgba(45, 38, 20, .10);
+        --line-strong: rgba(45, 38, 20, .22);
+        --ivory: #1a1812;
+        --muted: #6f6b5d;
+        --brass: #8a6a1f;
+        --brass-deep: #b8923a;
+        --win: #1d8a57;
+        --void: #c0452f;
+        --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+        --body: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--ivory); font-family: var(--body); }
+    body {
+        min-height: 100vh;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+        background:
+            radial-gradient(120% 60% at 50% -10%, rgba(184, 146, 58, .10), transparent 60%),
+            var(--bg);
+    }
+    button { font-family: inherit; color: inherit; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    /* ---------- Lock screen ---------- */
+    .lock { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .lock-card { width: 100%; max-width: 340px; text-align: center; }
+    .lock-mark { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 1; letter-spacing: .5px; }
+    .lock-sub { color: var(--muted); font-size: 14px; margin: 10px 0 26px; }
+    .lock input {
+        width: 100%; padding: 15px 16px; border-radius: 12px; border: 1px solid var(--line-strong);
+        background: var(--surface); color: var(--ivory); font-size: 18px; text-align: center; letter-spacing: 6px;
+    }
+    .lock .err { color: var(--void); font-size: 13px; min-height: 18px; margin: 10px 0 0; }
+    .btn-brass {
+        width: 100%; margin-top: 12px; padding: 15px; border: 0; border-radius: 12px; font-weight: 700; font-size: 16px;
+        color: #1b1405; background: linear-gradient(180deg, #e6cd8f, var(--brass-deep));
+    }
+
+    /* ---------- Header ---------- */
+    header { position: sticky; top: 0; z-index: 20; padding: 16px 18px 12px; background: linear-gradient(var(--bg) 78%, transparent); }
+    .head-row { display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1; }
+    .clock { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--void); }
+    .dot.ok { background: var(--win); box-shadow: 0 0 0 4px rgba(127, 217, 168, .14); }
+
+    .tabs { display: flex; margin-top: 14px; border-bottom: 1px solid var(--line); }
+    .tab { flex: 1; padding: 11px 0 12px; background: none; border: 0; font-size: 15px; font-weight: 600; color: var(--muted); position: relative; }
+    .tab.on { color: var(--ivory); }
+    .tab.on::after { content: ''; position: absolute; left: 20%; right: 20%; bottom: -1px; height: 2px; background: var(--brass); }
+    .tab .n { margin-left: 6px; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--surface-2); color: var(--brass); }
+
+    main { padding: 6px 18px 0; max-width: 560px; margin: 0 auto; }
+    .group-title { margin: 22px 2px 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+
+    /* ---------- Match card ---------- */
+    .match { position: relative; margin-bottom: 14px; padding: 16px 16px 18px 20px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; box-shadow: 0 1px 2px rgba(45, 38, 20, .05), 0 10px 26px -14px rgba(45, 38, 20, .22); }
+    .match::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--brass); }
+    .match.wait::before { background: var(--line-strong); }
+    .m-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-size: 13px; }
+    .m-toss { color: var(--muted); font-weight: 500; }
+    .m-state { font-weight: 700; color: var(--brass); }
+    .m-state.wait { color: var(--muted); font-weight: 600; }
+    .pick { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+    .team {
+        min-height: 64px; padding: 10px 8px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface-2);
+        font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--ivory); text-align: center; word-break: break-word;
+        transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    }
+    .team:active:not(:disabled) { transform: scale(.97); background: #f3ecd6; border-color: var(--brass); }
+    .team:disabled { opacity: .45; cursor: not-allowed; }
+    .vs { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+    .empty { margin-top: 56px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .empty b { display: block; margin-bottom: 4px; color: var(--ivory); font-family: var(--display); font-size: 24px; font-weight: 600; }
+
+    /* ---------- History ---------- */
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+    .r-name { font-weight: 700; font-size: 15px; }
+    .r-name span { color: var(--muted); font-weight: 500; margin: 0 4px; }
+    .r-meta { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+    .r-res { flex: none; align-self: flex-start; max-width: 42%; text-align: right; font-weight: 700; font-size: 14px; color: var(--win); word-break: break-word; }
+    .r-res.void { color: var(--void); }
+    .r-res small { display: block; margin-top: 3px; font-size: 11px; font-weight: 600; color: var(--muted); }
+
+    /* ---------- Confirm sheet ---------- */
+    .scrim { position: fixed; inset: 0; z-index: 50; background: rgba(26, 24, 18, .42); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+    .scrim.open { opacity: 1; pointer-events: auto; }
+    .sheet {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: 560px; margin: 0 auto;
+        padding: 26px 22px calc(env(safe-area-inset-bottom, 0px) + 22px);
+        border-radius: 24px 24px 0 0; background: var(--surface); border-top: 1px solid var(--line-strong); box-shadow: 0 -12px 40px -12px rgba(45, 38, 20, .28);
+        transform: translateY(105%); transition: transform .26s cubic-bezier(.2, .8, .2, 1);
+    }
+    .sheet.open { transform: translateY(0); }
+    .s-label { color: var(--muted); font-size: 14px; }
+    .s-winner { margin: 8px 0 4px; font-family: var(--display); font-weight: 700; font-size: 46px; line-height: 1; color: var(--brass); word-break: break-word; }
+    .s-match { color: var(--ivory); font-size: 15px; font-weight: 600; }
+    .s-rule { height: 1px; background: var(--line-strong); margin: 18px 0 14px; }
+    .s-note { color: var(--muted); font-size: 13px; line-height: 1.55; margin-bottom: 20px; }
+    .s-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+    .btn-ghost { padding: 15px; border-radius: 12px; border: 1px solid var(--line-strong); background: none; font-weight: 600; font-size: 16px; }
+    .s-actions .btn-brass { margin: 0; }
+    .btn-brass:disabled, .btn-ghost:disabled { opacity: .55; }
+
+    /* ---------- Toast ---------- */
+    #toast {
+        position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); z-index: 80; max-width: 88vw;
+        transform: translate(-50%, 20px); opacity: 0; pointer-events: none; padding: 12px 18px; border-radius: 12px;
+        background: var(--surface-2); border: 1px solid var(--line-strong); font-size: 14px; font-weight: 600; text-align: center;
+        transition: opacity .2s ease, transform .2s ease;
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #toast.bad { border-color: var(--void); color: #8f2a18; }
+
+    @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+    }
+</style>
+</head>
+<body>
+
+<!-- APP -->
+<div id="app">
+    <header>
+        <div class="head-row">
+            <div class="brand">Result Desk</div>
+            <div class="clock"><span class="dot" id="syncDot"></span><span id="clock">--:--:--</span></div>
+        </div>
+        <div class="tabs">
+            <button class="tab on" id="tabPending" onclick="showTab('pending')">To settle<span class="n" id="pendCount">0</span></button>
+            <button class="tab" id="tabHistory" onclick="showTab('history')">History</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="viewPending"><div id="pending"></div></section>
+        <section id="viewHistory" hidden><div id="history"></div></section>
+    </main>
+</div>
+
+<!-- CONFIRM SHEET -->
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Confirm winner">
+    <div class="s-label">Confirm winner</div>
+    <div class="s-winner" id="sWinner"></div>
+    <div class="s-match" id="sMatch"></div>
+    <div class="s-rule"></div>
+    <div class="s-note">Bets placed after the toss time are cancelled and refunded automatically. This cannot be changed from this page.</div>
+    <div class="s-actions">
+        <button class="btn-ghost" id="sCancel" onclick="closeSheet()">Cancel</button>
+        <button class="btn-brass" id="sOk" onclick="confirmSettle()">OK, settle</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+
+<script>
+(function () {
+    // =====================================================
+    // SETTINGS
+    // =====================================================
+    const AUTO_VOID_GRACE_MS = 0;            // toss time nikalte hi bina-bet match auto void
+    const SETTLING_STALE_MS = 2 * 60000;     // adhura settle 2 min baad dobara try ho sakta hai
+    const HISTORY_DAYS = 3;                  // history me aaj + pichhle din
+    const HASBETS_KEY = 'extHasBetsIds';
+
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // =====================================================
+    // 📊 READ COUNTER — kaun sa source kitni reads kar raha hai (tap karke list kholo)
+    // =====================================================
+    const RC_KEY = 'externalReadCounter';
+    let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
+    try { RC_DATA = JSON.parse(localStorage.getItem(RC_KEY) || '{}'); } catch (e) {}
+    function RC(name, n, snap) {
+        if (!n) return;
+        if (snap && snap.metadata && snap.metadata.fromCache) name += ' (cache-free)';
+        const day = new Date().toISOString().slice(0, 10);
+        if (!RC_DATA[day]) {
+            RC_DATA[day] = {};
+            Object.keys(RC_DATA).sort().slice(0, -7).forEach(k => delete RC_DATA[k]); // sirf pichhle 7 din
+        }
+        RC_DATA[day][name] = (RC_DATA[day][name] || 0) + n;
+        RC_SESS[name] = (RC_SESS[name] || 0) + n;
+        try { localStorage.setItem(RC_KEY, JSON.stringify(RC_DATA)); } catch (e) {}
+        console.log('READS +' + n + ' ' + name);
+        RC_render();
+    }
+    function RC_sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
+    function RC_render() {
+        if (!document.body) return;
+        let el = document.getElementById('rc-box');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'rc-box';
+            el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;background:#1a1812e6;color:#9be7b9;font:11px monospace;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;';
+            el.onclick = () => { RC_OPEN = !RC_OPEN; RC_render(); };
+            document.body.appendChild(el);
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const d = RC_DATA[day] || {};
+        let txt = '📊 aaj ' + RC_sum(d) + ' | is baar ' + RC_sum(RC_SESS);
+        if (RC_OPEN) {
+            txt += '\n-- aaj --\n' + Object.keys(d).map(k => k + ': ' + d[k]).join('\n');
+            txt += '\n-- is baar --\n' + Object.keys(RC_SESS).map(k => k + ': ' + RC_SESS[k]).join('\n');
+        }
+        el.textContent = txt;
+    }
+    RC_render();
+
+    // =====================================================
+    // SERVER TIME (phone ka time use nahi hota)
+    // =====================================================
+    let _syncServerMs = Date.now();
+    let _syncPerfMs = performance.now();
+    let timeOk = false;
+    function getTrueTime() { return _syncServerMs + (performance.now() - _syncPerfMs); }
+
+    function _deviceId() {
+        let id = null;
+        try { id = localStorage.getItem('_tsid'); } catch (e) {}
+        if (!id) {
+            id = 'd_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            try { localStorage.setItem('_tsid', id); } catch (e) {}
+        }
+        return id;
+    }
+    async function sampleFirestore() {
+        const ref = db.collection('_timeSync').doc(_deviceId());
+        const t0 = performance.now();
+        await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
+        const t1 = performance.now();
+        const snap = await ref.get({ source: 'server' });
+        RC('time-sync', 1);
+        return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+    }
+    async function fetchTimed(url, parse) {
+        const ctl = new AbortController();
+        const to = setTimeout(() => ctl.abort(), 4000);
+        try {
+            const t0 = performance.now();
+            const res = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+            const txt = await res.text();
+            const t1 = performance.now();
+            return { serverMs: parse(txt), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+        } finally { clearTimeout(to); }
+    }
+    const FREE_TIME_SOURCES = [
+        ['cloudflare', 'https://www.cloudflare.com/cdn-cgi/trace', t => { const m = t.match(/ts=([0-9.]+)/); if (!m) throw new Error('no ts'); return Math.round(parseFloat(m[1]) * 1000); }],
+        ['timeapi.io', 'https://timeapi.io/api/Time/current/zone?timeZone=UTC', t => new Date(JSON.parse(t).dateTime.slice(0, 23) + 'Z').getTime()],
+        ['worldtimeapi', 'https://worldtimeapi.org/api/timezone/Etc/UTC', t => new Date(JSON.parse(t).utc_datetime).getTime()]
+    ];
+    async function sampleFreeTime() {
+        for (const [name, url, parse] of FREE_TIME_SOURCES) {
+            try {
+                const s = await fetchTimed(url, parse);
+                if (s.serverMs && s.rtt < 3000) { console.log('TIME source: ' + name); return s; }
+            } catch (e) { console.log('TIME ' + name + ' failed'); }
+        }
+        return null;
+    }
+    async function syncServerTime(samples) {
+        let best = await sampleFreeTime();                 // 0 Firestore reads
+        if (!best || best.rtt >= 3000) {                   // free source na mile to hi Firestore
+            best = null;
+            for (let i = 0; i < (typeof samples === 'number' ? samples : 1); i++) {
+                try {
+                    const x = await sampleFirestore();
+                    if (!best || x.rtt < best.rtt) best = x;
+                } catch (e) { console.log('Firestore time sync failed', e); }
+            }
+        }
+        if (best && best.rtt < 3000) {
+            _syncServerMs = best.serverMs;
+            _syncPerfMs = best.perf;
+            timeOk = true;
+        }
+        $('syncDot').classList.toggle('ok', timeOk);
+        return timeOk;
+    }
+
+    // =====================================================
+    // HELPERS
+    // =====================================================
+    function fmtTime(ms) {
+        return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function fmtDur(ms) {
+        const m = Math.max(1, Math.ceil(ms / 60000));
+        if (m < 60) return m + 'm';
+        const h = Math.floor(m / 60), r = m % 60;
+        if (h < 24) return h + 'h' + (r ? ' ' + r + 'm' : '');
+        return Math.floor(h / 24) + 'd';
+    }
+    function dayStartMs(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+    function dayLabel(ms) {
+        const diff = Math.round((dayStartMs(getTrueTime()) - dayStartMs(ms)) / 86400000);
+        if (diff <= 0) return 'Today';
+        if (diff === 1) return 'Yesterday';
+        return new Date(ms).toLocaleDateString([], { day: '2-digit', month: 'short' });
+    }
+    let toastTimer = null;
+    function toast(msg, bad) {
+        const t = $('toast');
+        t.textContent = msg;
+        t.className = (bad ? 'bad ' : '') + 'show';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { t.className = ''; }, 3600);
+    }
+
+    // =====================================================
+    // TABS
+    // =====================================================
+    window.showTab = function (name) {
+        const p = name === 'pending';
+        $('viewPending').hidden = !p;
+        $('viewHistory').hidden = p;
+        $('tabPending').classList.toggle('on', p);
+        $('tabHistory').classList.toggle('on', !p);
+    };
+
+    // =====================================================
+    // LIVE MATCHES (open + settling) — sirf yahi ek listener matches padhta hai
+    // =====================================================
+    let liveMatches = [];
+    function startMatchListener() {
+        db.collection('matches').where('status', 'in', ['open', 'settling']).onSnapshot(snap => {
+            RC('open-listener', snap.docChanges().length, snap);
+            liveMatches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            renderPending();
+            autoVoidEmpty();
+        }, err => { console.log('Matches listener error:', err); toast('Could not load matches', true); });
+    }
+
+    function isProcessing(m, t) {
+        return m.status === 'settling' && (t - (m.settlingAtMs || 0)) < SETTLING_STALE_MS;
+    }
+
+    function matchCard(m, ready, t) {
+        const processing = isProcessing(m, t);
+        const can = ready && !processing;
+        let state;
+        if (processing) state = '<span class="m-state wait">Processing</span>';
+        else if (ready) state = '<span class="m-state">Toss done</span>';
+        else if (!timeOk) state = '<span class="m-state wait">Syncing time</span>';
+        else state = '<span class="m-state wait">Toss in ' + fmtDur(m.tossTimeMs - t) + '</span>';
+        return '<div class="match ' + (can ? '' : 'wait') + '">' +
+            '<div class="m-head"><span class="m-toss">Toss ' + esc(fmtTime(m.tossTimeMs)) + '</span>' + state + '</div>' +
+            '<div class="pick">' +
+                '<button class="team" data-id="' + esc(m.id) + '" data-side="teamA"' + (can ? '' : ' disabled') + '>' + esc(m.teamA) + '</button>' +
+                '<span class="vs">vs</span>' +
+                '<button class="team" data-id="' + esc(m.id) + '" data-side="teamB"' + (can ? '' : ' disabled') + '>' + esc(m.teamB) + '</button>' +
+            '</div></div>';
+    }
+
+    function renderPending() {
+        const box = $('pending');
+        const t = getTrueTime();
+        const list = liveMatches.filter(m => m.tossTimeMs).sort((a, b) => a.tossTimeMs - b.tossTimeMs);
+        $('pendCount').textContent = list.length;
+        if (!list.length) {
+            box.innerHTML = '<div class="empty"><b>All clear</b>No matches waiting. New matches show up here on their own.</div>';
+            return;
+        }
+        const ready = [], soon = [];
+        list.forEach(m => ((timeOk && t >= m.tossTimeMs) ? ready : soon).push(m));
+        let html = '';
+        if (ready.length) html += '<div class="group-title">Ready to settle</div>' + ready.map(m => matchCard(m, true, t)).join('');
+        if (soon.length) html += '<div class="group-title">Waiting for toss</div>' + soon.map(m => matchCard(m, false, t)).join('');
+        box.innerHTML = html;
+    }
+
+    $('pending').addEventListener('click', e => {
+        const btn = e.target.closest('.team');
+        if (!btn || btn.disabled) return;
+        openSheet(btn.dataset.id, btn.dataset.side);
+    });
+
+    // =====================================================
+    // CONFIRM SHEET
+    // =====================================================
+    let pick = null, working = false;
+    function openSheet(id, side) {
+        const m = liveMatches.find(x => x.id === id);
+        if (!m) return;
+        pick = { id, side };
+        $('sWinner').textContent = side === 'teamA' ? m.teamA : m.teamB;
+        $('sMatch').textContent = m.teamA + ' vs ' + m.teamB;
+        $('scrim').classList.add('open');
+        $('sheet').classList.add('open');
+    }
+    window.closeSheet = function () {
+        if (working) return;
+        $('scrim').classList.remove('open');
+        $('sheet').classList.remove('open');
+        pick = null;
+    };
+    window.confirmSettle = async function () {
+        if (!pick || working) return;
+        const m = liveMatches.find(x => x.id === pick.id);
+        if (!m) { closeSheet(); return; }
+        const side = pick.side;
+        const winnerName = side === 'teamA' ? m.teamA : m.teamB;
+        working = true;
+        $('sOk').disabled = true; $('sCancel').disabled = true; $('sOk').textContent = 'Settling…';
+        try {
+            const r = await settleMatch(m, side, winnerName);
+            working = false;
+            closeSheet();
+            toast(winnerName + ' wins. ' + r.settled + ' settled, ' + r.voided + ' refunded.');
+        } catch (e) {
+            console.error(e);
+            working = false;
+            closeSheet();
+            toast(e.message || 'Could not settle. Try again.', true);
+        } finally {
+            working = false;
+            $('sOk').disabled = false; $('sCancel').disabled = false; $('sOk').textContent = 'OK, settle';
+        }
+    };
+
+    // =====================================================
+    // SETTLE — toss ke BAAD lagi bets hamesha VOID (master jaisa logic)
+    // =====================================================
+    async function settleMatch(m, side, winnerName) {
+        if (!timeOk) throw new Error('Server time not synced yet. Wait a few seconds.');
+        const mRef = db.collection('matches').doc(m.id);
+        let tossMs = 0;
+
+        // 1) Match ko claim karo — master ya dusra device ek saath settle na kar sake
+        await db.runTransaction(async tx => {
+            const s = await tx.get(mRef);
+            RC('claim-tx', 1);
+            if (!s.exists) throw new Error('Match not found.');
+            const d = s.data();
+            const stale = d.status === 'settling' && (getTrueTime() - (d.settlingAtMs || 0)) > SETTLING_STALE_MS;
+            if (d.status !== 'open' && !stale) throw new Error('This match was already settled or voided.');
+            if (!d.tossTimeMs || getTrueTime() < d.tossTimeMs) throw new Error('Toss time has not passed yet.');
+            tossMs = d.tossTimeMs;
+            tx.update(mRef, { status: 'settling', settlingAtMs: Math.round(getTrueTime()) });
+        });
+
+        try {
+            const betsSnap = await db.collection('bets').where('matchId', '==', m.id).where('status', '==', 'pending').get();
+            RC('bets-settle', Math.max(1, betsSnap.size));
+
+            const settleUsers = {}, voidUsers = {};
+            let settled = 0, voided = 0;
+            betsSnap.forEach(doc => {
+                const b = doc.data();
+                const bMs = b.timestamp && b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
+                const isVoid = bMs > tossMs;
+                const target = isVoid ? voidUsers : settleUsers;
+                if (isVoid) voided++; else settled++;
+                if (!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
+                target[b.userId].bets.push({ id: doc.id, selection: b.selection });
+                const winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
+                if (b.selection === 'teamA') { target[b.userId].pnlA += winAmt; target[b.userId].pnlB -= b.amount; }
+                else { target[b.userId].pnlB += winAmt; target[b.userId].pnlA -= b.amount; }
+            });
+
+            // Har user ke ops ek group me — batch limit (500) ke hisab se chunks me commit
+            const groups = [];
+            for (const uid in settleUsers) {
+                const u = settleUsers[uid];
+                const locked = Math.min(u.pnlA, u.pnlB) < 0 ? Math.abs(Math.min(u.pnlA, u.pnlB)) : 0;
+                const adj = locked + (side === 'teamA' ? u.pnlA : u.pnlB);
+                const ops = [];
+                if (adj !== 0) ops.push(b => b.set(db.collection('users').doc(uid), { balance: firebase.firestore.FieldValue.increment(adj) }, { merge: true }));
+                u.bets.forEach(bt => ops.push(b => b.update(db.collection('bets').doc(bt.id), { status: bt.selection === side ? 'won' : 'lost' })));
+                groups.push(ops);
+            }
+            for (const uid in voidUsers) {
+                const u = voidUsers[uid];
+                const locked = Math.min(u.pnlA, u.pnlB) < 0 ? Math.abs(Math.min(u.pnlA, u.pnlB)) : 0;
+                const ops = [];
+                if (locked > 0) ops.push(b => b.set(db.collection('users').doc(uid), { balance: firebase.firestore.FieldValue.increment(locked) }, { merge: true }));
+                u.bets.forEach(bt => ops.push(b => b.update(db.collection('bets').doc(bt.id), { status: 'cancelled' })));
+                groups.push(ops);
+            }
+            // Aakhri group: match close + history — hamesha last chunk ke saath atomic
+            groups.push([
+                b => b.update(mRef, {
+                    status: 'closed', winner: winnerName, settledBy: 'external',
+                    settledAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    settlingAtMs: firebase.firestore.FieldValue.delete()
+                })
+            ]);
+
+            let batch = db.batch(), n = 0;
+            for (const ops of groups) {
+                if (n > 0 && n + ops.length > 450) { await batch.commit(); batch = db.batch(); n = 0; }
+                ops.forEach(fn => fn(batch));
+                n += ops.length;
+            }
+            if (n > 0) await batch.commit();
+            // History alag likhte hain — rules/permission issue ho to bhi settlement kabhi fail na ho
+            db.collection('external_history').doc(m.id).set({
+                matchId: m.id, teamA: m.teamA, teamB: m.teamB, type: 'settled', winner: winnerName,
+                tossTimeMs: tossMs, settledCount: settled, voidedCount: voided,
+                settledAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(e => console.log('History write skipped:', e));
+            return { settled, voided };
+        } catch (e) {
+            // Kuch fail hua — match wapas open, taaki dobara try ho sake (settle ho chuke users dobara nahi chhuyenge)
+            try { await mRef.update({ status: 'open', settlingAtMs: firebase.firestore.FieldValue.delete() }); } catch (e2) {}
+            throw new Error('Settlement failed. Please try again.');
+        }
+    }
+
+    // =====================================================
+    // AUTO VOID — toss ho chuka + ek bhi bet nahi = match void (page khulte hi)
+    // =====================================================
+    let hasBetsIds = new Set();
+    try { hasBetsIds = new Set(JSON.parse(localStorage.getItem(HASBETS_KEY) || '[]')); } catch (e) {}
+    let autoBusy = false;
+
+    async function autoVoidEmpty() {
+        if (autoBusy) return;
+        autoBusy = true;
+        let count = 0;
+        try {
+            if (!timeOk) await syncServerTime(2);          // pehli try slow network par fail ho sakti hai
+            if (!timeOk) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
+            const t = getTrueTime();
+            const due = liveMatches.filter(m =>
+                m.status === 'open' && m.tossTimeMs && !m.autoVoidOff && !hasBetsIds.has(m.id) &&
+                t >= m.tossTimeMs + AUTO_VOID_GRACE_MS
+            );
+            console.log('AUTOVOID: live=' + liveMatches.length + ', due=' + due.length);
+            for (const m of due) {
+                try {
+                    const q = await db.collection('bets').where('matchId', '==', m.id).limit(1).get(); // 1 read, phir yaad rehta hai
+                    RC('autovoid-bets', Math.max(1, q.size));
+                    if (!q.empty) {
+                        hasBetsIds.add(m.id);
+                        try { localStorage.setItem(HASBETS_KEY, JSON.stringify([...hasBetsIds].slice(-300))); } catch (e) {}
+                        continue;
+                    }
+                    let did = false;
+                    await db.runTransaction(async tx => {
+                        const ref = db.collection('matches').doc(m.id);
+                        const s = await tx.get(ref);
+                        RC('autovoid-tx', 1);
+                        if (s.exists && s.data().status === 'open') {
+                            did = true;
+                            tx.update(ref, { status: 'cancelled', autoVoided: true, settledBy: 'external', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        }
+                    });
+                    if (did) {
+                        count++;
+                        // History alag likhte hain — fail ho to bhi void already ho chuka hota hai
+                        db.collection('external_history').doc(m.id).set({
+                            matchId: m.id, teamA: m.teamA, teamB: m.teamB, type: 'void',
+                            tossTimeMs: m.tossTimeMs, settledCount: 0, voidedCount: 0,
+                            settledAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).catch(e => console.log('History write skipped:', e));
+                    }
+                } catch (e) {
+                    console.log('Auto void error for ' + m.id + ':', e);
+                }
+            }
+            if (count) toast(count + (count === 1 ? ' match' : ' matches') + '');
+        } catch (e) {
+            console.log('Auto void error:', e);
+        } finally {
+            autoBusy = false;
+        }
+    }
+
+    // =====================================================
+    // HISTORY — sirf is page se settle/void hue matches (external_history)
+    // =====================================================
+    const histMap = {};
+    function histMs(h) { return h.settledAt && h.settledAt.toMillis ? h.settledAt.toMillis() : getTrueTime(); }
+
+    function renderHistory() {
+        const box = $('history');
+        const rows = Object.values(histMap).sort((a, b) => histMs(b) - histMs(a));
+        if (!rows.length) {
+            box.innerHTML = '<div class="empty"><b>Nothing yet</b>Matches you settle here will be listed day by day.</div>';
+            return;
+        }
+        let html = '', cur = '';
+        rows.forEach(h => {
+            const ms = histMs(h);
+            const label = dayLabel(ms);
+            if (label !== cur) { html += '<div class="group-title">' + esc(label) + '</div>'; cur = label; }
+            const isVoid = h.type === 'void';
+            const res = isVoid
+                ? '<div class="r-res void">Voided<small>No bets</small></div>'
+                : '<div class="r-res">' + esc(h.winner) + '<small>' + (h.settledCount || 0) + ' settled' + (h.voidedCount ? ', ' + h.voidedCount + ' refunded' : '') + '</small></div>';
+            html += '<div class="row"><div><div class="r-name">' + esc(h.teamA) + '<span>vs</span>' + esc(h.teamB) + '</div>' +
+                '<div class="r-meta"><span>Toss ' + esc(fmtTime(h.tossTimeMs)) + '</span><span>Done ' + esc(fmtTime(ms)) + '</span></div></div>' + res + '</div>';
+        });
+        box.innerHTML = html;
+    }
+
+    function startHistoryListener() {
+        const startMs = dayStartMs(getTrueTime()) - (HISTORY_DAYS - 1) * 86400000;
+        db.collection('external_history')
+            .where('settledAt', '>', firebase.firestore.Timestamp.fromMillis(startMs))
+            .onSnapshot(snap => {
+                RC('history-listener', snap.docChanges().length, snap);
+                snap.docChanges().forEach(ch => {
+                    if (ch.type === 'removed') delete histMap[ch.doc.id];
+                    else histMap[ch.doc.id] = ch.doc.data();
+                });
+                renderHistory();
+            }, err => console.log('History listener error:', err));
+    }
+
+    // =====================================================
+    // START
+    // =====================================================
+    function tickClock() {
+        const d = new Date(getTrueTime());
+        $('clock').textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    async function start() {
+        renderPending();
+        renderHistory();
+        setInterval(tickClock, 1000);
+        tickClock();
+        await syncServerTime(2);
+        if (!timeOk) toast('Could not sync server time. Check your internet.', true);
+        tickClock();
+        startMatchListener();
+        startHistoryListener();
+        setInterval(renderPending, 15000);          // countdown + "Toss done" refresh
+        setInterval(autoVoidEmpty, 15000);
+        setInterval(() => syncServerTime(1), 1800000); // 30 min me ek baar
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
+        });
+    }
+    start();   // seedha khulta hai — koi password nahi
+})();
+</script>
+</body>
+</html>

@@ -142,7 +142,7 @@
     <header>
         <div class="head-row">
             <div class="brand">Result Desk</div>
-            <div class="clock"><span class="dot" id="syncDot"></span><span id="clock">--:--:--</span></div>
+            <div class="clock"><span class="dot" id="syncDot"></span><span id="clock">--:--:--</span><span id="refreshBtn" onclick="forceRefresh()" title="Full refresh" style="margin-left:10px;cursor:pointer;font-size:18px;line-height:1;">&#8635;</span></div>
         </div>
         <div class="tabs">
             <button class="tab on" id="tabPending" onclick="showTab('pending')">To settle<span class="n" id="pendCount">0</span></button>
@@ -259,7 +259,7 @@
     }
     async function fetchTimed(url, parse) {
         const ctl = new AbortController();
-        const to = setTimeout(() => ctl.abort(), 4000);
+        const to = setTimeout(() => ctl.abort(), 2500);
         try {
             const t0 = performance.now();
             const res = await fetch(url, { cache: 'no-store', signal: ctl.signal });
@@ -273,14 +273,17 @@
         ['timeapi.io', 'https://timeapi.io/api/Time/current/zone?timeZone=UTC', t => new Date(JSON.parse(t).dateTime.slice(0, 23) + 'Z').getTime()],
         ['worldtimeapi', 'https://worldtimeapi.org/api/timezone/Etc/UTC', t => new Date(JSON.parse(t).utc_datetime).getTime()]
     ];
-    async function sampleFreeTime() {
-        for (const [name, url, parse] of FREE_TIME_SOURCES) {
-            try {
-                const s = await fetchTimed(url, parse);
-                if (s.serverMs && s.rtt < 3000) { console.log('TIME source: ' + name); return s; }
-            } catch (e) { console.log('TIME ' + name + ' failed'); }
-        }
-        return null;
+    function sampleFreeTime() {
+        // Teeno time sources EK SAATH — jo sabse pehle jawab de wahi le lo (pehle ek ek karke try hote the)
+        return new Promise(resolve => {
+            let left = FREE_TIME_SOURCES.length, done = false;
+            FREE_TIME_SOURCES.forEach(([name, url, parse]) => {
+                fetchTimed(url, parse).then(s => {
+                    if (!done && s.serverMs && s.rtt < 3000) { done = true; console.log('TIME source: ' + name); resolve(s); }
+                }).catch(() => { console.log('TIME ' + name + ' failed'); })
+                  .finally(() => { if (--left === 0 && !done) resolve(null); });
+            });
+        });
     }
     async function syncServerTime(samples) {
         let best = await sampleFreeTime();                 // 0 Firestore reads
@@ -305,8 +308,12 @@
     // =====================================================
     // HELPERS
     // =====================================================
+    const TZ_OFF = 5.5 * 3600000;                      // IST (UTC+5:30) — phone ka timezone use nahi hota
+    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const p2 = n => String(n).padStart(2, '0');
     function fmtTime(ms) {
-        return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const d = new Date(ms + TZ_OFF);
+        return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
     }
     function fmtDur(ms) {
         const m = Math.max(1, Math.ceil(ms / 60000));
@@ -315,12 +322,13 @@
         if (h < 24) return h + 'h' + (r ? ' ' + r + 'm' : '');
         return Math.floor(h / 24) + 'd';
     }
-    function dayStartMs(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+    function dayStartMs(ms) { return Math.floor((ms + TZ_OFF) / 86400000) * 86400000 - TZ_OFF; }
     function dayLabel(ms) {
         const diff = Math.round((dayStartMs(getTrueTime()) - dayStartMs(ms)) / 86400000);
         if (diff <= 0) return 'Today';
         if (diff === 1) return 'Yesterday';
-        return new Date(ms).toLocaleDateString([], { day: '2-digit', month: 'short' });
+        const d = new Date(ms + TZ_OFF);
+        return p2(d.getUTCDate()) + ' ' + MONTHS[d.getUTCMonth()];
     }
     let toastTimer = null;
     function toast(msg, bad) {
@@ -342,18 +350,135 @@
         $('tabHistory').classList.toggle('on', !p);
     };
 
+   
+   // =====================================================
+    // LIVE MATCHES — CACHE-FIRST (localStorage)
+    // Page turant cache se khulta hai. Firestore se sirf NAYE matches (timestamp > cursor)
+    // aur HATE hue matches (settledAt > cursor) aate hain — har match ek hi baar padha jaata hai.
+    // Pehle: har load par saare open matches dobara padhe jaate the (screenshot me 20 reads).
     // =====================================================
-    // LIVE MATCHES (open + settling) — sirf yahi ek listener matches padhta hai
-    // =====================================================
-    let liveMatches = [];
-    function startMatchListener() {
-        db.collection('matches').where('status', 'in', ['open', 'settling']).onSnapshot(snap => {
-            RC('open-listener', snap.docChanges().length, snap);
-            liveMatches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            renderPending();
-            autoVoidEmpty();
-        }, err => { console.log('Matches listener error:', err); toast('Could not load matches', true); });
+    const LIVE_KEY = 'extLiveCache3';
+    const CURSOR_KEY = 'extCursors3';
+    const CURSOR_OVERLAP_MS = 60000;      // thoda overlap — koi match kabhi miss na ho
+    let liveMap = {};                     // id -> match (cache)
+    let cursors = { newTs: 0, settledTs: 0, seeded: false };
+    let liveMatches = [];                 // renderPending isi ko padhta hai
+
+    function plainMatch(id, d) {
+        return {
+            id: id, teamA: d.teamA, teamB: d.teamB, status: d.status,
+            tossTimeMs: d.tossTimeMs || 0, lockTimeMs: d.lockTimeMs || 0,
+            settlingAtMs: d.settlingAtMs || 0, autoVoidOff: !!d.autoVoidOff
+        };
     }
+    function loadLiveCache() {
+        try { liveMap = JSON.parse(localStorage.getItem(LIVE_KEY) || '{}') || {}; } catch (e) { liveMap = {}; }
+        try {
+            const c = JSON.parse(localStorage.getItem(CURSOR_KEY) || 'null');
+            if (c && c.seeded) cursors = c; else { liveMap = {}; }
+        } catch (e) { liveMap = {}; }
+    }
+    function saveLiveCache() {
+        try {
+            localStorage.setItem(LIVE_KEY, JSON.stringify(liveMap));
+            localStorage.setItem(CURSOR_KEY, JSON.stringify(cursors));
+        } catch (e) {}
+    }
+    function syncLiveView() { liveMatches = Object.values(liveMap); }
+    function liveChanged() { saveLiveCache(); syncLiveView(); renderPending(); autoVoidEmpty(); }
+
+    // Poora list ek baar server se (sirf pehli baar ya ↻ dabane par)
+    async function seedLive() {
+        const snap = await db.collection('matches').where('status', 'in', ['open', 'settling']).get();
+        RC('full-refresh', Math.max(1, snap.size));
+        const fresh = {};
+        snap.forEach(d => { fresh[d.id] = plainMatch(d.id, d.data()); });
+        liveMap = fresh;
+        const base = Math.floor(getTrueTime()) - CURSOR_OVERLAP_MS;
+        cursors = { newTs: base, settledTs: base, seeded: true };
+        saveLiveCache();
+    }
+
+    // Match doc 1 baar padh ke cache theek karo (undo / koi shak hone par)
+    async function recheckMatch(id) {
+        try {
+            const s = await db.collection('matches').doc(id).get();
+            RC('recheck', 1);
+            const st = s.exists ? s.data().status : '';
+            if (st === 'open' || st === 'settling') liveMap[id] = plainMatch(id, s.data());
+            else delete liveMap[id];
+            liveChanged();
+        } catch (e) { console.log('Recheck error:', e); }
+    }
+
+    let liveListenersOn = false;
+    function startLiveListeners() {
+        if (liveListenersOn) return;
+        liveListenersOn = true;
+        const newFrom = firebase.firestore.Timestamp.fromMillis(cursors.newTs);
+        const setFrom = firebase.firestore.Timestamp.fromMillis(cursors.settledTs);
+
+        // 1) NAYE matches — cursor ke baad bane hue (kuch na ho to ~0 reads)
+        db.collection('matches').where('timestamp', '>', newFrom).onSnapshot(snap => {
+            RC('new-matches', snap.docChanges().length, snap);
+            let any = false;
+            snap.docChanges().forEach(ch => {
+                if (ch.type === 'removed') return;
+                const id = ch.doc.id, d = ch.doc.data();
+                if (d.status === 'open' || d.status === 'settling') liveMap[id] = plainMatch(id, d);
+                else delete liveMap[id];
+                const t = d.timestamp && d.timestamp.toMillis ? d.timestamp.toMillis() : 0;
+                if (t > cursors.newTs) cursors.newTs = t;
+                any = true;
+            });
+           if (any) liveChanged(); else autoVoidEmpty();
+        }, err => { console.log('New-matches listener error:', err); toast('Could not load matches', true); });
+
+        // 2) HATE hue matches — winner / void / auto-void hote hi cache se hat jaate hain
+        db.collection('matches').where('settledAt', '>', setFrom).onSnapshot(snap => {
+            RC('settled-matches', snap.docChanges().length, snap);
+            let any = false;
+            snap.docChanges().forEach(ch => {
+                const id = ch.doc.id;
+                if (ch.type === 'removed') { recheckMatch(id); return; }   // undo hua ho sakta hai
+                const d = ch.doc.data();
+                if (d.status === 'closed' || d.status === 'cancelled') { delete liveMap[id]; any = true; }
+                else if (d.status === 'open' || d.status === 'settling') { liveMap[id] = plainMatch(id, d); any = true; }
+                const s = d.settledAt && d.settledAt.toMillis ? d.settledAt.toMillis() : 0;
+                if (s > cursors.settledTs) cursors.settledTs = s;
+            });
+            if (any) liveChanged(); else autoVoidEmpty();
+        }, err => console.log('Settled-matches listener error:', err));
+    }
+    async function startMatchListeners() {
+        while (!timeOk) {
+            await syncServerTime(2);
+            if (!timeOk) await new Promise(r => setTimeout(r, 5000));
+        }
+        if (!cursors.seeded) {
+            try { await seedLive(); liveChanged(); }
+            catch (e) {
+                console.log('Seed error:', e);
+                toast('Could not load matches', true);
+                setTimeout(startMatchListeners, 8000);
+                return;
+            }
+        }
+        startLiveListeners();
+        autoVoidEmpty();                      // listeners lagte hi ek baar check
+    }
+
+    let refreshing = false;
+    window.forceRefresh = async function () {
+        if (refreshing) return;
+        if (!timeOk) { toast('Server time sync ho raha hai, thoda ruko', true); return; }
+        refreshing = true;
+        const btn = $('refreshBtn'); if (btn) btn.style.opacity = '.35';
+        try { await seedLive(); liveChanged(); toast('Refreshed — ' + liveMatches.length + ' matches'); }
+        catch (e) { console.log('Refresh error:', e); toast('Refresh failed', true); }
+        refreshing = false;
+        if (btn) btn.style.opacity = '';
+    };
 
     function isProcessing(m, t) {
         return m.status === 'settling' && (t - (m.settlingAtMs || 0)) < SETTLING_STALE_MS;
@@ -365,7 +490,7 @@
         let state;
         if (processing) state = '<span class="m-state wait">Processing</span>';
         else if (ready) state = '<span class="m-state">Toss done</span>';
-        else if (!timeOk) state = '<span class="m-state wait">Syncing time</span>';
+        
         else state = '<span class="m-state wait">Toss in ' + fmtDur(m.tossTimeMs - t) + '</span>';
         return '<div class="match ' + (can ? '' : 'wait') + '">' +
             '<div class="m-head"><span class="m-toss">Toss ' + esc(fmtTime(m.tossTimeMs)) + '</span>' + state + '</div>' +
@@ -386,7 +511,7 @@
             return;
         }
         const ready = [], soon = [];
-        list.forEach(m => ((timeOk && t >= m.tossTimeMs) ? ready : soon).push(m));
+        list.forEach(m => ((t >= m.tossTimeMs) ? ready : soon).push(m));
         let html = '';
         if (ready.length) html += '<div class="group-title">Ready to settle</div>' + ready.map(m => matchCard(m, true, t)).join('');
         if (soon.length) html += '<div class="group-title">Waiting for toss</div>' + soon.map(m => matchCard(m, false, t)).join('');
@@ -444,64 +569,80 @@
 
     // =====================================================
     // SETTLE — toss ke BAAD lagi bets hamesha VOID (master jaisa logic)
+    // Balance = (user ki saari bets ka locked exposure) + (sirf settle hui bets ka net result)
     // =====================================================
+    function computeSettleUnits(bets, side, tossMs) {
+        const users = {};
+        let settled = 0, voided = 0;
+        bets.forEach(x => {
+            const b = x.b;
+            const bMs = b.timestamp && b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
+            const isVoid = bMs > tossMs;
+            if (isVoid) voided++; else settled++;
+            const u = users[b.userId] || (users[b.userId] = { pnlA: 0, pnlB: 0, sA: 0, sB: 0, bets: [] });
+            const w = b.amount * ((parseFloat(b.odds) || 98) / 100);
+            const pa = b.selection === 'teamA' ? w : -b.amount;
+            const pb = b.selection === 'teamA' ? -b.amount : w;
+            u.pnlA += pa; u.pnlB += pb;
+            if (!isVoid) { u.sA += pa; u.sB += pb; }
+            u.bets.push({ id: x.id, status: isVoid ? 'cancelled' : (b.selection === side ? 'won' : 'lost') });
+        });
+        const units = Object.keys(users).map(userId => {
+            const u = users[userId];
+            const worst = Math.min(u.pnlA, u.pnlB);
+            const locked = worst < 0 ? Math.abs(worst) : 0;
+            const net = side === 'teamA' ? u.sA : u.sB;
+            return { userId: userId, adj: Math.round((locked + net) * 100) / 100, bets: u.bets };
+        });
+        return { units: units, settled: settled, voided: voided };
+    }
+
     async function settleMatch(m, side, winnerName) {
         if (!timeOk) throw new Error('Server time not synced yet. Wait a few seconds.');
         const mRef = db.collection('matches').doc(m.id);
-        let tossMs = 0;
+        let tossMs = 0, seen = null;
 
         // 1) Match ko claim karo — master ya dusra device ek saath settle na kar sake
-        await db.runTransaction(async tx => {
-            const s = await tx.get(mRef);
-            RC('claim-tx', 1);
-            if (!s.exists) throw new Error('Match not found.');
-            const d = s.data();
-            const stale = d.status === 'settling' && (getTrueTime() - (d.settlingAtMs || 0)) > SETTLING_STALE_MS;
-            if (d.status !== 'open' && !stale) throw new Error('This match was already settled or voided.');
-            if (!d.tossTimeMs || getTrueTime() < d.tossTimeMs) throw new Error('Toss time has not passed yet.');
-            tossMs = d.tossTimeMs;
-            tx.update(mRef, { status: 'settling', settlingAtMs: Math.round(getTrueTime()) });
-        });
+        try {
+            await db.runTransaction(async tx => {
+                const s = await tx.get(mRef);
+                RC('claim-tx', 1);
+                seen = s.exists ? { data: s.data() } : { gone: true };
+                if (!s.exists) throw new Error('Match not found.');
+                const d = s.data();
+                const stale = d.status === 'settling' && (getTrueTime() - (d.settlingAtMs || 0)) > SETTLING_STALE_MS;
+                if (d.status !== 'open' && !stale) throw new Error(d.status === 'settling' ? 'Another device is settling this match.' : 'This match was already settled or voided.');
+                if (!d.tossTimeMs || getTrueTime() < d.tossTimeMs) throw new Error('Toss time has not passed yet.');
+                tossMs = d.tossTimeMs;
+                tx.update(mRef, { status: 'settling', settlingAtMs: Math.round(getTrueTime()) });
+            });
+        } catch (e) {
+            // Cache ko asli haal ke hisaab se theek karo (extra read nahi — transaction me padh chuke hain)
+            if (seen) {
+                const st = seen.gone ? '' : seen.data.status;
+                if (seen.gone || st === 'closed' || st === 'cancelled') delete liveMap[m.id];
+                else liveMap[m.id] = plainMatch(m.id, seen.data);
+                liveChanged();
+            }
+            throw e;
+        }
 
         try {
             const betsSnap = await db.collection('bets').where('matchId', '==', m.id).where('status', '==', 'pending').get();
             RC('bets-settle', Math.max(1, betsSnap.size));
 
-            const settleUsers = {}, voidUsers = {};
-            let settled = 0, voided = 0;
-            betsSnap.forEach(doc => {
-                const b = doc.data();
-                const bMs = b.timestamp && b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
-                const isVoid = bMs > tossMs;
-                const target = isVoid ? voidUsers : settleUsers;
-                if (isVoid) voided++; else settled++;
-                if (!target[b.userId]) target[b.userId] = { bets: [], pnlA: 0, pnlB: 0 };
-                target[b.userId].bets.push({ id: doc.id, selection: b.selection });
-                const winAmt = b.amount * ((parseFloat(b.odds) || 98) / 100);
-                if (b.selection === 'teamA') { target[b.userId].pnlA += winAmt; target[b.userId].pnlB -= b.amount; }
-                else { target[b.userId].pnlB += winAmt; target[b.userId].pnlA -= b.amount; }
-            });
+            const list = [];
+            betsSnap.forEach(doc => list.push({ id: doc.id, b: doc.data() }));
+            const r = computeSettleUnits(list, side, tossMs);
 
             // Har user ke ops ek group me — batch limit (500) ke hisab se chunks me commit
-            const groups = [];
-            for (const uid in settleUsers) {
-                const u = settleUsers[uid];
-                const locked = Math.min(u.pnlA, u.pnlB) < 0 ? Math.abs(Math.min(u.pnlA, u.pnlB)) : 0;
-                const adj = locked + (side === 'teamA' ? u.pnlA : u.pnlB);
+            const groups = r.units.map(u => {
                 const ops = [];
-                if (adj !== 0) ops.push(b => b.set(db.collection('users').doc(uid), { balance: firebase.firestore.FieldValue.increment(adj) }, { merge: true }));
-                u.bets.forEach(bt => ops.push(b => b.update(db.collection('bets').doc(bt.id), { status: bt.selection === side ? 'won' : 'lost' })));
-                groups.push(ops);
-            }
-            for (const uid in voidUsers) {
-                const u = voidUsers[uid];
-                const locked = Math.min(u.pnlA, u.pnlB) < 0 ? Math.abs(Math.min(u.pnlA, u.pnlB)) : 0;
-                const ops = [];
-                if (locked > 0) ops.push(b => b.set(db.collection('users').doc(uid), { balance: firebase.firestore.FieldValue.increment(locked) }, { merge: true }));
-                u.bets.forEach(bt => ops.push(b => b.update(db.collection('bets').doc(bt.id), { status: 'cancelled' })));
-                groups.push(ops);
-            }
-            // Aakhri group: match close + history — hamesha last chunk ke saath atomic
+                if (u.adj !== 0) ops.push(b => b.set(db.collection('users').doc(u.userId), { balance: firebase.firestore.FieldValue.increment(u.adj) }, { merge: true }));
+                u.bets.forEach(bt => ops.push(b => b.update(db.collection('bets').doc(bt.id), { status: bt.status })));
+                return ops;
+            });
+            // Aakhri group: match close — hamesha last chunk ke saath
             groups.push([
                 b => b.update(mRef, {
                     status: 'closed', winner: winnerName, settledBy: 'external',
@@ -517,14 +658,15 @@
                 n += ops.length;
             }
             if (n > 0) await batch.commit();
-            // History alag likhte hain — rules/permission issue ho to bhi settlement kabhi fail na ho
-            db.collection('external_history').doc(m.id).set({
-                matchId: m.id, teamA: m.teamA, teamB: m.teamB, type: 'settled', winner: winnerName,
-                tossTimeMs: tossMs, settledCount: settled, voidedCount: voided,
-                settledAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(e => console.log('History write skipped:', e));
-            return { settled, voided };
+
+            // Cache se hatao + History (sirf local, 0 reads)
+            delete liveMap[m.id];
+            liveChanged();
+            addHist({ id: m.id, teamA: m.teamA, teamB: m.teamB, type: 'settled', winner: winnerName,
+                      tossTimeMs: tossMs, settledCount: r.settled, voidedCount: r.voided, settledAtMs: Math.round(getTrueTime()) });
+            return { settled: r.settled, voided: r.voided };
         } catch (e) {
+            console.error(e);
             // Kuch fail hua — match wapas open, taaki dobara try ho sake (settle ho chuke users dobara nahi chhuyenge)
             try { await mRef.update({ status: 'open', settlingAtMs: firebase.firestore.FieldValue.delete() }); } catch (e2) {}
             throw new Error('Settlement failed. Please try again.');
@@ -532,25 +674,26 @@
     }
 
     // =====================================================
-    // AUTO VOID — toss ho chuka + ek bhi bet nahi = match void (page khulte hi)
+    // AUTO VOID — toss ho chuka + ek bhi bet nahi = match void
+    // Har match ke liye sirf 1 read (limit 1); jis match me bet mili wo dobara kabhi check nahi hota.
     // =====================================================
     let hasBetsIds = new Set();
     try { hasBetsIds = new Set(JSON.parse(localStorage.getItem(HASBETS_KEY) || '[]')); } catch (e) {}
     let autoBusy = false;
+    const failUntil = {};
 
     async function autoVoidEmpty() {
         if (autoBusy) return;
         autoBusy = true;
-        let count = 0;
+        let count = 0, dirty = false;
         try {
             if (!timeOk) await syncServerTime(2);          // pehli try slow network par fail ho sakti hai
             if (!timeOk) { console.log('AUTOVOID: server time sync nahi hua, skip'); return; }
             const t = getTrueTime();
             const due = liveMatches.filter(m =>
                 m.status === 'open' && m.tossTimeMs && !m.autoVoidOff && !hasBetsIds.has(m.id) &&
-                t >= m.tossTimeMs + AUTO_VOID_GRACE_MS
+                (failUntil[m.id] || 0) < t && t >= m.tossTimeMs + AUTO_VOID_GRACE_MS
             );
-            console.log('AUTOVOID: live=' + liveMatches.length + ', due=' + due.length);
             for (const m of due) {
                 try {
                     const q = await db.collection('bets').where('matchId', '==', m.id).limit(1).get(); // 1 read, phir yaad rehta hai
@@ -560,29 +703,36 @@
                         try { localStorage.setItem(HASBETS_KEY, JSON.stringify([...hasBetsIds].slice(-300))); } catch (e) {}
                         continue;
                     }
-                    let did = false;
+                   let did = false, st = '', liveDoc = null;
                     await db.runTransaction(async tx => {
                         const ref = db.collection('matches').doc(m.id);
                         const s = await tx.get(ref);
                         RC('autovoid-tx', 1);
-                        if (s.exists && s.data().status === 'open') {
+                        st = s.exists ? s.data().status : 'gone';
+                        liveDoc = s.exists ? s.data() : null;
+                        // Master me toss time aage badal gaya ho (cache purana) to void NAHI karna
+                        if (s.exists && st === 'open' && s.data().tossTimeMs && getTrueTime() < s.data().tossTimeMs + AUTO_VOID_GRACE_MS) {
+                            st = 'early';
+                        } else if (s.exists && st === 'open') {
                             did = true;
                             tx.update(ref, { status: 'cancelled', autoVoided: true, settledBy: 'external', settledAt: firebase.firestore.FieldValue.serverTimestamp() });
                         }
                     });
                     if (did) {
-                        count++;
-                        // History alag likhte hain — fail ho to bhi void already ho chuka hota hai
-                        db.collection('external_history').doc(m.id).set({
-                            matchId: m.id, teamA: m.teamA, teamB: m.teamB, type: 'void',
-                            tossTimeMs: m.tossTimeMs, settledCount: 0, voidedCount: 0,
-                            settledAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }).catch(e => console.log('History write skipped:', e));
+                        count++; dirty = true;
+                        delete liveMap[m.id];
+                        // Void hue matches history me save nahi hote
+                    } else if (st === 'early' && liveDoc) {
+                        liveMap[m.id] = plainMatch(m.id, liveDoc); dirty = true;   // cache ko asli toss time se update
+                    } else if (st === 'closed' || st === 'cancelled' || st === 'gone') {
+                        delete liveMap[m.id]; dirty = true;      // kisi aur ne pehle hi settle/void kar diya
                     }
                 } catch (e) {
+                    failUntil[m.id] = t + 300000;               // error par 5 min tak dobara nahi (reads bachane ke liye)
                     console.log('Auto void error for ' + m.id + ':', e);
                 }
             }
+            if (dirty) { saveLiveCache(); syncLiveView(); renderPending(); }
             if (count) toast(count + (count === 1 ? ' match' : ' matches') + '');
         } catch (e) {
             console.log('Auto void error:', e);
@@ -591,22 +741,36 @@
         }
     }
 
+   // =====================================================
+    // HISTORY — HARD CACHED (sirf localStorage). 0 reads, kabhi Firestore se nahi padhta.
+    // Is page se settle / void hue matches yahin save hote hain (aaj + pichhle din).
     // =====================================================
-    // HISTORY — sirf is page se settle/void hue matches (external_history)
-    // =====================================================
-    const histMap = {};
-    function histMs(h) { return h.settledAt && h.settledAt.toMillis ? h.settledAt.toMillis() : getTrueTime(); }
-
+    const HIST_KEY = 'extHistory3';
+    let histList = [];
+    function loadHist() {
+        try { histList = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; } catch (e) { histList = []; }
+    }
+    function pruneHist() {
+        const start = dayStartMs(getTrueTime()) - (HISTORY_DAYS - 1) * 86400000;
+        histList = histList.filter(h => (h.settledAtMs || 0) >= start).slice(0, 300);
+    }
+    function addHist(h) {
+        histList = histList.filter(x => x.id !== h.id);
+        histList.unshift(h);
+        pruneHist();
+        try { localStorage.setItem(HIST_KEY, JSON.stringify(histList)); } catch (e) {}
+        renderHistory();
+    }
     function renderHistory() {
         const box = $('history');
-        const rows = Object.values(histMap).sort((a, b) => histMs(b) - histMs(a));
+        const rows = histList.filter(h => h.type !== 'void').sort((a, b) => (b.settledAtMs || 0) - (a.settledAtMs || 0));
         if (!rows.length) {
             box.innerHTML = '<div class="empty"><b>Nothing yet</b>Matches you settle here will be listed day by day.</div>';
             return;
         }
         let html = '', cur = '';
         rows.forEach(h => {
-            const ms = histMs(h);
+            const ms = h.settledAtMs || 0;
             const label = dayLabel(ms);
             if (label !== cur) { html += '<div class="group-title">' + esc(label) + '</div>'; cur = label; }
             const isVoid = h.type === 'void';
@@ -619,45 +783,36 @@
         box.innerHTML = html;
     }
 
-    function startHistoryListener() {
-        const startMs = dayStartMs(getTrueTime()) - (HISTORY_DAYS - 1) * 86400000;
-        db.collection('external_history')
-            .where('settledAt', '>', firebase.firestore.Timestamp.fromMillis(startMs))
-            .onSnapshot(snap => {
-                RC('history-listener', snap.docChanges().length, snap);
-                snap.docChanges().forEach(ch => {
-                    if (ch.type === 'removed') delete histMap[ch.doc.id];
-                    else histMap[ch.doc.id] = ch.doc.data();
-                });
-                renderHistory();
-            }, err => console.log('History listener error:', err));
-    }
-
     // =====================================================
     // START
     // =====================================================
     function tickClock() {
-        const d = new Date(getTrueTime());
-        $('clock').textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const d = new Date(getTrueTime() + TZ_OFF);
+        $('clock').textContent = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
     }
 
     async function start() {
-        renderPending();
+        loadHist();
+        loadLiveCache(); syncLiveView();
+        renderPending();                      // cache se turant — 0 reads
         renderHistory();
         setInterval(tickClock, 1000);
         tickClock();
-        await syncServerTime(2);
-        if (!timeOk) toast('Could not sync server time. Check your internet.', true);
-        tickClock();
-        startMatchListener();
-        startHistoryListener();
-        setInterval(renderPending, 15000);          // countdown + "Toss done" refresh
+        setInterval(renderPending, 15000);          // countdown + "Toss done" refresh (0 reads)
         setInterval(autoVoidEmpty, 15000);
         setInterval(() => syncServerTime(1), 1800000); // 30 min me ek baar
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
         });
+        // Time sync background me — screen is par ruki nahi rehti
+        syncServerTime(2).then(() => {
+            if (!timeOk) toast('Could not sync server time. Check your internet.', true);
+            try { tickClock(); pruneHist(); renderHistory(); renderPending(); } catch (e) { console.log(e); }
+            autoVoidEmpty();
+        });
+        startMatchListeners();                // sirf naye/hate hue matches — baaki sab cache
     }
+
     start();   // seedha khulta hai — koi password nahi
 })();
 </script>

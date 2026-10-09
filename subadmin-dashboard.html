@@ -339,14 +339,6 @@
                         rejectInfo = `
                             <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
                                 <span onclick="showRejectReason('${r}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">View Reason</span>
-                                &nbsp;|&nbsp;
-                                <span onclick="reApproveTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #2e7d32; text-decoration: underline; cursor: pointer;">Re-Approve ✅</span>
-                            </div>
-                        `;
-                    } else if (tx.status === 'approved') {
-                        rejectInfo = `
-                            <div style="font-size:10.5px; margin-top:4px; font-weight:bold;">
-                                <span onclick="reRejectTx('${tx.id}', '${tx.username}', '${tx.userId}', ${tx.amount}, '${tx.type}')" style="color: #d32f2f; text-decoration: underline; cursor: pointer;">Re-Reject ❌</span>
                             </div>
                         `;
                     }
@@ -471,150 +463,21 @@
             }
             updateTx(txId, uName, userId, amount, 'rejected', type, reason.trim());
         }
-
-        // ✅ RE-APPROVE FUNCTION (Avoids duplicate bonuses)
-        async function reApproveTx(txId, uName, userId, amount, type) {
-            if(!confirm(`Are you sure you want to RE-APPROVE this rejected ${type.toUpperCase()}?`)) return;
-
-            // 🔍 Check if bonus already exists for this deposit to avoid duplicates
-            let existingBonusDocId = null;
-            let bonusAmount = 0;
-            
-            if(type === 'deposit') {
-                try {
-                    const bonusSnap = await db.collection("transactions").where("parentDepositId", "==", txId).get();
-                    bonusSnap.forEach(bDoc => {
-                        existingBonusDocId = bDoc.id;
-                        bonusAmount = bDoc.data().amount; 
-                    });
-                } catch(e) {}
-                
-                // If no existing bonus found, calculate it normally
-                if(!existingBonusDocId && bonusPercent > 0) {
-                    bonusAmount = parseFloat((amount * (bonusPercent / 100)).toFixed(2));
-                }
-            }
-
-            let totalDeduct = amount + bonusAmount;
-
-            if(type === 'deposit' && currentSaBal < totalDeduct) {
-                alert("❌ Insufficient Balance! (Deposit + Bonus needs 🪙 " + totalDeduct + ")"); return;
-            }
-
-            const batch = db.batch();
-            
-            let depUpdateData = { 
-                status: 'approved',
-                linkedSubAdminId: subAdmin.id, // FORCE LINKING
-                rejectReason: firebase.firestore.FieldValue.delete(),
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            // Embed bonusAmount in deposit doc for UI display
-            if (type === 'deposit' && bonusAmount > 0) {
-                depUpdateData.bonusAmount = bonusAmount; 
-            }
-            batch.update(db.collection("transactions").doc(txId), depUpdateData);
-
-            if(type === 'deposit') {
-                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(totalDeduct) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { 
-                    balance: firebase.firestore.FieldValue.increment(-totalDeduct),
-                    userPnl: firebase.firestore.FieldValue.increment(amount)
-                });
-
-                if(existingBonusDocId) {
-                    // Update existing bonus status
-                    batch.update(db.collection("transactions").doc(existingBonusDocId), {
-                        status: 'approved',
-                        rejectReason: firebase.firestore.FieldValue.delete(),
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                } else if(bonusAmount > 0) {
-                    // Create new bonus only if it didn't exist before
-                    batch.set(db.collection("transactions").doc(), {
-                        userId: userId, username: uName, linkedSubAdminId: subAdmin.id,
-                        type: 'bonus', amount: bonusAmount, status: 'approved',
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                        remark: `Deposit Bonus (${bonusPercent}%)`,
-                        parentDepositId: txId 
-                    });
-                }
-            } else if (type === 'withdraw') {
-                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-amount) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { 
-                    balance: firebase.firestore.FieldValue.increment(amount),
-                    userPnl: firebase.firestore.FieldValue.increment(-amount)
-                });
-            }
-
+// 🔗 REFER CODE STATS — user ke approve/reject hone par uske refer code ke total me jodta/ghatata hai
+        async function addReferStat(batch, userId, depDelta, wdrDelta) {
             try {
-                await batch.commit(); 
-                loadPendingRequests(); 
-                alert("✅ Successfully Re-Approved!");
-            } catch(e) { 
-                alert("Error in re-approving."); 
-            }
+                const u = await db.collection("users").doc(userId).get();
+                const code = u.exists ? u.data().referCode : null;
+                if (!code) return;
+                batch.set(db.collection("referStats").doc(subAdmin.id + '_' + code.toLowerCase()), {
+                    code: code,
+                    subAdminId: subAdmin.id,
+                    totalDeposit: firebase.firestore.FieldValue.increment(depDelta),
+                    totalWithdrawal: firebase.firestore.FieldValue.increment(wdrDelta)
+                }, { merge: true });
+            } catch (e) { console.log('referStats skip:', e); }
         }
-
-        // ❌ RE-REJECT FUNCTION (Reverses Deposit + Bonus together)
-        async function reRejectTx(txId, uName, userId, amount, type) {
-            let reason = prompt(`Reason for rejecting this previously approved ${type.toUpperCase()}? (Required)`);
-            if (!reason || reason.trim() === "") {
-                alert("❌ Reject reason is mandatory!");
-                return;
-            }
-
-            if(!confirm(`Are you sure you want to RE-REJECT this ${type.toUpperCase()}? Balances will be deducted/reversed.`)) return;
-
-            const batch = db.batch();
-            
-            batch.update(db.collection("transactions").doc(txId), { 
-                status: 'rejected',
-                linkedSubAdminId: subAdmin.id, // FORCE LINKING
-                rejectReason: reason.trim(),
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            if (type === 'deposit') {
-                let totalDeduction = amount;
-
-                // 🔍 Fetch and Reject linked Bonus automatically
-                try {
-                    const bonusSnap = await db.collection("transactions").where("parentDepositId", "==", txId).get();
-                    bonusSnap.forEach(bDoc => {
-                        if(bDoc.data().status === 'approved') {
-                            totalDeduction += bDoc.data().amount;
-                            batch.update(db.collection("transactions").doc(bDoc.id), {
-                                status: 'rejected',
-                                rejectReason: 'Parent deposit was Re-Rejected',
-                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                            });
-                        }
-                    });
-                } catch(e) {}
-
-                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(-totalDeduction) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { 
-                    balance: firebase.firestore.FieldValue.increment(totalDeduction),
-                    userPnl: firebase.firestore.FieldValue.increment(-amount)
-                });
-
-            } else if (type === 'withdraw') {
-                batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(amount) });
-                batch.update(db.collection("admins").doc(subAdmin.id), { 
-                    balance: firebase.firestore.FieldValue.increment(-amount),
-                    userPnl: firebase.firestore.FieldValue.increment(amount)
-                });
-            }
-
-            try {
-                await batch.commit(); 
-                alert("✅ Successfully Re-Rejected!");
-            } catch(e) { 
-                alert("Error in re-rejecting."); 
-            }
-        }
-
+        
         // ✅ NORMAL APPROVE/REJECT FUNCTION
         async function updateTx(txId, uName, userId, amount, status, type, rejectReason = "") {
             let bonusAmount = 0;
@@ -667,7 +530,7 @@
             if(status === 'rejected' && type === 'withdraw') {
                 batch.update(db.collection("users").doc(userId), { balance: firebase.firestore.FieldValue.increment(amount) });
             }
-
+if (status === 'approved' && type === 'deposit') await addReferStat(batch, userId, amount, 0); // refer code ke total deposit me jodo
             try {
                 await batch.commit(); 
                 loadPendingRequests(); 
@@ -706,7 +569,7 @@
                     balance: firebase.firestore.FieldValue.increment(amount),
                     userPnl: firebase.firestore.FieldValue.increment(-amount)
                 });
-
+await addReferStat(batch, userId, 0, amount); // refer code ke total withdrawal me jodo
                 await batch.commit();
                 loadPendingRequests(); 
                 alert(" Withdrawal Approved!"); 

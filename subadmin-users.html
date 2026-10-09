@@ -367,7 +367,7 @@
                 applyUsersChange();
             } catch (e) { console.log("Single user refresh error:", e); }
         }
-        async function refreshAllUsers() {
+        
         async function loadMyUsers() {
             let cached = null;
             try { cached = JSON.parse(localStorage.getItem(USERS_KEY) || 'null'); } catch (e) {}
@@ -702,7 +702,7 @@ function toggleReferSummary(forceOpen) {
         window.resetPass = resetPass;
         window.filterUsers = filterUsers;
         window.toggleReferSummary = toggleReferSummary;
-       
+     })();  
     </script>
 </body>
 </html>

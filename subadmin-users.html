@@ -123,6 +123,7 @@
     </div>
 
     <input type="text" id="search-bar" placeholder="🔍 Search User by Name..." onkeyup="filterUsers()" style="margin-bottom:10px; border: 1px solid #888;">
+
     <div id="user-list">
         <p style="text-align: center; color: #888;">Loading users...</p>
     </div>
@@ -367,11 +368,6 @@
             } catch (e) { console.log("Single user refresh error:", e); }
         }
         async function refreshAllUsers() {
-            if (!confirm("Poori users list Firestore se dobara padhi jayegi (reads lagenge). Continue?")) return;
-            try { await fetchAllUsersOnce(); applyUsersChange(); alert("✅ Users list refresh ho gayi."); }
-            catch (e) { alert("Refresh fail: " + e.message); }
-        }
-
         async function loadMyUsers() {
             let cached = null;
             try { cached = JSON.parse(localStorage.getItem(USERS_KEY) || 'null'); } catch (e) {}
@@ -706,8 +702,6 @@ function toggleReferSummary(forceOpen) {
         window.resetPass = resetPass;
         window.filterUsers = filterUsers;
         window.toggleReferSummary = toggleReferSummary;
-        window.refreshAllUsers = refreshAllUsers;
-        })();
        
     </script>
 </body>

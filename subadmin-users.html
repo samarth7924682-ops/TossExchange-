@@ -123,7 +123,7 @@
     </div>
 
     <input type="text" id="search-bar" placeholder="🔍 Search User by Name..." onkeyup="filterUsers()" style="margin-bottom:10px; border: 1px solid #888;">
-
+<button class="btn-thin" style="margin-bottom:10px;" onclick="refreshAllUsers()">🔄 Refresh Users List</button>
     <div id="user-list">
         <p style="text-align: center; color: #888;">Loading users...</p>
     </div>
@@ -196,11 +196,10 @@
         let matchDict = {}; 
         let cachedUserExposureData = {}; // 🌟 In-memory cache: userId -> {matchExpData, othersExp} (modal isi se read karega)
 
-        // Fetch Global Match Names First (🌟 sirf OPEN matches — settled/purane matches ke reads waste nahi honge)
-        let matchDictPromise = db.collection("matches").where("status", "==", "open").get().then(snap => {
-        RC('matches-open-get', snap.size, snap);
-            snap.forEach(doc => { matchDict[doc.id] = `${doc.data().teamA} vs ${doc.data().teamB}`; });
-        });
+     // 🌟 Match naam ab page khulte hi nahi padhe jaate — permanent cache (naam kabhi badalte nahi).
+        // Sirf Exp popup me jo naam cache me nahi hai wahi ek baar padha jaata hai.
+        const MD_KEY = 'matchNameCache';
+        try { matchDict = JSON.parse(localStorage.getItem(MD_KEY) || '{}'); } catch (e) { matchDict = {}; }
 
         // Fetch SubAdmin Balance
         db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
@@ -255,7 +254,7 @@
                 let modalMatchExpData = {};
                 let modalOthersExp = 0;
                 userBets.forEach(b => {
-                    if(b.matchId && matchDict[b.matchId]) {
+                    if(b.matchId) {
                         if(!modalMatchExpData[b.matchId]) modalMatchExpData[b.matchId] = {teamA: 0, teamB: 0};
                         let profit = b.amount * ((b.odds || 98) / 100);
                         if(b.selection === 'teamA') {
@@ -333,16 +332,58 @@
         }
 
         // 🌟 FAST LOADING LOGIC (LIVE SYNC) 🌟
-        async function loadMyUsers() {
-            await matchDictPromise; // race-condition avoid karne ke liye
+        // 🌟 USERS HARD CACHE — localStorage me permanent. Firestore se sirf pehli baar
+        // (ya Refresh button dabane par) padhta hai. Add/Delete/Lock/Deposit/Withdraw par cache khud update.
+        const USERS_KEY = 'subUsersCache_' + subAdmin.id;
 
-            db.collection("users").where("linkedSubAdminId", "==", subAdmin.id)
-                .onSnapshot(snap => {
-                RC('users-listener', snap.docChanges().length, snap);
-                    allUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    attachBetListeners(allUsers.map(u => u.id).sort());
-                    renderUserList();
-                }, err => console.log("Users listener error:", err));
+        function slimUser(id, d) {
+            // password jaisi sensitive cheezein cache me save nahi karte
+            return { id, username: d.username, usernameLower: d.usernameLower, balance: d.balance || 0, locked: !!d.locked, referCode: d.referCode || null };
+        }
+        function saveUsersCache() {
+            try { localStorage.setItem(USERS_KEY, JSON.stringify(allUsers)); } catch (e) {}
+        }
+        function applyUsersChange() {
+            saveUsersCache();
+            attachBetListeners(allUsers.map(u => u.id).sort());
+            renderUserList();
+        }
+        async function fetchAllUsersOnce() {
+            const snap = await db.collection("users").where("linkedSubAdminId", "==", subAdmin.id).get();
+            RC('users-full-get', snap.size);
+            allUsers = snap.docs.map(doc => slimUser(doc.id, doc.data()));
+        }
+        async function refreshOneUser(userId) {
+            try {
+                const d = await db.collection("users").doc(userId).get();
+                RC('user-single-get', 1);
+                if (d.exists) {
+                    const fresh = slimUser(d.id, d.data());
+                    const i = allUsers.findIndex(u => u.id === userId);
+                    if (i >= 0) allUsers[i] = fresh; else allUsers.push(fresh);
+                } else {
+                    allUsers = allUsers.filter(u => u.id !== userId);
+                }
+                applyUsersChange();
+            } catch (e) { console.log("Single user refresh error:", e); }
+        }
+        async function refreshAllUsers() {
+            if (!confirm("Poori users list Firestore se dobara padhi jayegi (reads lagenge). Continue?")) return;
+            try { await fetchAllUsersOnce(); applyUsersChange(); alert("✅ Users list refresh ho gayi."); }
+            catch (e) { alert("Refresh fail: " + e.message); }
+        }
+
+        async function loadMyUsers() {
+            let cached = null;
+            try { cached = JSON.parse(localStorage.getItem(USERS_KEY) || 'null'); } catch (e) {}
+            if (Array.isArray(cached)) {
+                allUsers = cached; // 0 reads
+            } else {
+                try { await fetchAllUsersOnce(); saveUsersCache(); } // sirf pehli baar
+                catch (e) { console.log("Users load error:", e); }
+            }
+            attachBetListeners(allUsers.map(u => u.id).sort());
+            renderUserList();
         }
 function toggleReferSummary(forceOpen) {
             const list = document.getElementById('refer-summary-list');
@@ -396,6 +437,9 @@ function toggleReferSummary(forceOpen) {
             if(confirm(`Are you sure you want to ${actionText} user '${username}'?`)) {
                 try {
                     await db.collection("users").doc(userId).update({ locked: newStatus });
+                    const lu = allUsers.find(u => u.id === userId);
+                    if (lu) lu.locked = newStatus;
+                    saveUsersCache(); renderUserList();
                     // 🌟 Live listener khud hi list update kar dega — dobara load karne ki zaroorat nahi
                 } catch(e) {
                     alert("Error updating lock status!");
@@ -416,6 +460,9 @@ function toggleReferSummary(forceOpen) {
                         });
                     }
                     await batch.commit();
+                    allUsers = allUsers.filter(u => u.id !== id);
+                    delete betsByUser[id];
+                    applyUsersChange();
                     alert(`✅ User Deleted! 🪙${Math.floor(balance)} refunded to your wallet.`);
                     // 🌟 Live listener khud hi list update kar dega — dobara load karne ki zaroorat nahi
                 } catch(e) {
@@ -430,13 +477,26 @@ function toggleReferSummary(forceOpen) {
         }
 
         // Single-Line Exp Modal (🌟 In-memory cache se read — 0 Firestore reads on click 🌟)
-        function openExpModal(userId, username) {
+        async function openExpModal(userId, username) {
             document.getElementById('exp-modal-title').innerText = `Exp: ${username}`;
             document.getElementById('exp-modal').style.display = 'flex';
 
             const cached = cachedUserExposureData[userId] || { matchExpData: {}, othersExp: 0 };
             const matchExpData = cached.matchExpData;
             const othersExp = cached.othersExp;
+            // 🌟 Match ke naam sirf tab padhte hain jab yahan zaroorat ho, aur permanent cache me rakhte hain
+            const missing = Object.keys(matchExpData).filter(id => !matchDict[id] && Math.min(matchExpData[id].teamA, matchExpData[id].teamB) < 0);
+            if (missing.length) {
+                document.getElementById('exp-modal-body').innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">Loading...</p>';
+                await Promise.all(missing.map(async id => {
+                    try {
+                        const d = await db.collection("matches").doc(id).get();
+                        RC('match-name-get', 1);
+                        if (d.exists) matchDict[id] = `${d.data().teamA} vs ${d.data().teamB}`;
+                    } catch (e) { console.log("Match name error:", e); }
+                }));
+                try { localStorage.setItem(MD_KEY, JSON.stringify(matchDict)); } catch (e) {}
+            }
             let html = "";
 
             for(let mId in matchExpData) {
@@ -444,7 +504,7 @@ function toggleReferSummary(forceOpen) {
                 let worst = Math.min(m.teamA, m.teamB);
                 
                 if(worst < 0) { 
-                    let matchName = matchDict[mId];
+                    let matchName = matchDict[mId] || 'Team A vs Team B';
                     let teams = matchName.split(' vs ');
                     
                     let colorA = m.teamA >= 0 ? "text-green" : "text-red";
@@ -531,6 +591,7 @@ function toggleReferSummary(forceOpen) {
                 }
 
                await batch.commit();
+                refreshOneUser(userId); // sirf is ek user ka fresh balance (1 read) cache me
                 alert(`✅ Transaction Successful! ${val} coins updated.`);
                 // 🌟 Live listener khud hi balance update dikha dega — dobara load karne ki zaroorat nahi
             } catch(e) { alert("Error: " + e.message); }
@@ -611,6 +672,8 @@ function toggleReferSummary(forceOpen) {
                 }
 
                 await batch.commit();
+                allUsers.push({ id: newUserRef.id, username, usernameLower, balance, locked: false, referCode: referCode || null });
+                applyUsersChange();
                 alert("✅ User Created Successfully!");
                 document.getElementById('new-user').value = '';
                 
@@ -644,6 +707,7 @@ function toggleReferSummary(forceOpen) {
         window.resetPass = resetPass;
         window.filterUsers = filterUsers;
         window.toggleReferSummary = toggleReferSummary;
+        window.refreshAllUsers = refreshAllUsers;
         })();
        
     </script>

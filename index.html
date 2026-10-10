@@ -625,7 +625,7 @@ let _syncServerMs = Date.now();
             const list = document.getElementById('matches-list');
             if(!list || !_liveLoaded) return;
             if (!ensureTime()) { // server time aate hi list dikhegi (page load par ~0.2 sec) — beech me kuch nahi dikhate
-                if (performance.now() > 8000) { list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>Server time nahi mil raha. Internet check karo.</p>"; _lastMatchesHtml = null; }
+                if (performance.now() > 8000) { list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>LOW INTERNET CONNECTION</p>"; _lastMatchesHtml = null; }
                 return;
             }
 

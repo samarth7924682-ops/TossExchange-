@@ -183,26 +183,35 @@
             let matchCache = {};
             try { matchCache = JSON.parse(localStorage.getItem('matchCache') || '{}'); } catch (e) {}
 
-            const missing = matchIds.filter(id => !matchCache[id] || !matchCache[id].settledAt);
+            const missing = matchIds.filter(id => !matchCache[id] || (!matchCache[id].settledAt && matchCache[id].status !== 'closed' && matchCache[id].status !== 'cancelled'));
             for (let i = 0; i < missing.length; i += 10) {
                 const chunk = missing.slice(i, i + 10);
                 const snap = await db.collection("matches").where(firebase.firestore.FieldPath.documentId(), "in", chunk).get();
                 snap.forEach(m => {
                     const d = m.data();
-                    matchCache[m.id] = { teamA: d.teamA, teamB: d.teamB, settledAt: (d.settledAt && typeof d.settledAt.toMillis === 'function') ? d.settledAt.toMillis() : null };
+                    matchCache[m.id] = { teamA: d.teamA, teamB: d.teamB, status: d.status, settledAt: (d.settledAt && typeof d.settledAt.toMillis === 'function') ? d.settledAt.toMillis() : null };
                 });
             }
             try { localStorage.setItem('matchCache', JSON.stringify(matchCache)); } catch (e) {}
             return fakeSnap(matchCache, ['settledAt']);
         }
 
-        // bets collection alag hai: status 'pending' -> 'won'/'lost'/'cancelled' admin se update hota hai,
-        // lekin timestamp badalta nahi — isliye normal incremental (timestamp-based) sync isse kabhi
-        // pakad nahi paata. Isliye jo bets abhi 'pending' cached hain unko har baar explicitly re-check karte hain.
-        async function syncBets(uid) {
-            await syncCollection('bets', uid); // naye bets (timestamp-based) pehle normally sync ho jaayein
+        // Pending bet sirf tab badalta hai jab uska match settle/void hota hai.
+        // Isliye har baar saare pending bets (61, 200...) dobara padhna band — sirf un matches ke pending bets
+        // re-check hote hain jo settle ho chuke hain (settle hote hi ek baar, phir kabhi nahi).
+        async function recheckPendingBets(uid, matchSnap) {
             const cache = loadCache('bets', uid);
-            const pendingIds = Object.keys(cache.docs).filter(id => cache.docs[id].status === 'pending');
+            cache.docs = cache.docs || {};
+            const known = {}, settled = {};
+            matchSnap.forEach(m => {
+                const d = m.data();
+                known[m.id] = true;
+                if (d.settledAt || d.status === 'closed' || d.status === 'cancelled') settled[m.id] = true;
+            });
+            const pendingIds = Object.keys(cache.docs).filter(id => {
+                const b = cache.docs[id];
+                return b.status === 'pending' && (settled[b.matchId] || !known[b.matchId]);
+            });
 
             for (let i = 0; i < pendingIds.length; i += 10) {
                 const chunk = pendingIds.slice(i, i + 10);
@@ -213,47 +222,83 @@
                     cache.docs[doc.id] = Object.assign({}, d, { timestamp: ms, _c: Date.now() });
                 });
             }
-            saveCache('bets', uid, cache);
+            if (pendingIds.length) saveCache('bets', uid, cache);
             return fakeSnap(cache.docs, ['timestamp']);
+        }
+
+        // Poora sync ek jagah: naye docs (timestamp se) -> unsettled matches -> sirf settle hue matches ke pending bets
+        async function syncAll(uid) {
+            for (const col of CACHE_COLS) { if (col !== 'bets') liveSnaps[col] = await syncCollection(col, uid); }
+            await syncCollection('bets', uid);
+            liveSnaps.matches = await syncMatches(uid);
+            liveSnaps.bets = await recheckPendingBets(uid, liveSnaps.matches);
+        }
+
+        // Dobara page kholne par: agar balance/exposure pehle jaisa hi hai to koi sync nahi (0 reads) —
+        // data seedha local cache se. Kuch badla ho tabhi sync hota hai. FAST_MAX_MS se purana ho to bhi sync.
+        const FAST_MAX_MS = 6 * 60 * 60 * 1000;
+
+        function loadAllFromCache(uid) {
+            for (const col of CACHE_COLS) liveSnaps[col] = fakeSnap(loadCache(col, uid).docs || {}, ['timestamp']);
+            let mc = {};
+            try { mc = JSON.parse(localStorage.getItem('matchCache') || '{}'); } catch (e) {}
+            liveSnaps.matches = fakeSnap(mc, ['settledAt']);
         }
 
         async function startLiveListeners() {
             const uid = user.id;
+            const SIGKEY = 'histSig_' + CACHE_VERSION + '_' + uid;
+            const saveSig = (sig) => { try { localStorage.setItem(SIGKEY, JSON.stringify({ sig: sig, t: Date.now() })); } catch (e) {} };
+            let syncTimer = null, syncBusy = false, firstSnap = true;
 
-            for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
-            liveSnaps.matches = await syncMatches(uid);
-            if (window._resolveMatches) { window._resolveMatches(liveSnaps.matches); window._resolveMatches = null; }
-
-            db.collection("users").doc(uid).onSnapshot(d => {
-                liveSnaps.user = d; fetchLiveHistory();
-                const uSig = d.exists ? ((d.data().balance || 0) + '|' + (d.data().totalExposure || 0)) : '';
-                if (window._userSig !== undefined && window._userSig !== uSig) scheduleSync(); // sirf balance/exposure badle tab
-                window._userSig = uSig;
-                if (d.exists) {
-                    const balEl = document.getElementById('top-bal');
-                    if (balEl) balEl.innerText = Math.floor(d.data().balance || 0).toFixed(2);
-                }
-            }, (e) => console.log('Listener error (user):', e));
-
-            fetchLiveHistory();
-
-            // Koi polling nahi — sync sirf tab jab balance/exposure badle (neeche listener se)
-            let syncTimer = null, syncBusy = false;
-            window._scheduleSync = scheduleSync; // dusre listener se bhi sync trigger ho sake
+            // Koi polling nahi — sync sirf tab jab balance/exposure badle
+            window._scheduleSync = scheduleSync;
             window.addEventListener('storage', (e) => { if (e.key && e.key.indexOf('pending') === 0) scheduleSync(); });
             function scheduleSync() {
                 clearTimeout(syncTimer);
                 syncTimer = setTimeout(async () => {
                     if (syncBusy) { scheduleSync(); return; }
                     syncBusy = true;
+                    const sigAtStart = window._userSig;
                     try {
-                        for (const col of CACHE_COLS) liveSnaps[col] = (col === 'bets') ? await syncBets(uid) : await syncCollection(col, uid);
-                        liveSnaps.matches = await syncMatches(uid);
+                        await syncAll(uid);
+                        saveSig(sigAtStart);
+                        if (window._renderExposure) window._renderExposure();
                         fetchLiveHistory();
                     } catch (e) { console.log('Sync error:', e); }
                     syncBusy = false;
                 }, 2000);
             }
+
+            db.collection("users").doc(uid).onSnapshot(async d => {
+                liveSnaps.user = d;
+                const uSig = d.exists ? ((d.data().balance || 0) + '|' + (d.data().totalExposure || 0)) : '';
+                if (d.exists) {
+                    const balEl = document.getElementById('top-bal');
+                    if (balEl) balEl.innerText = Math.floor(d.data().balance || 0).toFixed(2);
+                }
+
+                if (firstSnap) {
+                    firstSnap = false;
+                    window._userSig = uSig;
+                    let stored = null;
+                    try { stored = JSON.parse(localStorage.getItem(SIGKEY) || 'null'); } catch (e) {}
+                    const fresh = stored && stored.sig === uSig && (Date.now() - stored.t) < FAST_MAX_MS && localStorage.getItem(cacheKey('bets', uid)) !== null;
+                    if (fresh) {
+                        loadAllFromCache(uid);                      // kuch nahi badla — 0 reads
+                    } else {
+                        try { await syncAll(uid); saveSig(uSig); }
+                        catch (e) { console.log('Sync error:', e); loadAllFromCache(uid); }
+                    }
+                    if (window._resolveMatches) { window._resolveMatches(liveSnaps.matches); window._resolveMatches = null; }
+                    if (window._renderExposure) window._renderExposure();
+                    fetchLiveHistory();
+                    return;
+                }
+
+                if (window._userSig !== uSig) { window._userSig = uSig; scheduleSync(); } // sirf balance/exposure badle tab
+                fetchLiveHistory();
+            }, (e) => console.log('Listener error (user):', e));
 
             if (window.runBackgroundCleanup) window.runBackgroundCleanup(uid);
         }
@@ -278,23 +323,25 @@
         
         function logout() { localStorage.removeItem('userSession'); window.location.href = "index.html"; }
 
+        // Exposure ab Firestore listener se nahi — local cache ke pending bets se (0 reads).
+        // Cache har sync ke baad apne aap refresh hota hai (balance/exposure badalte hi).
         window.buildExposureDropdown = async function(userId) {
-            const matchSnap = await matchesReady; // matches listener ka pehla snapshot, dobara read nahi
-            let matchNames = {};
-            matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
-db.collection("bets").where("userId", "==", userId).where("status", "==", "pending").onSnapshot(snap => {
-                const pSig = snap.docs.map(x => x.id).sort().join(',');
-                if (window._pendSig !== undefined && window._pendSig !== pSig && window._scheduleSync) window._scheduleSync(); // bet settle/void hua
-                window._pendSig = pSig;
             
-                let matchPnL = {}; 
-                snap.forEach(doc => {
-                    let b = doc.data();
+            window._renderExposure = function() {
+                let matchNames = {};
+                if (liveSnaps.matches) liveSnaps.matches.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
+                else { try { const mc = JSON.parse(localStorage.getItem('matchCache') || '{}'); Object.keys(mc).forEach(id => { matchNames[id] = `${mc[id].teamA} vs ${mc[id].teamB}`; }); } catch (e) {} }
+
+                const bets = loadCache('bets', userId).docs || {};
+                let matchPnL = {};
+                Object.keys(bets).forEach(id => {
+                    let b = bets[id];
+                    if (b.status !== 'pending') return;
                     if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0, totalBet: 0 };
                     let bAmt = parseFloat(b.amount || 0);
                     let bOdds = parseFloat(b.odds || 0);
                     let winAmt = bAmt * (bOdds / 100);
-                    
+
                     if(b.selection === 'teamA') {
                         matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= bAmt;
                     } else {
@@ -322,17 +369,18 @@ db.collection("bets").where("userId", "==", userId).where("status", "==", "pendi
                     }
                 }
                 if(!hasExp) expHtml += `<div style="padding: 15px; text-align: center; font-size: 12px; font-weight: bold; color: #555;">No Active Bets</div>`;
-                
+
                 const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
                 const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
-            });
+            };
+            window._renderExposure();   // turant — cache se, 0 reads (sync ka wait nahi)
+            await matchesReady;         // pehli sync poori hote hi ek baar aur refresh
+            window._renderExposure();
         }
 
         function setupHeader() {
             document.getElementById('top-user').innerText = user.username;
-            db.collection("users").doc(user.id).onSnapshot(d => {
-                if(d.exists) document.getElementById('top-bal').innerText = Math.floor(d.data().balance || 0).toFixed(2);
-            });
+            
             window.buildExposureDropdown(user.id);
         }
 

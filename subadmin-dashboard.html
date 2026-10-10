@@ -175,6 +175,41 @@
     <script src="app.js"></script>
 
     <script>
+        // 📊 READ COUNTER — kaun sa source kitni reads kar raha hai (tap karke list kholo)
+        const RC_KEY = 'subDashReadCounter';
+        let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
+        try { RC_DATA = JSON.parse(localStorage.getItem(RC_KEY) || '{}'); } catch (e) {}
+        function RC(name, n, snap) {
+            if (!n) return;
+            if (snap && snap.metadata && snap.metadata.fromCache) name += ' (cache-free)';
+            const day = new Date().toISOString().slice(0, 10);
+            if (!RC_DATA[day]) RC_DATA[day] = {};
+            RC_DATA[day][name] = (RC_DATA[day][name] || 0) + n;
+            RC_SESS[name] = (RC_SESS[name] || 0) + n;
+            try { localStorage.setItem(RC_KEY, JSON.stringify(RC_DATA)); } catch (e) {}
+            console.log('READS +' + n + ' ' + name);
+            RC_render();
+        }
+        function RC_sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
+        function RC_render() {
+            if (!document.body) return;
+            let el = document.getElementById('rc-box');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'rc-box';
+                el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;background:#000c;color:#0f0;font:11px monospace;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;';
+                el.onclick = () => { RC_OPEN = !RC_OPEN; RC_render(); };
+                document.body.appendChild(el);
+            }
+            const day = new Date().toISOString().slice(0, 10);
+            const d = RC_DATA[day] || {};
+            let txt = '📊 aaj ' + RC_sum(d) + ' | is baar ' + RC_sum(RC_SESS);
+            if (RC_OPEN) {
+                txt += '\n-- aaj --\n' + Object.keys(d).map(k => k + ': ' + d[k]).join('\n');
+                txt += '\n-- is baar --\n' + Object.keys(RC_SESS).map(k => k + ': ' + RC_SESS[k]).join('\n');
+            }
+            el.textContent = txt;
+        }
         const IMGBB_KEY = "d31576e535f3516a79211d96d1b21ffa";
         
         // 🛡️ SECURITY MIDDLEWARE
@@ -219,6 +254,7 @@
             if (!pass) return; 
             try {
                 const doc = await db.collection("admins").doc(subAdmin.id).get();
+                RC('logout-password-get', 1);
                 if (doc.exists && doc.data().password === pass) {
                     localStorage.removeItem('adminSession');
                     window.location.replace("subadmin-login.html");
@@ -231,6 +267,7 @@
         }
 
         db.collection("system_settings").doc("global").onSnapshot(doc => {
+        RC('system-settings-listener', 1, doc);
             if(doc.exists && doc.data().masterWhatsApp) {
                 const waBtn = document.getElementById('wa-master-btn');
                 waBtn.href = `https://wa.me/${doc.data().masterWhatsApp}?text=Hello%20Master,%20I%20am%20Subadmin:%20${subAdmin.username}`;
@@ -243,6 +280,7 @@
         document.getElementById('sa-name').innerText = subAdmin.username;
         
         db.collection("admins").doc(subAdmin.id).onSnapshot(doc => {
+        RC('subadmin-doc-listener', 1, doc);
             if(doc.exists) {
                 if(doc.data().locked === true) {
                     alert("🚨 Your SubAdmin Account has been LOCKED by Master Admin!");
@@ -276,6 +314,7 @@
         function attachActivityLogsListener() {
             if (activityLogsUnsub) return; // pehle se attached hai, dobara mat karo
             activityLogsUnsub = db.collection("transactions").where("linkedSubAdminId", "==", subAdmin.id).orderBy("timestamp", "desc").limit(10).onSnapshot(snap => {
+            RC('activity-logs-listener', snap.docChanges().length, snap);
                 let logs = [];
                 snap.forEach(doc => {
                     let tx = doc.data();
@@ -398,6 +437,7 @@
             const list = document.getElementById('pending-list');
             try {
                 const snap = await db.collection("transactions").where("linkedSubAdminId", "==", subAdmin.id).where("status", "==", "pending").get();
+                RC('pending-requests-get', Math.max(1, snap.size), snap);
                 list.innerHTML = ""; 
                 let hasRequests = false;
 
@@ -467,6 +507,7 @@
         async function addReferStat(batch, userId, depDelta, wdrDelta) {
             try {
                 const u = await db.collection("users").doc(userId).get();
+                RC('referstat-user-get', 1);
                 const code = u.exists ? u.data().referCode : null;
                 if (!code) return;
                 batch.set(db.collection("referStats").doc(subAdmin.id + '_' + code.toLowerCase()), {

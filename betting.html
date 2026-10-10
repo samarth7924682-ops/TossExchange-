@@ -669,6 +669,8 @@ setInterval(applyLockState, 1000);
             updateProjectedPnL(); 
         }
         // ✅ Bet accept hone par upar popup
+        const _betSnd = new Audio('Bet%20Placed%20Successful.mp3'); // page khulte hi load ho jata hai, taaki bajne me delay na ho
+        _betSnd.preload = 'auto';
         function showBetSuccess(teamName, amt, odds) {
             let el = document.getElementById('bet-success-pop');
             if (!el) {
@@ -679,6 +681,7 @@ setInterval(applyLockState, 1000);
             const safe = String(teamName).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             el.innerHTML = '<div class="bsp-title">✅ Bet Placed Successfully</div><div class="bsp-sub">' + safe + ' &nbsp;|&nbsp; Stake ' + amt + ' @ ' + odds + '</div>';
             el.className = 'show';
+            try { _betSnd.currentTime = 0; _betSnd.play().catch(() => {}); } catch (e) {}
             clearTimeout(window._bspTimer);
             window._bspTimer = setTimeout(() => { el.className = ''; }, 1000);
         }

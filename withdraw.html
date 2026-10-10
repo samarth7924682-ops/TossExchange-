@@ -9,14 +9,19 @@
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
         
         /* Fixed Sticky Global Index Header */
-        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        .logo-text { font-size: 20px; font-weight: bold; cursor: pointer; color: white; text-decoration: none; }
+        .logo-text { font-size: clamp(17px, 5vw, 22px); font-weight: 900; color: white; letter-spacing: 0.5px; text-decoration: none; cursor: pointer; }
+        .logo-coin { display: inline-block; animation: miniFlip 2s linear infinite; transform-origin: center; }
+        .logo-dollar { letter-spacing: -3px; }
+        @keyframes miniFlip { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
         .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
-        .badge { background: #333; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #555; text-align: center; cursor: pointer; }
+        .badge { background: #222; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #444; text-align: center; cursor: pointer; transition: 0.2s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .badge:active { transform: scale(0.95); }
+        html.embedded .premium-header { display: none !important; }
 
         .user-dropdown { position: absolute; right: 10px; top: 80px; background: white; color: black; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; flex-direction: column; z-index: 1001; min-width: 150px; }
-        .user-dropdown a { padding: 10px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; }
+       .user-dropdown a { padding: 10px 12px; text-decoration: none; color: #222; font-weight: bold; font-size: 13px; border-bottom: 1px solid #eee; display: block; }
 
         .container { padding: 15px; max-width: 500px; margin: 0 auto; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid var(--red); margin-bottom: 15px; }
@@ -95,13 +100,14 @@
         .modal-body { font-size: 14px; color: #333; margin-bottom: 20px; word-wrap: break-word; }
         .btn-close-modal { background-color: #333; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
+    <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
 </head>
 <body>
 
     <div class="premium-header">
         <div class="header-top">
-            <div class="logo-text" onclick="window.location.href='index.html'">TO💲💲 EXCHANGE</div>
-            <div style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="toggleMenu(event)">⋮</div>
+            <div class="logo-text" onclick="window.location.href='index.html'"><span class="logo-coin">🪙</span> TO<span class="logo-dollar">💲💲</span> EXCHANGE</div>
+            <div style="cursor: pointer; font-size: 20px; font-weight: bold;" onclick="toggleMenu(event)">⋮</div>
         </div>
         <div class="header-info">
             <div class="badge">🪙 <span id="top-bal">0.00</span></div>
@@ -176,8 +182,9 @@
     <script src="app.js"></script>
 
     <script>
+        function goHome() { if (window.self !== window.top) { window.parent.postMessage('page-home', '*'); } else { window.location.href = 'index.html'; } }
         const session = localStorage.getItem('userSession');
-        if(!session) window.location.href = "index.html";
+        if(!session) goHome();
         const user = JSON.parse(session);
         document.getElementById('top-user').innerText = user.username;
 

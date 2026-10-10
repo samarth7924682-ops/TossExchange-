@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title>TOSS EXCH - Home</title>
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
+    
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
+   
      
     <style>
         /* CSS Exact Same as Original */
@@ -23,6 +23,7 @@
         .logo-text { font-size: clamp(17px, 5vw, 22px); font-weight: 900; color: white; letter-spacing: 0.5px; }
         .logo-coin { display: inline-block; animation: miniFlip 2s linear infinite; transform-origin: center; }
         .logo-dollar { letter-spacing: -3px; }
+        body.page-open #waWrapper, body.page-open #tgWrapper { display: none !important; }
         .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
         .badge { background: #222; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #444; text-align: center; cursor: pointer; transition: 0.2s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
         .badge:active { transform: scale(0.95); }
@@ -126,7 +127,7 @@
 
     <div id="main-nav" class="premium-header">
         <div class="header-top">
-           <div class="logo-text"><span class="logo-coin">🪙</span> TO<span class="logo-dollar">💲💲</span> EXCHANGE</div>
+          <div class="logo-text" onclick="closePage()"><span class="logo-coin">🪙</span> TO<span class="logo-dollar">💲💲</span> EXCHANGE</div>
             <div style="cursor: pointer; font-size: 20px; font-weight: bold;" onclick="toggleMenu('user-dropdown', event)">⋮</div>
         </div>
         <div class="header-info">
@@ -170,7 +171,7 @@
   try {
     var s = JSON.parse(localStorage.getItem('userSession') || 'null');
     var id = s && s.id;
-    var l = document.getElementById('matches-list'), h = localStorage.getItem('cachedMatchesHtml');
+    var l = document.getElementById('matches-list'), h = localStorage.getItem('cachedMatchesHtml2');
     if (l && h) {
       l.innerHTML = h;
       var now = Date.now();
@@ -269,7 +270,36 @@
         }
 
         window.logout = function() { localStorage.removeItem('userSession'); window.location.replace('login.html'); }
-
+let _pageFrame = null, _pageScroll = 0;
+        function _removePageFrame() {
+            if (!_pageFrame) return;
+            _pageFrame.remove(); _pageFrame = null;
+            document.body.classList.remove('page-open');
+            document.body.style.overflow = '';
+            const c = document.querySelector('.container'); if (c) c.style.display = '';
+            window.scrollTo(0, _pageScroll);
+        }
+        window.openPage = function (url) {
+            if (_pageFrame) { try { _pageFrame.contentWindow.location.replace(url); } catch (e) { _pageFrame.src = url; } return; }
+            _pageScroll = window.scrollY || 0;
+            const h = document.getElementById('main-nav').offsetHeight;
+            const f = document.createElement('iframe');
+            f.id = 'page-frame';
+            f.style.cssText = 'position:fixed;left:0;right:0;bottom:0;width:100%;border:0;background:#eceff4;z-index:1;top:' + h + 'px;height:calc(100% - ' + h + 'px);';
+            f.src = url;
+            document.body.appendChild(f);
+            _pageFrame = f;
+            const c = document.querySelector('.container'); if (c) c.style.display = 'none';
+            document.body.classList.add('page-open');
+            document.body.style.overflow = 'hidden';
+            try { history.pushState({ pg: 1 }, ''); } catch (e) {}
+        };
+        window.closePage = function () {
+            if (!_pageFrame) return;
+            if (history.state && history.state.pg) history.back(); else _removePageFrame();
+        };
+        window.addEventListener('popstate', _removePageFrame);
+        window.addEventListener('message', function (e) { if (e.data === 'page-home') window.closePage(); });
         window.showDemoAlert = function(msg) {
             const alertBar = document.getElementById('demo-alert');
             alertBar.innerText = msg;
@@ -282,7 +312,7 @@
             if(s) {
                 const user = JSON.parse(s);
                 if(user.isDemo) { showDemoAlert("This is a demo account. Deposit/withdrawal can't be done."); } 
-                else { window.location.href = targetPage; }
+                else { openPage(targetPage); }
             }
         }
 
@@ -294,7 +324,7 @@
                     if(action === 'history') showDemoAlert("Demo account can't access history");
                     else if(action === 'changePass') showDemoAlert("Demo account can't change password");
                 } else {
-                    if(action === 'history') window.location.href = 'history.html';
+                    if(action === 'history') openPage('history.html');
                     else if(action === 'changePass') window.location.href = 'change-pass.html';
                 }
             }
@@ -410,7 +440,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                                 let expVal = Math.abs(w);
                                 totalExp += expVal; hasExp = true;
                                 expHtml += `
-                                    <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                    <div class="exp-strip" onclick="openPage('betting.html?id=${mId}')">
                                         <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
                                         <div class="exp-amt">-${Math.floor(expVal)}</div>
                                     </div>`;
@@ -499,7 +529,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                                     let expVal = Math.abs(worst);
                                     totalExp += expVal; hasExp = true;
                                     expHtml += `
-                                        <div class="exp-strip" onclick="window.location.href='betting.html?id=${mId}'">
+                                        <div class="exp-strip" onclick="openPage('betting.html?id=${mId}')">
                                             <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
                                             <div class="exp-amt">-${Math.floor(expVal)}</div>
                                         </div>`;
@@ -688,7 +718,7 @@ let _syncServerMs = Date.now();
                         else { isLocked = false; actionHtml = `<span class="live-dot dot-green"></span>`; statusClass = `status-play`; }
 
                         finalHtml += `
-                            <div class="match-row" data-toss="${m.tossTimeMs || 0}" onclick="window.location.href='betting.html?id=${m.id}'" style="border-left-color: ${isLocked ? 'var(--red)' : 'var(--theme-dark)'}; opacity: ${isLocked ? '0.85' : '1'};">
+                            <div class="match-row" data-toss="${m.tossTimeMs || 0}" onclick="openPage('betting.html?id=${m.id}')" style="border-left-color: ${isLocked ? 'var(--red)' : 'var(--theme-dark)'}; opacity: ${isLocked ? '0.85' : '1'};">
                                 <div>
                                     <span class="match-teams" style="color: ${isLocked ? '#444' : '#111'}">${m.teamA} vs ${m.teamB}</span><br>
                                     <span class="match-time"> Toss: ${displayTime}</span>
@@ -703,7 +733,7 @@ let _syncServerMs = Date.now();
             if (finalHtml !== _lastMatchesHtml) {
                 list.innerHTML = finalHtml;
                 _lastMatchesHtml = finalHtml;
-                try { localStorage.setItem('cachedMatchesHtml', finalHtml); } catch (e) {}
+                try { localStorage.setItem('cachedMatchesHtml2', finalHtml); } catch (e) {}
             }
         }
 

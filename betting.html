@@ -13,6 +13,7 @@
         body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; }
         
        .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+       html.embedded .premium-header { display: none !important; }
         .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         .logo-text { font-size: clamp(17px, 5vw, 22px); font-weight: 900; color: white; letter-spacing: 0.5px; cursor: pointer; }
         .logo-coin { display: inline-block; animation: miniFlip 2s linear infinite; transform-origin: center; }
@@ -103,6 +104,7 @@
         .bsp-title { font-size: 15px; font-weight: 900; }
         .bsp-sub { font-size: 12px; font-weight: 600; margin-top: 3px; opacity: .95; }
     </style>
+    <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
 </head>
 <body>
 
@@ -208,6 +210,7 @@
     <script src="app.js"></script>
 
     <script>
+        function goHome() { if (window.self !== window.top) { window.parent.postMessage('page-home', '*'); } else { window.location.href = 'index.html'; } }
        // 📊 READ COUNTER — kaun sa source kitni reads kar raha hai (tap karo to list khulegi)
         const RC_KEY = 'masterReadCounter';
         let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
@@ -254,10 +257,10 @@
                 return ref.get();
             });
         }
-        if(!matchId) window.location.href = "index.html";
+        if(!matchId) goHome();
 
         const session = localStorage.getItem('userSession');
-        if(!session) window.location.href = "index.html";
+        if(!session) goHome();
         const user = JSON.parse(session);
         document.getElementById('top-user').innerText = user.username;
         let _syncServerMs = Date.now();
@@ -463,7 +466,7 @@
         if(matchId) {
         db.collection("matches").doc(matchId).onSnapshot(doc => {
         RC('match-doc', 1, doc);
-    if(!doc.exists) { window.location.href = "index.html"; return; }
+    if(!doc.exists) { goHome(); return; }
     currentMatch = doc.data();
     currentMatch.id = doc.id;
 

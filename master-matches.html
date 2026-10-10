@@ -382,7 +382,7 @@
 
             if (editingMatchId) {
                 // Existing match update — betting.html ko onSnapshot se turant naya time/lock mil jayega
-                await db.collection("matches").doc(editingMatchId).update(data);
+                await db.collection("matches").doc(editingMatchId).update({ ...data, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
                 alert("✅ Match Updated!");
                 cancelEdit();
             } else {
@@ -627,7 +627,8 @@
                             // Pehle se open match — sirf toss + lock time update
                             mBatch.update(db.collection('matches').doc(it.existingId), {
                                 tossTimeMs: it.tossMs, lockTimeMs: it.lockMs,
-                                tossTimeStr: it.date.toLocaleString()
+                                tossTimeStr: it.date.toLocaleString(),
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp()
                             });
                             pBatch.set(predictDb.collection('matches').doc(it.existingId), {
                                 team1: it.teamA, team2: it.teamB, time: timeShort,
@@ -1100,7 +1101,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 RC('bets-undo', Math.max(1, betsSnap.size));
 
                 if (betsSnap.empty) {
-                    await db.collection("matches").doc(matchId).update({ status: 'open', autoVoidOff: true, winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
+                    await db.collection("matches").doc(matchId).update({ status: 'open', autoVoidOff: true, timestamp: firebase.firestore.FieldValue.serverTimestamp(), winner: firebase.firestore.FieldValue.delete(), settledAt: firebase.firestore.FieldValue.delete() });
                     forgetHistoryMatch(matchId);
                     alert("✅ Match reopened.");
                     return;
@@ -1160,6 +1161,7 @@ const escJs = (str) => String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 batch.update(db.collection("matches").doc(matchId), { 
                     status: 'open', 
                     autoVoidOff: true,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                     winner: firebase.firestore.FieldValue.delete(), 
                     settledAt: firebase.firestore.FieldValue.delete() 
                 });

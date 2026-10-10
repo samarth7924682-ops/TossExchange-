@@ -137,9 +137,9 @@
         </div>
         
         <div id="user-dropdown" class="dropdown-box user-dropdown">
-            <a href="#" onclick="handleMenuClick('history')">📜 Betting History</a>
-            <a href="#" onclick="handleMenuClick('changePass')">🔑 Change Password</a>
-            <a href="#" onclick="logout()" style="color:red;">🚪 Logout</a>
+            <a href="#" onclick="handleMenuClick('history'); return false;">📜 Betting History</a>
+            <a href="#" onclick="handleMenuClick('changePass'); return false;">🔑 Change Password</a>
+            <a href="#" onclick="logout(); return false;" style="color:red;">🚪 Logout</a>
         </div>
 
         <div id="exp-dropdown" class="dropdown-box exp-dropdown">
@@ -429,7 +429,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     });
 
                     let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
-                    getCachedFirst(db.collection("matches").where("status", "==", "open")).then(matchSnap => {
+                    getOpenMatchesLocal().then(matchSnap => {
                     RC('matches-get-337', matchSnap.size, matchSnap);
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
@@ -503,7 +503,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     });
 
                     
-                       getCachedFirst(db.collection("matches").where("status", "==", "open")).then(matchSnap => {
+                       getOpenMatchesLocal().then(matchSnap => {
                     RC('matches-get-406', matchSnap.size, matchSnap);
                         let matchNames = {};
                         matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
@@ -737,19 +737,99 @@ let _syncServerMs = Date.now();
             }
         }
 
-        window.loadLiveMatches = function() {
-            if (_unsubMatches) _unsubMatches();
+        // 💾 MATCHES DELTA CACHE — poori list sirf pehli baar (ya 24 ghante baad). Baaki sirf naye / badle / settle hue matches padhe jate hain.
+        // Naya ya edit hua match: 'timestamp' field badalti hai. Settle/void hua: 'settledAt' lagta hai.
+        const MX_KEY = 'matchesDeltaV1';   // { items:{id:slim}, cursor:ms, fullAt:ms }
+        const MX_FULL_REFRESH_MS = 24 * 60 * 60 * 1000;
+        function _mxSlim(id, m) {
+            return { id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs || 0, lockTimeMs: m.lockTimeMs || 0, tossTimeStr: m.tossTimeStr || '', tossTime: m.tossTime || '' };
+        }
+        let _mx = null;
+        try { _mx = JSON.parse(localStorage.getItem(MX_KEY) || 'null'); } catch (e) {}
+
+        function _mxPublish() {
+            _liveMatches = Object.values(_mx.items);
+            _liveLoaded = true;
+            try {
+                localStorage.setItem(MX_KEY, JSON.stringify(_mx));
+                localStorage.setItem('cachedMatches', JSON.stringify(_liveMatches));
+            } catch (e) {}
+            renderMatches();
+        }
+
+        // Exposure list ke match naam — Firestore se nahi, local cache se (0 reads)
+        function getOpenMatchesLocal() {
+            if (!_mx || !_mx.items || !Object.keys(_mx.items).length) return getCachedFirst(db.collection("matches").where("status", "==", "open"));
+            const docs = Object.values(_mx.items).map(m => ({ id: m.id, data: () => m }));
+            return Promise.resolve({ size: docs.length, empty: !docs.length, metadata: { fromCache: true }, forEach: fn => docs.forEach(fn) });
+        }
+
+        // Purana tareeka (backup) — server time na mile to
+        function _loadLiveMatchesFull() {
             _unsubMatches = db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             RC('matches-listener', snap.docChanges().length, snap);
                 if (snap.empty && snap.metadata.fromCache && _liveLoaded) return; // net slow ho to cache ki list na hatao
                 _liveMatches = [];
                 snap.forEach(doc => _liveMatches.push({ id: doc.id, ...doc.data() }));
                 _liveLoaded = true;
-                try { localStorage.setItem('cachedMatches', JSON.stringify(_liveMatches.map(m => ({ id: m.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs || 0, lockTimeMs: m.lockTimeMs || 0, tossTimeStr: m.tossTimeStr || '', tossTime: m.tossTime || '' })))); } catch (e) {}
+                try { localStorage.setItem('cachedMatches', JSON.stringify(_liveMatches.map(m => _mxSlim(m.id, m)))); } catch (e) {}
                 renderMatches();
             });
         }
 
+        window.loadLiveMatches = async function() {
+            if (_unsubMatches) { _unsubMatches(); _unsubMatches = null; }
+            const synced = await syncServerTime(1); // cursor ke liye server time (free, 0 reads)
+            if (!synced) { _loadLiveMatchesFull(); return; }
+            const T = getTrueTime();
+
+            // 1) Poori list sirf pehli baar ya 24 ghante baad
+            if (!_mx || !_mx.items || !_mx.fullAt || (T - _mx.fullAt) > MX_FULL_REFRESH_MS) {
+                try {
+                    const snap = await db.collection("matches").where("status", "==", "open").get();
+                    RC('matches-full-seed', Math.max(1, snap.size), snap);
+                    const items = {};
+                    snap.forEach(d => { items[d.id] = _mxSlim(d.id, d.data()); });
+                    _mx = { items, cursor: T - 120000, fullAt: T };
+                    _mxPublish();
+                } catch (e) { console.log('Matches seed error:', e); _loadLiveMatchesFull(); return; }
+            }
+
+            // 2) Uske baad sirf changes: naya/edit hua match + settle/void hua match
+            const ts = firebase.firestore.Timestamp.fromMillis(_mx.cursor);
+            const newCursor = T - 120000; // 2 min overlap — koi change chhoote nahi
+            let firstA = true, firstB = true;
+            const commitCursor = () => {
+                if (firstA || firstB) return; // dono ka pehla SERVER snapshot aa jaye tabhi cursor aage badhao
+                _mx.cursor = newCursor;
+                try { localStorage.setItem(MX_KEY, JSON.stringify(_mx)); } catch (e) {}
+            };
+
+            const unsubA = db.collection("matches").where("timestamp", ">", ts).onSnapshot(snap => {
+                RC('matches-new-edited', snap.docChanges().length, snap);
+                let changed = false;
+                snap.docChanges().forEach(ch => {
+                    const id = ch.doc.id, m = ch.doc.data();
+                    if (m.status === 'open') { _mx.items[id] = _mxSlim(id, m); changed = true; }
+                    else if (_mx.items[id]) { delete _mx.items[id]; changed = true; }
+                });
+                if (changed) _mxPublish();
+                if (firstA && !snap.metadata.fromCache) { firstA = false; commitCursor(); }
+            }, err => console.log('Matches listener (new) error:', err));
+
+            const unsubB = db.collection("matches").where("settledAt", ">", ts).onSnapshot(snap => {
+                RC('matches-settled', snap.docChanges().length, snap);
+                let changed = false;
+                snap.docChanges().forEach(ch => {
+                    if (ch.type === 'removed') return; // undo hua to 'timestamp' wala listener wapas jod dega
+                    if (_mx.items[ch.doc.id]) { delete _mx.items[ch.doc.id]; changed = true; }
+                });
+                if (changed) _mxPublish();
+                if (firstB && !snap.metadata.fromCache) { firstB = false; commitCursor(); }
+            }, err => console.log('Matches listener (settled) error:', err));
+
+            _unsubMatches = () => { unsubA(); unsubB(); };
+        }
         try {
             const _c = JSON.parse(localStorage.getItem('cachedMatches') || 'null');
             if (Array.isArray(_c)) { _liveMatches = _c; _liveLoaded = true; }

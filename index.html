@@ -5,14 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title>TOSS EXCH - Home</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <link rel="preload" as="image" href="aviator-animation.gif" fetchpriority="high">
-    <link rel="preload" as="image" href="chiken.jpg" fetchpriority="high">
-    <link rel="preload" as="image" href="mines-animation.gif" fetchpriority="high">
-    <link rel="preload" as="image" href="headtail-animation.gif" fetchpriority="high">
+   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
      
     <style>
         /* CSS Exact Same as Original */
@@ -53,7 +49,7 @@
         .game-card:active { transform: scale(0.95); }
         .game-card::before { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent); transform: skewX(-20deg); animation: cardShine 10s ease-in-out infinite; z-index: 1; }
         .game-card .ic { font-size: 28px; z-index: 2; margin-bottom: 6px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }
-        .game-card span { z-index: 2; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: clamp(11px, 3vw, 13px); text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); text-align: center;}
+        .game-card span { z-index: 2; font-family: Arial, sans-serif; font-weight: 700; font-size: clamp(11px, 3vw, 13px); text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); text-align: center;}
         .ic-plane { animation: planeFloat 1.8s ease-in-out infinite; }
         .ic-bomb { animation: bombPulse 1.1s ease-in-out infinite; }
         @keyframes cardShine { 0% { left: -60%; } 50% { left: 120%; } 100% { left: 120%; } }
@@ -169,6 +165,24 @@
             </div>
 
             <div id="matches-list"></div>
+            <script>
+(function () {
+  try {
+    var s = JSON.parse(localStorage.getItem('userSession') || 'null');
+    var id = s && s.id;
+    var l = document.getElementById('matches-list'), h = localStorage.getItem('cachedMatchesHtml');
+    if (l && h) {
+      l.innerHTML = h;
+      var now = Date.now();
+      l.querySelectorAll('.match-row[data-toss]').forEach(function (r) { var t = +r.getAttribute('data-toss'); if (t && now >= t) r.remove(); });
+      l.querySelectorAll('.category-header').forEach(function (c) { var n = c.nextElementSibling; if (!n || !n.classList.contains('match-row')) c.remove(); });
+    }
+    if (s) document.getElementById('top-user').innerText = s.username || s.id || 'User';
+    
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); // cache permanent rakhne ki request
+  } catch (x) {}
+})();
+</script>
         </div>
     </div>
 
@@ -419,6 +433,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                         const userData = d.data();
                         const balEl = document.getElementById('top-bal');
                         if(balEl) balEl.innerText = Math.floor(userData.balance || 0).toFixed(2);
+                        try { localStorage.setItem('cachedBal_' + user.id, Math.floor(userData.balance || 0).toFixed(2)); } catch (e) {}
                         realAdminWhatsApp = userData.adminNumber || userData.subadminNumber || "";
                         waWrapper.style.display = 'none';
                         if (tgWrapper) { tgWrapper.style.display = 'none'; tgWrapper.classList.remove('tg-solo'); }
@@ -493,6 +508,7 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                             if(!hasExp) { expHtml += `<div style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; color: #555;">No Active Bets</div>`; }
                             const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
                             const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
+                            try { localStorage.setItem('cachedExp_' + user.id, String(Math.floor(totalExp))); localStorage.setItem('cachedExpHtml_' + user.id, expHtml); } catch (e) {}
                         });
                     });
                 }
@@ -672,7 +688,7 @@ let _syncServerMs = Date.now();
                         else { isLocked = false; actionHtml = `<span class="live-dot dot-green"></span>`; statusClass = `status-play`; }
 
                         finalHtml += `
-                            <div class="match-row" onclick="window.location.href='betting.html?id=${m.id}'" style="border-left-color: ${isLocked ? 'var(--red)' : 'var(--theme-dark)'}; opacity: ${isLocked ? '0.85' : '1'};">
+                            <div class="match-row" data-toss="${m.tossTimeMs || 0}" onclick="window.location.href='betting.html?id=${m.id}'" style="border-left-color: ${isLocked ? 'var(--red)' : 'var(--theme-dark)'}; opacity: ${isLocked ? '0.85' : '1'};">
                                 <div>
                                     <span class="match-teams" style="color: ${isLocked ? '#444' : '#111'}">${m.teamA} vs ${m.teamB}</span><br>
                                     <span class="match-time"> Toss: ${displayTime}</span>
@@ -687,6 +703,7 @@ let _syncServerMs = Date.now();
             if (finalHtml !== _lastMatchesHtml) {
                 list.innerHTML = finalHtml;
                 _lastMatchesHtml = finalHtml;
+                try { localStorage.setItem('cachedMatchesHtml', finalHtml); } catch (e) {}
             }
         }
 

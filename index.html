@@ -8,7 +8,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Segoe+UI&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="preload" as="image" href="aviator-animation.gif" fetchpriority="high">
+    <link rel="preload" as="image" href="chiken.jpg" fetchpriority="high">
+    <link rel="preload" as="image" href="mines-animation.gif" fetchpriority="high">
+    <link rel="preload" as="image" href="headtail-animation.gif" fetchpriority="high">
      
     <style>
         /* CSS Exact Same as Original */
@@ -45,7 +49,7 @@
         .games-grid::-webkit-scrollbar { display: none; }
         
         /* Updated Game Card width for exact 3 cards fit */
-        .game-card { width: calc(33.333% - 5.33px); flex-shrink: 0; scroll-snap-align: start; height: 95px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.1); animation: cardGlow 2.4s ease-in-out infinite; }
+        .game-card { width: calc(33.333% - 5.33px); flex-shrink: 0; scroll-snap-align: start; height: 95px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; cursor: pointer; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s; border: 1px solid rgba(255,255,255,0.1); .game-card { background-color: #2a2d36 !important; }}
         .game-card:active { transform: scale(0.95); }
         .game-card::before { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent); transform: skewX(-20deg); animation: cardShine 10s ease-in-out infinite; z-index: 1; }
         .game-card .ic { font-size: 28px; z-index: 2; margin-bottom: 6px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }

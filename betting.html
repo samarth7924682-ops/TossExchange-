@@ -35,6 +35,8 @@
         .card { background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.2); overflow: hidden; margin-bottom:15px; border-top: 2px solid #2e3d68;}
         
         .market-header-row { display: flex; background: #f8f9fa; border-bottom: 2px solid #ddd; padding: 8px; font-size: 12px; font-weight: 900;}
+        .match-when { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 800; color: #222; }
+        .when-pill { background: #111; color: #ffc107; padding: 3px 10px; border-radius: 12px; font-size: 11px; letter-spacing: .5px; }
         .market-title { flex: 1; color: #111; }
         .market-lbl-back { width: 60px; text-align: center; color: #1565c0; }
         .market-lbl-lay { width: 60px; text-align: center; color: #c62828; }
@@ -60,35 +62,43 @@
         /* CSS for Default Locked State */
         .locked-state { opacity: 0.5 !important; pointer-events: none !important; }
 
-        .betslip-container { background: var(--blue-light); display: none; flex-direction: column; padding: 10px; border-bottom: 2px solid #999;}
+        .betslip-container { background: linear-gradient(180deg, #d6e7f9 0%, #bcd6f2 50%, #a2c4ea 100%); display: none; flex-direction: column; padding: 10px; border-bottom: 2px solid #999; position: relative;}
         
         .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
         
-        .odds-adjust-box { flex: 1; display: flex; background: white; border: 1px solid #2e3d68; align-items: center; }
-        .odds-adjust-box button { background: var(--blue-dark); border: none; color: white; padding: 10px 15px; font-weight: 900; font-size: 16px; cursor: pointer; height: 100%;}
-        .odds-adjust-box input { flex: 1; width: 100%; text-align: center; border: none; font-weight: 900; font-size: clamp(15px, 4.5vw, 19px); outline: none; background: transparent; color: #111;}
+       .odds-adjust-box { flex: 1; display: flex; background: linear-gradient(180deg, #ffffff 0%, #dbe9f8 55%, #c1d8f1 100%); border: 1px solid #2e3d68; align-items: center; height: 40px; }
+        .odds-adjust-box button { background: var(--blue-dark); border: none; color: white; padding: 0 16px; font-weight: 900; font-size: 16px; cursor: pointer; height: 100%;}
+        .odds-adjust-box input { flex: 1; width: 100%; text-align: center; border: none; font-weight: 900; font-size: 17px; outline: none; background: transparent; color: #111;}
         
-        .stake-input-box { flex: 1; background: white; }
-        .stake-input-box input { width: 100%; height: 100%; box-sizing: border-box; text-align: center; border: none; font-weight: 900; font-size: clamp(15px, 4.5vw, 19px); outline: none; color: #111; border: 1px solid #ddd;}
+       .stake-input-box { flex: 1; height: 40px; background: linear-gradient(180deg, #ffffff 0%, #dbe9f8 55%, #c1d8f1 100%); }
+        .stake-input-box input { width: 100%; height: 100%; box-sizing: border-box; text-align: center; border: none; font-weight: 900; font-size: 17px; outline: none; color: #111; background: transparent; border: 1px solid #b6cde8;}
         
         .stake-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 2px; }
-        .stake-btn { background: white; border: 1px solid #cbe0f5; padding: 12px 0; font-weight: 900; color: var(--green); cursor: pointer; font-size: 14px; transition: 0.1s; }
+        
+        .stake-btn { background: linear-gradient(180deg, #ffffff, #e3eefa); border: 1px solid #cbe0f5; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--green); cursor: pointer; font-size: 13px; transition: 0.1s; }
         .stake-btn:active { background: #eee; }
         .stake-btn.edit-mode { animation: wiggle 0.5s infinite; border: 1px dashed red; }
         
         @keyframes wiggle { 0% {transform: rotate(0deg);} 25% {transform: rotate(-2deg);} 50% {transform: rotate(0deg);} 75% {transform: rotate(2deg);} 100% {transform: rotate(0deg);} }
 
         .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 4px; }
-        .act-btn { padding: 12px 0; font-weight: 900; font-size: 12px; border: none; cursor: pointer; color: white; }
+        .act-btn { height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; border: none; cursor: pointer; color: white; }
         .btn-min { background: #ffc107; color: black; }
         .btn-max { background: var(--blue-dark); }
         .btn-edit { background: var(--green); }
         .btn-clear { background: var(--red); }
         
-        .final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-        .btn-cancel { background: #ff7b7b; padding: 14px; border: none; font-weight: 900; font-size: clamp(13px, 3.8vw, 16px); color: white; cursor: pointer; }
-        .btn-place { background: var(--green); padding: 14px; border: none; font-weight: 900; font-size: clamp(13px, 3.8vw, 16px); color: white; cursor: pointer; }
-
+       .final-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; position: relative; min-height: 40px; }
+        .btn-cancel { background: #ff7b7b; height: 40px; padding: 0; border: none; font-weight: 900; font-size: 14px; color: white; cursor: pointer; }
+        .btn-place { background: var(--green); height: 40px; padding: 0; border: none; font-weight: 900; font-size: 14px; color: white; cursor: pointer; }
+        .betslip-container.placing { pointer-events: none; }
+        .betslip-container.placing .final-grid button { visibility: hidden; }
+        .betslip-container.placing .final-grid::after { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 3px solid rgba(27,143,58,.25); border-top-color: #1b8f3a; border-radius: 50%; animation: bspin .7s linear infinite; }
+        @keyframes bspin { to { transform: rotate(360deg); } }
+#bet-success-pop { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%; transform: translate(-50%, -150%); z-index: 99998; width: calc(100% - 28px); max-width: 420px; background: #1b8f3a; color: #fff; padding: 10px 16px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); text-align: center; transition: transform .28s ease; pointer-events: none; }
+        #bet-success-pop.show { transform: translate(-50%, 0); }
+        .bsp-title { font-size: 15px; font-weight: 900; }
+        .bsp-sub { font-size: 12px; font-weight: 600; margin-top: 3px; opacity: .95; }
     </style>
 </head>
 <body>
@@ -116,6 +126,7 @@
     </div>
 
     <div class="container">
+        <div id="match-when" class="match-when"></div>
         
         <div class="card">
             <div class="market-header-row">
@@ -194,6 +205,45 @@
     <script src="app.js"></script>
 
     <script>
+       // 📊 READ COUNTER — kaun sa source kitni reads kar raha hai (tap karo to list khulegi)
+        const RC_KEY = 'masterReadCounter';
+        let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
+        try { RC_DATA = JSON.parse(localStorage.getItem(RC_KEY) || '{}'); } catch (e) {}
+        function RC(name, n, snap) {
+            if (!n) return;
+            if (snap && snap.metadata && snap.metadata.fromCache) name += ' (cache-free)';
+            const day = new Date().toISOString().slice(0, 10);
+            if (!RC_DATA[day]) {
+                RC_DATA[day] = {};
+                Object.keys(RC_DATA).sort().slice(0, -7).forEach(k => delete RC_DATA[k]); // sirf pichhle 7 din rakho
+            }
+            RC_DATA[day][name] = (RC_DATA[day][name] || 0) + n;
+            RC_SESS[name] = (RC_SESS[name] || 0) + n;
+            try { localStorage.setItem(RC_KEY, JSON.stringify(RC_DATA)); } catch (e) {}
+            if (localStorage.getItem('rcDebug') === '1') console.log('READS +' + n + ' ' + name);
+            RC_render();
+        }
+        function RC_sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
+        function RC_render() {
+            if (!document.body) return;
+            let el = document.getElementById('rc-box');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'rc-box';
+                el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;background:#000c;color:#0f0;font:11px monospace;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;';
+                el.onclick = () => { RC_OPEN = !RC_OPEN; RC_render(); };
+                document.body.appendChild(el);
+            }
+            const day = new Date().toISOString().slice(0, 10);
+            const d = RC_DATA[day] || {};
+            let txt = '📊 aaj ' + RC_sum(d) + ' | is baar ' + RC_sum(RC_SESS);
+            if (RC_OPEN) {
+                txt += '\n-- aaj --\n' + Object.keys(d).map(k => k + ': ' + d[k]).join('\n');
+                txt += '\n-- is baar --\n' + Object.keys(RC_SESS).map(k => k + ': ' + RC_SESS[k]).join('\n');
+            }
+            el.textContent = txt;
+        }
+        RC_render();
         const matchId = new URLSearchParams(window.location.search).get('id');
         function getCachedFirst(ref) {
             return ref.get({ source: 'cache' }).catch(() => null).then(s => {
@@ -210,9 +260,44 @@
         let _syncServerMs = Date.now();
         let _syncPerfMs = performance.now();
         let _timeSynced = false;
+        let _needResync = false; // phone background/sleep ke baad true — turant server se re-sync
+        function isTimeTrusted() { return _timeSynced && !_needResync; }
 
         function getTrueTime() {
             return _syncServerMs + (performance.now() - _syncPerfMs);
+        }
+
+        // ===== ADMIN TIME (IST) — phone ke time/timezone se koi matlab nahi =====
+        const ADMIN_TZ_OFFSET_MS = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30
+        function _adminDate(ms) { return new Date(ms + ADMIN_TZ_OFFSET_MS); } // hamesha getUTC* se padhna hai
+        function _dayKey(ms) {
+            const d = _adminDate(ms);
+            return d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate();
+        }
+        function _fmtTime(ms) {
+            const d = _adminDate(ms);
+            let h = d.getUTCHours();
+            const mi = d.getUTCMinutes();
+            const ap = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0') + ' ' + ap;
+        }
+        function getRelativeDateLabel(ms) {
+            const nowMs = getTrueTime();
+            if (_dayKey(ms) === _dayKey(nowMs)) return "TODAY";
+            if (_dayKey(ms) === _dayKey(nowMs + 86400000)) return "TOMORROW";
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            const d = _adminDate(ms);
+            return d.getUTCDate() + ' ' + months[d.getUTCMonth()];
+        }
+        // Market ke upar: TODAY / TOMORROW + toss time (server time se)
+        let _lastWhen = '';
+        function renderWhen() {
+            const el = document.getElementById('match-when');
+            if (!el || !currentMatch || !currentMatch.tossTimeMs) return;
+            const day = isTimeTrusted() ? getRelativeDateLabel(currentMatch.tossTimeMs) : '';
+            const html = (day ? '<span class="when-pill">' + day + '</span>' : '') + '<span>' + _fmtTime(currentMatch.tossTimeMs) + '</span>';
+            if (html !== _lastWhen) { el.innerHTML = html; _lastWhen = html; }
         }
 
         function _timeDeviceId() {
@@ -230,6 +315,7 @@
             await ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() });
             const t1 = performance.now();
             const snap = await ref.get({ source: 'server' });
+            RC('time-sync', 1);
             return { serverMs: snap.data().t.toMillis(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
         }
 
@@ -241,33 +327,66 @@
             return { serverMs: new Date(data.utc_datetime).getTime(), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
         }
 
+        let _syncing = null;
+
+        async function _fetchTimed(url, parse) {
+            const ctl = new AbortController();
+            const to = setTimeout(() => ctl.abort(), 4000);
+            try {
+                const t0 = performance.now();
+                const res = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+                const txt = await res.text();
+                const t1 = performance.now();
+                return { serverMs: parse(txt), perf: t0 + (t1 - t0) / 2, rtt: t1 - t0 };
+            } finally { clearTimeout(to); }
+        }
+        const _FREE_TIME_SOURCES = [
+            ['cloudflare', 'https://www.cloudflare.com/cdn-cgi/trace', t => { const m = t.match(/ts=([0-9.]+)/); if (!m) throw new Error('no ts'); return Math.round(parseFloat(m[1]) * 1000); }],
+            ['timeapi.io', 'https://timeapi.io/api/Time/current/zone?timeZone=UTC', t => new Date(JSON.parse(t).dateTime.slice(0, 23) + 'Z').getTime()],
+            ['worldtimeapi', 'https://worldtimeapi.org/api/timezone/Etc/UTC', t => new Date(JSON.parse(t).utc_datetime).getTime()]
+        ];
+        async function _sampleFreeTime() {
+            // teeno free sources ek saath — jo pehle jawab de wahi use hota hai (Cloudflare aam taur par ~100ms)
+            const tries = _FREE_TIME_SOURCES.map(([name, url, parse]) =>
+                _fetchTimed(url, parse).then(s => { if (!s.serverMs || s.rtt >= 3000) throw new Error('slow'); return s; }));
+            try { return await Promise.any(tries); } catch (e) { console.log('TIME free sources failed'); return null; }
+        }
+
+        // true tabhi jab IS call me fresh server time mil gaya
         async function syncServerTime(samples) {
-            let best = null;
-            for (let i = 0; i < (samples || 1); i++) {
-                try {
-                    const s = await _sampleFirestore();
-                    if (!best || s.rtt < best.rtt) best = s;
-                } catch (e) { console.log('Firestore time sync failed', e); }
-            }
-            if (!best) {
-                try { best = await _sampleWorldTime(); } catch (e) { console.log('Backup time sync failed', e); }
-            }
-            if (best && best.rtt < 3000) {
-                _syncServerMs = best.serverMs;
-                _syncPerfMs = best.perf;
-                _timeSynced = true;
-            }
-            return _timeSynced;
+            if (_syncing) return _syncing;
+            _syncing = (async () => {
+                let best = await _sampleFreeTime(); // 0 Firestore reads
+                if (!best || best.rtt >= 3000) {    // free sources na mile tabhi Firestore
+                    best = null;
+                    for (let i = 0; i < (samples || 1); i++) {
+                        try {
+                            const s = await _sampleFirestore();
+                            if (!best || s.rtt < best.rtt) best = s;
+                        } catch (e) { console.log('Firestore time sync failed', e); }
+                    }
+                }
+                if (best && best.rtt < 3000) {
+                    _syncServerMs = best.serverMs;
+                    _syncPerfMs = best.perf;
+                    _needResync = false;
+                    _timeSynced = true;
+                    return true;
+                }
+                return false;
+            })();
+            try { return await _syncing; } finally { _syncing = null; }
         }
 
         setInterval(() => syncServerTime(1), 1800000); // 30 min
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && performance.now() - _syncPerfMs > 600000) syncServerTime(1);
+            if (document.visibilityState === 'hidden') _needResync = true;
+            else syncServerTime(1).then(applyLockState); // wapas aate hi turant server time (free, 0 reads)
         });
 
         // Start: sync hone tak retry, phir lock state lagao
         (function _retrySync() {
-            syncServerTime(3).then(ok => {
+            syncServerTime(1).then(ok => {
                 if (!ok) { setTimeout(_retrySync, 3000); return; }
                 applyLockState();
             });
@@ -340,6 +459,7 @@
 
         if(matchId) {
         db.collection("matches").doc(matchId).onSnapshot(doc => {
+        RC('match-doc', 1, doc);
     if(!doc.exists) { window.location.href = "index.html"; return; }
     currentMatch = doc.data();
     currentMatch.id = doc.id;
@@ -358,7 +478,8 @@
 // to onSnapshot upar wala turant naya lockTimeMs de dega aur ye interval usी se turant match kar lega.
 function applyLockState() {
     if (!currentMatch) return;
-    if (!_timeSynced) return; // sync hone tak buttons locked hi rahenge
+    renderWhen();
+    if (!isTimeTrusted()) return; // server time aane tak buttons locked hi rahenge
     const nowMs = getTrueTime();
 
     if (!currentMatch.lockTimeMs || nowMs < currentMatch.lockTimeMs) {
@@ -379,6 +500,7 @@ setInterval(applyLockState, 1000);
             document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
         } else {
             db.collection("users").doc(user.id).onSnapshot(d => {
+            RC('user-doc', 1, d);
                 if(d.exists) {
                     currentBalance = parseFloat(d.data().balance || 0);
                     document.getElementById('top-bal').innerText = Math.floor(currentBalance).toFixed(2);
@@ -408,6 +530,7 @@ setInterval(applyLockState, 1000);
                 await Promise.all(Object.keys(matchPnL).map(async id => {
                     try {
                         const m = await getCachedFirst(db.collection("matches").doc(id));
+                        RC('match-name', 1, m);
                         if (m.exists) matchNames[id] = `${m.data().teamA} vs ${m.data().teamB}`;
                     } catch (e) {}
                 }));
@@ -446,6 +569,7 @@ setInterval(applyLockState, 1000);
             window.updateDemoUI();
         } else {
             db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(async snap => {
+            RC('bets-listener', snap.docChanges().length, snap);
                 let matchPnL = {}; 
                 snap.forEach(doc => {
                     let b = doc.data();
@@ -465,6 +589,7 @@ setInterval(applyLockState, 1000);
                 await Promise.all(Object.keys(matchPnL).map(async id => {
                     try {
                         const m = await getCachedFirst(db.collection("matches").doc(id));
+                        RC('match-name', 1, m);
                         if (m.exists) matchNames[id] = `${m.data().teamA} vs ${m.data().teamB}`;
                     } catch (e) {}
                 }));
@@ -543,7 +668,27 @@ setInterval(applyLockState, 1000);
             document.getElementById('betslip-container').style.display = "flex";
             updateProjectedPnL(); 
         }
-        
+        // ✅ Bet accept hone par upar popup
+        function showBetSuccess(teamName, amt, odds) {
+            let el = document.getElementById('bet-success-pop');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'bet-success-pop';
+                document.body.appendChild(el);
+            }
+            const safe = String(teamName).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            el.innerHTML = '<div class="bsp-title">✅ Bet Placed Successfully</div><div class="bsp-sub">' + safe + ' &nbsp;|&nbsp; Stake ' + amt + ' @ ' + odds + '</div>';
+            el.className = 'show';
+            clearTimeout(window._bspTimer);
+            window._bspTimer = setTimeout(() => { el.className = ''; }, 1000);
+        }
+        // ⏳ Bet place ho rahi hai: buttons hide + beech me circle ghoome
+        function setPlacing(on) {
+            document.getElementById('betslip-container').classList.toggle('placing', on);
+            const b = document.getElementById('btn-place');
+            b.disabled = on;
+            if (!on) b.innerText = "PLACE BET";
+        }
         function closeBetSlip() { 
             document.getElementById('betslip-container').style.display = "none";
             selectedTeamKey = null;
@@ -558,19 +703,28 @@ setInterval(applyLockState, 1000);
 
         // 🌟 RACE-CONDITION FREE EXACT MATHEMATICAL BET PLACEMENT 🌟
         async function placeBet() {
-           if (currentMatch.lockTimeMs && getTrueTime() >= currentMatch.lockTimeMs) {
-                alert("Market Suspended"); closeBetSlip(); return;
-            }
-
-            let amt = parseFloat(document.getElementById('slip-stake').value);
+           let amt = parseFloat(document.getElementById('slip-stake').value);
             if(isNaN(amt) || amt < 10) { alert("Minimum stake is 10 coins!"); return; }
 
             const odds = parseFloat(document.getElementById('slip-odds').value);
             const teamName = selectedTeamKey === 'teamA' ? currentMatch.teamA : currentMatch.teamB;
 
             const placeBtn = document.getElementById('btn-place');
-            placeBtn.innerText = "⏳ Wait...";
-            placeBtn.disabled = true;
+            setPlacing(true);
+
+            // 🛡️ Bet accept hone se PEHLE fresh SERVER time (Cloudflare, 0 reads). Phone ka time kabhi use nahi hota.
+            const timeOk = await syncServerTime(1);
+            if (!timeOk) {
+                alert("Server time nahi mil raha. Internet check karke dobara try karo.");
+                setPlacing(false);
+                return;
+            }
+            const cutoffMs = Math.min(currentMatch.lockTimeMs || Infinity, currentMatch.tossTimeMs || Infinity);
+            if (getTrueTime() >= cutoffMs) {
+                alert("Market Suspended"); closeBetSlip();
+                setPlacing(false);
+                return;
+            }
 
             try {
                 // --- DEMO BYPASS: LOCAL PLACEMENT ---
@@ -615,6 +769,7 @@ setInterval(applyLockState, 1000);
                     window.updateDemoUI();
                     
                     closeBetSlip(); 
+                    showBetSuccess(teamName, amt, odds); 
                     placeBtn.innerText = "PLACE BET"; placeBtn.disabled = false;
                     return;
                 }
@@ -625,7 +780,7 @@ setInterval(applyLockState, 1000);
                     .where("matchId", "==", matchId)
                     .where("status", "==", "pending")
                     .get();
-
+RC('bets-check', Math.max(1, betSnap.size));
                 let pnlA = 0;
                 let pnlB = 0;
 
@@ -652,6 +807,7 @@ setInterval(applyLockState, 1000);
 
                 // 4. Fetch Exact Real-time Balance
                 const userDoc = await db.collection("users").doc(user.id).get();
+                RC('fresh-balance', 1);
                 let freshBalance = parseFloat(userDoc.data().balance || 0);
 
                 if (freshBalance < marginRequired) { 
@@ -677,12 +833,12 @@ if (marginRequired !== 0) {
 
                 await batch.commit(); 
                 closeBetSlip(); 
+                showBetSuccess(teamName, amt, odds);
             } catch(e) { 
                 console.error(e);
                 alert("Failed to place bet! Please check connection."); 
             } finally {
-                placeBtn.innerText = "PLACE BET"; 
-                placeBtn.disabled = false;
+                setPlacing(false);
             }
         }
     </script>

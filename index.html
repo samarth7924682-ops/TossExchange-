@@ -205,7 +205,7 @@
         }
         function RC_sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
         function RC_render() {
-            if (!document.body || localStorage.getItem('rcDebug') !== '1') return;
+            if (!document.body) return;
             let el = document.getElementById('rc-box');
             if (!el) {
                 el = document.createElement('div');
@@ -499,11 +499,11 @@ let _syncServerMs = Date.now();
         function getTrueTime() {
             return _syncServerMs + (performance.now() - _syncPerfMs);
         }
-// 🛡️ Safety: phone ka clock badla ya phone sleep me gaya ho to time par bharosa nahi
-        function _clockSuspect() {
-            return Math.abs((Date.now() - _syncWallMs) - (performance.now() - _syncPerfMs)) > 3000;
-        }
-        function isTimeTrusted() { return _timeSynced && !_clockSuspect(); }
+// Phone ka clock kabhi use nahi hota — time hamesha server (Cloudflare) se.
+        // performance.now() phone sleep me ruk sakta hai, isliye page wapas dikhte hi turant re-sync hota hai.
+        let _needResync = false;
+        function _clockSuspect() { return false; } // phone ke clock se koi matlab nahi
+        function isTimeTrusted() { return _timeSynced && !_needResync; }
         function ensureTime() {
             if (isTimeTrusted()) return true;
             if (!_syncing && performance.now() - _lastSyncTry > 30000) syncServerTime(1).then(renderMatches);
@@ -552,13 +552,10 @@ let _syncServerMs = Date.now();
             ['worldtimeapi', 'https://worldtimeapi.org/api/timezone/Etc/UTC', t => new Date(JSON.parse(t).utc_datetime).getTime()]
         ];
         async function _sampleFreeTime() {
-            for (const [name, url, parse] of _FREE_TIME_SOURCES) {
-                try {
-                    const s = await _fetchTimed(url, parse);
-                    if (s.serverMs && s.rtt < 3000) return s;
-                } catch (e) { console.log('TIME ' + name + ' failed'); }
-            }
-            return null;
+            // teeno free sources ek saath — jo pehle jawab de wahi use hota hai (Cloudflare aam taur par ~100ms)
+            const tries = _FREE_TIME_SOURCES.map(([name, url, parse]) =>
+                _fetchTimed(url, parse).then(s => { if (!s.serverMs || s.rtt >= 3000) throw new Error('slow'); return s; }));
+            try { return await Promise.any(tries); } catch (e) { console.log('TIME free sources failed'); return null; }
         }
         async function syncServerTime(samples) {
             if (_syncing) return _syncing;
@@ -577,7 +574,7 @@ let _syncServerMs = Date.now();
                 if (best && best.rtt < 3000) {
                     _syncServerMs = best.serverMs;
                     _syncPerfMs = best.perf;
-                    _syncWallMs = Date.now() - (performance.now() - best.perf);
+                    _needResync = false;
                     _timeSynced = true;
                 }
                 return isTimeTrusted();
@@ -587,7 +584,8 @@ let _syncServerMs = Date.now();
 
         setInterval(() => syncServerTime(1), 1800000); // 30 min
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && (_clockSuspect() || performance.now() - _syncPerfMs > 600000)) syncServerTime(1).then(renderMatches);
+            if (document.visibilityState === 'hidden') _needResync = true;
+            else syncServerTime(1).then(renderMatches); // wapas aate hi turant server time (free, 0 reads)
         });
         // ===== ADMIN TIME (IST) — phone ke time/timezone se koi matlab nahi =====
         const ADMIN_TZ_OFFSET_MS = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30
@@ -626,9 +624,8 @@ let _syncServerMs = Date.now();
         function renderMatches() {
             const list = document.getElementById('matches-list');
             if(!list || !_liveLoaded) return;
-            if (!ensureTime()) { // time sync / phone clock par bharosa nahi ho to match list na dikhao
-                list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>Time sync ho raha hai...</p>";
-                _lastMatchesHtml = null;
+            if (!ensureTime()) { // server time aate hi list dikhegi (page load par ~0.2 sec) — beech me kuch nahi dikhate
+                if (performance.now() > 8000) { list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>Server time nahi mil raha. Internet check karo.</p>"; _lastMatchesHtml = null; }
                 return;
             }
 

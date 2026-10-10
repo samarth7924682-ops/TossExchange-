@@ -503,44 +503,8 @@ let unsubBalance = null, unsubExposure = null; // Purane listeners yaad rakhne k
                     });
 
                     
-                       getOpenMatchesLocal().then(matchSnap => {
-                    RC('matches-get-406', matchSnap.size, matchSnap);
-                        let matchNames = {};
-                        matchSnap.forEach(m => { matchNames[m.id] = `${m.data().teamA} vs ${m.data().teamB}`; });
-
-                        unsubExposure = db.collection("bets").where("userId", "==", user.id).where("status", "==", "pending").onSnapshot(snap => {
-                        RC('bets-listener', snap.docChanges().length, snap);
-                            let matchPnL = {}; 
-                            snap.forEach(doc => {
-                                let b = doc.data();
-                                if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
-                                let bAmt = parseFloat(b.amount || 0);
-                                let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
-                                
-                                if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= b.amount; } 
-                                else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= b.amount; }
-                            });
-
-                            let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
-
-                            for(let mId in matchPnL) {
-                                let worst = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
-                                if(worst < 0) {
-                                    let expVal = Math.abs(worst);
-                                    totalExp += expVal; hasExp = true;
-                                    expHtml += `
-                                        <div class="exp-strip" onclick="openPage('betting.html?id=${mId}')">
-                                            <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
-                                            <div class="exp-amt">-${Math.floor(expVal)}</div>
-                                        </div>`;
-                                }
-                            }
-                            if(!hasExp) { expHtml += `<div style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; color: #555;">No Active Bets</div>`; }
-                            const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
-                            const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
-                            try { localStorage.setItem('cachedExp_' + user.id, String(Math.floor(totalExp))); localStorage.setItem('cachedExpHtml_' + user.id, expHtml); } catch (e) {}
-                        });
-                    });
+                       startBetsDelta(user.id);
+                    unsubExposure = () => { if (_bxUnsub) { _bxUnsub(); _bxUnsub = null; } };
                 }
                 window.loadLiveMatches();
             }
@@ -755,6 +719,7 @@ let _syncServerMs = Date.now();
                 localStorage.setItem('cachedMatches', JSON.stringify(_liveMatches));
             } catch (e) {}
             renderMatches();
+            if (window._bxRender) window._bxRender(); // match naam update
         }
 
         // Exposure list ke match naam — Firestore se nahi, local cache se (0 reads)
@@ -810,8 +775,14 @@ let _syncServerMs = Date.now();
                 let changed = false;
                 snap.docChanges().forEach(ch => {
                     const id = ch.doc.id, m = ch.doc.data();
-                    if (m.status === 'open') { _mx.items[id] = _mxSlim(id, m); changed = true; }
-                    else if (_mx.items[id]) { delete _mx.items[id]; changed = true; }
+                    if (m.status === 'open') {
+                        const wasMissing = !_mx.items[id];
+                        _mx.items[id] = _mxSlim(id, m); changed = true;
+                        if (wasMissing && m.autoVoidOff && window._bxRefetchMatch) window._bxRefetchMatch(id); // undo se wapas open hua — user ke bets dobara lao
+                    } else {
+                        if (_mx.items[id]) { delete _mx.items[id]; changed = true; }
+                        if (window._bxDropMatch) window._bxDropMatch(id); // match open nahi raha — uske bets settle/void
+                    }
                 });
                 if (changed) _mxPublish();
                 if (firstA && !snap.metadata.fromCache) { firstA = false; commitCursor(); }
@@ -822,6 +793,7 @@ let _syncServerMs = Date.now();
                 let changed = false;
                 snap.docChanges().forEach(ch => {
                     if (ch.type === 'removed') return; // undo hua to 'timestamp' wala listener wapas jod dega
+                    if (window._bxDropMatch) window._bxDropMatch(ch.doc.id); // is match ke user ke bets settle/void
                     if (_mx.items[ch.doc.id]) { delete _mx.items[ch.doc.id]; changed = true; }
                 });
                 if (changed) _mxPublish();
@@ -829,6 +801,116 @@ let _syncServerMs = Date.now();
             }, err => console.log('Matches listener (settled) error:', err));
 
             _unsubMatches = () => { unsubA(); unsubB(); };
+        }
+        // 💾 BETS DELTA CACHE (user ke pending bets = exposure)
+        // Poori list sirf pehli baar / 24 ghante baad. Uske baad sirf: naya bet (timestamp) aur settle/void hua match (matches listener se).
+        const BX_FULL_REFRESH_MS = 24 * 60 * 60 * 1000;
+        let _bx = null, _bxUid = null, _bxUnsub = null, _bxTok = 0;
+        function _bxSlim(id, b) { return { id, matchId: b.matchId, selection: b.selection, amount: b.amount, odds: b.odds }; }
+        function _bxSave() { try { localStorage.setItem('betsDelta_' + _bxUid, JSON.stringify(_bx)); } catch (e) {} }
+
+        function _bxRender() {
+            if (!_bx || !_bx.items || !_bxUid) return;
+            const matchNames = {};
+            if (_mx && _mx.items) Object.values(_mx.items).forEach(m => { matchNames[m.id] = `${m.teamA} vs ${m.teamB}`; });
+            let matchPnL = {};
+            Object.values(_bx.items).forEach(b => {
+                if(!matchPnL[b.matchId]) matchPnL[b.matchId] = { teamA: 0, teamB: 0 };
+                let bAmt = parseFloat(b.amount || 0);
+                let winAmt = bAmt * ((parseFloat(b.odds) || 98) / 100);
+                if(b.selection === 'teamA') { matchPnL[b.matchId].teamA += winAmt; matchPnL[b.matchId].teamB -= b.amount; }
+                else { matchPnL[b.matchId].teamB += winAmt; matchPnL[b.matchId].teamA -= b.amount; }
+            });
+
+            let totalExp = 0, expHtml = `<div class="exp-header">ACTIVE EXPOSURE LIST</div>`, hasExp = false;
+            for(let mId in matchPnL) {
+                let worst = Math.min(matchPnL[mId].teamA, matchPnL[mId].teamB);
+                if(worst < 0) {
+                    let expVal = Math.abs(worst);
+                    totalExp += expVal; hasExp = true;
+                    expHtml += `
+                        <div class="exp-strip" onclick="openPage('betting.html?id=${mId}')">
+                            <div class="exp-match-name">🏏 ${matchNames[mId] || "Live Match"}</div>
+                            <div class="exp-amt">-${Math.floor(expVal)}</div>
+                        </div>`;
+                }
+            }
+            if(!hasExp) { expHtml += `<div style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; color: #555;">No Active Bets</div>`; }
+            const expEl = document.getElementById('top-exp'); if(expEl) expEl.innerText = Math.floor(totalExp);
+            const dropEl = document.getElementById('exp-dropdown'); if(dropEl) dropEl.innerHTML = expHtml;
+            try { localStorage.setItem('cachedExp_' + _bxUid, String(Math.floor(totalExp))); localStorage.setItem('cachedExpHtml_' + _bxUid, expHtml); } catch (e) {}
+        }
+        window._bxRender = _bxRender;
+
+        // Match settle/void hua (ya open nahi raha) — uske saare bets cache se hata do (0 reads)
+        window._bxDropMatch = function (matchId) {
+            if (!_bx || !_bx.items) return;
+            let ch = false;
+            Object.keys(_bx.items).forEach(id => { if (_bx.items[id].matchId === matchId) { delete _bx.items[id]; ch = true; } });
+            if (ch) { _bxSave(); _bxRender(); }
+        };
+
+        // Undo se match wapas open hua — sirf us ek match ke user ke bets dobara lao
+        window._bxRefetchMatch = async function (matchId) {
+            if (!_bx || !_bxUid) return;
+            try {
+                const snap = await db.collection("bets").where("userId", "==", _bxUid).where("matchId", "==", matchId).where("status", "==", "pending").get();
+                RC('bets-reopened-match', Math.max(1, snap.size), snap);
+                snap.forEach(d => { _bx.items[d.id] = _bxSlim(d.id, d.data()); });
+                _bxSave(); _bxRender();
+            } catch (e) { console.log('Bets refetch error:', e); }
+        };
+
+        async function startBetsDelta(uid) {
+            if (_bxUnsub) { _bxUnsub(); _bxUnsub = null; }
+            const tok = ++_bxTok;
+            _bxUid = uid;
+            _bx = null;
+            try { _bx = JSON.parse(localStorage.getItem('betsDelta_' + uid) || 'null'); } catch (e) {}
+            if (_bx && _bx.items) _bxRender(); // cache se turant exposure (0 reads)
+
+            const synced = await syncServerTime(1); // cursor ke liye server time (free, 0 reads)
+            if (tok !== _bxTok) return;
+            if (!synced) { // backup: purana tareeka
+                _bxUnsub = db.collection("bets").where("userId", "==", uid).where("status", "==", "pending").onSnapshot(snap => {
+                    RC('bets-listener', snap.docChanges().length, snap);
+                    const items = {};
+                    snap.forEach(d => { items[d.id] = _bxSlim(d.id, d.data()); });
+                    _bx = { items, cursor: 0, fullAt: 0 };
+                    _bxRender();
+                });
+                return;
+            }
+            const T = getTrueTime();
+
+            // 1) Poori list sirf pehli baar ya 24 ghante baad
+            if (!_bx || !_bx.items || !_bx.fullAt || (T - _bx.fullAt) > BX_FULL_REFRESH_MS) {
+                try {
+                    const snap = await db.collection("bets").where("userId", "==", uid).where("status", "==", "pending").get();
+                    RC('bets-full-seed', Math.max(1, snap.size), snap);
+                    if (tok !== _bxTok) return;
+                    const items = {};
+                    snap.forEach(d => { items[d.id] = _bxSlim(d.id, d.data()); });
+                    _bx = { items, cursor: T - 120000, fullAt: T };
+                    _bxSave(); _bxRender();
+                } catch (e) { console.log('Bets seed error:', e); return; }
+            }
+
+            // 2) Uske baad sirf naye bets (settle hone par match listener hata deta hai)
+            const ts = firebase.firestore.Timestamp.fromMillis(_bx.cursor);
+            const newCursor = T - 120000; // 2 min overlap
+            let first = true;
+            _bxUnsub = db.collection("bets").where("userId", "==", uid).where("timestamp", ">", ts).onSnapshot(snap => {
+                RC('bets-new', snap.docChanges().length, snap);
+                let changed = false;
+                snap.docChanges().forEach(ch => {
+                    const d = ch.doc, b = d.data();
+                    if (ch.type !== 'removed' && b.status === 'pending') { _bx.items[d.id] = _bxSlim(d.id, b); changed = true; }
+                    else if (_bx.items[d.id]) { delete _bx.items[d.id]; changed = true; }
+                });
+                if (changed) { _bxSave(); _bxRender(); }
+                if (first && !snap.metadata.fromCache) { first = false; _bx.cursor = newCursor; _bxSave(); }
+            }, err => console.log('Bets listener error:', err));
         }
         try {
             const _c = JSON.parse(localStorage.getItem('cachedMatches') || 'null');

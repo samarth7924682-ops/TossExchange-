@@ -476,7 +476,7 @@
             const box = document.getElementById('realHistoryBox'); box.innerHTML = '';
             historyData.forEach(d => {
                 const color = d.winAmount > 0 ? 'cash-green' : 'cash-red'; const sign = d.winAmount > 0 ? '+' : '';
-                box.innerHTML += `<div class="list-row"><span style="width: 30%">₹${d.betAmount}</span><span style="width: 25%; text-align:center;" class="${color}">${d.cashoutMult > 0 ? d.cashoutMult.toFixed(2)+'x' : '-'}</span><span style="width: 25%; text-align:center;" class="${color}">${sign}${d.winAmount > 0 ? d.winAmount.toFixed(2) : -d.betAmount}</span><span style="width: 20%; text-align:right;">₹${Math.floor(d.closingBalance)}</span></div>`;
+                box.innerHTML += `<div class="list-row"><span style="width: 30%">₹${d.betAmount}</span><span style="width: 25%; text-align:center;" class="${color}">${d.cashoutMult > 0 ? d.cashoutMult.toFixed(2)+'x' : '-'}</span><span style="width: 25%; text-align:center;" class="${color}">${sign}${d.winAmount > 0 ? d.winAmount.toFixed(2) : -d.betAmount}</span><span style="width: 20%; text-align:right;">${d.closingBalance != null ? '₹' + Math.floor(d.closingBalance) : '-'}</span></div>`;
             });
         });
     }
@@ -666,7 +666,27 @@ function triggerWinPopup(winAmt, mult) {
     // MASTER SYNC GAME LOOP
     // ----------------------------------------------------
     let lastState = ''; let currentRoundIndex = -1; let currentFakeTick = 0;
+// Round ab se kitni der me crash hoga (ms) — server time ke hisaab se
+    function crashEtaMs() {
+        const gs = getGlobalGameState();
+        const rd = sequenceData[gs.roundIndex];
+        const timeInRound = gs.state === 'WAITING' ? gs.elapsed
+            : gs.state === 'TAKEOFF' ? 4000 + gs.elapsed
+            : gs.state === 'FLYING' ? 4000 + TAKEOFF_MS + gs.elapsed
+            : 4000 + TAKEOFF_MS + rd.flyDuration + gs.elapsed;
+        return Math.max(0, 4000 + TAKEOFF_MS + rd.flyDuration - timeInRound);
+    }
 
+    // Bet lock: PEHLE recovery flag (crashAt ke saath), PHIR balance kaato.
+    // Isse balance katne ke baad bet kabhi bina-history nahi rahegi, aur crash ke turant baad history likh jayegi.
+    function lockRealBet() {
+        localStorage.setItem('pendingSixerBet', JSON.stringify({
+            roundIndex: currentRoundIndex, betAmount: myBetAmount,
+            timestamp: Date.now(), crashAt: Date.now() + crashEtaMs()
+        }));
+        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) })
+            .catch(e => console.log("Bet deduct error:", e));
+    }
         function gameTick() {
         try {
         let globalState = getGlobalGameState();
@@ -731,10 +751,9 @@ function triggerWinPopup(winAmt, mult) {
                         user.balance = realBalance;
                         localStorage.setItem('userSession', JSON.stringify(user));
                         document.getElementById('balanceText').innerText = Math.floor(realBalance).toFixed(2);
-                    } else {
-                        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) });
+                   } else {
+                        lockRealBet(); // pehle recovery flag, phir balance
                     }
-                    localStorage.setItem('pendingSixerBet', JSON.stringify({ roundIndex: currentRoundIndex, betAmount: myBetAmount, timestamp: Date.now() }));
                     actionBtn.className = 'action-btn btn-cashout';
                 }
                 startEngineSound();
@@ -767,7 +786,7 @@ function triggerWinPopup(winAmt, mult) {
                         localStorage.setItem('userSession', JSON.stringify(user));
                         document.getElementById('balanceText').innerText = Math.floor(realBalance).toFixed(2);
                     } else {
-                        db.collection("users").doc(user.id).update({ balance: firebase.firestore.FieldValue.increment(-myBetAmount) });
+                        lockRealBet(); // pehle recovery flag, phir balance
                     }
                     actionBtn.className = 'action-btn btn-cashout';
                 }

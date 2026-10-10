@@ -35,24 +35,102 @@ db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
 // Global constants
 window.db = db; 
 
-// 🔍 TEMPORARY DEBUG TRACKER — sirf reads pakadne ke liye, baad me hata denge
-(function() {
-    try {
-        const QueryProto = Object.getPrototypeOf(db.collection('_debug_probe_'));
-        const origGet = QueryProto.get;
-        const origOnSnapshot = QueryProto.onSnapshot;
+// 📊 READ COUNTER (auto) — Firestore reads source-line ke saath gin'ta hai.
+// Box sirf RC_PAGES wale pages par dikhta hai. Tap karke list kholo. Pichhle 7 din ka data localStorage me.
+const RC_PAGES = ['sixer', 'history'];
+(function () {
+    const RC_KEY = 'readCounter_' + ((location.pathname.split('/').pop() || 'index').toLowerCase());
+    let RC_DATA = {}, RC_SESS = {}, RC_OPEN = false;
+    try { RC_DATA = JSON.parse(localStorage.getItem(RC_KEY) || '{}'); } catch (e) {}
 
-        QueryProto.get = function(...args) {
-            const line = new Error().stack.split('\n')[2] || '(unknown)';
-            console.log('📖 GET —', line.trim());
-            return origGet.apply(this, args);
+    function RC(name, n, snap) {
+        if (!n) return;
+        if (snap && snap.metadata && snap.metadata.fromCache) name += ' (cache-free)';
+        const day = new Date().toISOString().slice(0, 10);
+        if (!RC_DATA[day]) {
+            RC_DATA[day] = {};
+            Object.keys(RC_DATA).sort().slice(0, -7).forEach(k => delete RC_DATA[k]);
+        }
+        RC_DATA[day][name] = (RC_DATA[day][name] || 0) + n;
+        RC_SESS[name] = (RC_SESS[name] || 0) + n;
+        try { localStorage.setItem(RC_KEY, JSON.stringify(RC_DATA)); } catch (e) {}
+        render();
+    }
+    function sum(o) { let t = 0; for (const k in o) if (k.indexOf('(cache-free)') < 0) t += o[k]; return t; }
+    function render() {
+        if (!RC_PAGES.some(p => location.pathname.toLowerCase().indexOf(p) >= 0)) return;
+        if (!document.body) { document.addEventListener('DOMContentLoaded', render, { once: true }); return; }
+        let el = document.getElementById('rc-box');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'rc-box';
+            el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;background:#000000d9;color:#9be7b9;font:11px monospace;padding:4px 8px;border-radius:6px;max-width:92vw;white-space:pre-wrap;';
+            el.onclick = () => { RC_OPEN = !RC_OPEN; render(); };
+            document.body.appendChild(el);
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const d = RC_DATA[day] || {};
+        let txt = '📊 aaj ' + sum(d) + ' | is baar ' + sum(RC_SESS);
+        if (RC_OPEN) {
+            txt += '\n-- aaj --\n' + Object.keys(d).map(k => k + ': ' + d[k]).join('\n');
+            txt += '\n-- is baar --\n' + Object.keys(RC_SESS).map(k => k + ': ' + RC_SESS[k]).join('\n');
+        }
+        el.textContent = txt;
+    }
+    function where(kind) {
+        const lines = (new Error().stack || '').split('\n');
+       for (let i = 3; i < lines.length; i++) {
+            const m = lines[i].match(/([\w.\-]+\.(?:html|js)):(\d+):\d+/);
+            if (m) return m[1] + ':' + m[2] + ' ' + kind;
+        }
+        return kind;
+    }
+    window.RC = RC;
+    render();
+
+    try {
+        const qProto = Object.getPrototypeOf(db.collection('_rc_probe_').where('a', '==', 1)); // Query (where/orderBy wale)
+        const dProto = Object.getPrototypeOf(db.collection('_rc_probe_').doc('x'));            // DocumentReference
+        const countSnap = (label, s) => {
+            if (!s) return;
+            if (typeof s.docChanges === 'function') RC(label, s.docChanges().length, s);
+            else if (typeof s.exists !== 'undefined') RC(label, 1, s);
         };
-        QueryProto.onSnapshot = function(...args) {
-            const line = new Error().stack.split('\n')[2] || '(unknown)';
-            console.log('👂 LISTEN ATTACHED —', line.trim());
-            return origOnSnapshot.apply(this, args);
+        const wrapListen = (proto) => {
+            const orig = proto.onSnapshot;
+            proto.onSnapshot = function (...args) {
+                const label = where('listen');
+                const i = args.findIndex(a => typeof a === 'function' || (a && typeof a.next === 'function'));
+                if (i >= 0) {
+                    const a = args[i];
+                    if (typeof a === 'function') args[i] = function (s) { countSnap(label, s); return a.apply(this, arguments); };
+                    else args[i] = { next: function (s) { countSnap(label, s); return a.next.apply(a, arguments); }, error: a.error && a.error.bind(a), complete: a.complete && a.complete.bind(a) };
+                }
+                return orig.apply(this, args);
+            };
         };
-    } catch(e) { console.log('Debug tracker failed:', e); }
+        wrapListen(qProto);
+        wrapListen(dProto);
+        const qGet = qProto.get;
+        qProto.get = function (...args) {
+            const label = where('get');
+            return qGet.apply(this, args).then(s => { RC(label, Math.max(1, s.size || 0), s); return s; });
+        };
+        const dGet = dProto.get;
+        dProto.get = function (...args) {
+            const label = where('get');
+            return dGet.apply(this, args).then(s => { RC(label, 1, s); return s; });
+        };
+        const origRT = db.runTransaction.bind(db);
+        db.runTransaction = function (fn, ...rest) {
+            const label = where('tx');
+            return origRT(function (t) {
+                const g = t.get.bind(t);
+                t.get = function (ref) { RC(label + '-get', 1); return g(ref); };
+                return fn(t);
+            }, ...rest);
+        };
+    } catch (e) { console.log('Read counter setup failed:', e); }
 })();
 
 // --- Helper Functions jo sabhi files mein kaam aayengi ---
@@ -521,7 +599,10 @@ window.recoverPendingSixerBet = async function() {
     if (!pendingRaw) return;
 
     const pending = JSON.parse(pendingRaw);
-    if (!pending.timestamp || (Date.now() - pending.timestamp) < 40000) return; // round abhi khatam nahi hua hoga — sixer.html khud handle karega
+    // Round ka exact crash time (crashAt) sixer.html bet lock par save karta hai — crash ke 1.5 sec baad turant settle.
+    // Purani pending (jisme crashAt nahi) ke liye 40 sec fallback.
+    const dueAt = pending.crashAt ? (pending.crashAt + 1500) : ((pending.timestamp || 0) + 40000);
+    if (!pending.timestamp || Date.now() < dueAt) return;
 
     const settledKey = `settledSixerBet_${session.id}_${pending.roundIndex}`;
     if (recoveryStart(settledKey) === null) return; // isi tab me already chal raha hai

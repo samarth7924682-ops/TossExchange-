@@ -21,6 +21,8 @@
         .premium-header { background: var(--theme-dark); color: white; padding: 15px 10px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         .logo-text { font-size: clamp(17px, 5vw, 22px); font-weight: 900; color: white; letter-spacing: 0.5px; }
+        .logo-coin { display: inline-block; animation: miniFlip 2s linear infinite; transform-origin: center; }
+        .logo-dollar { letter-spacing: -3px; }
         .header-info { display: flex; gap: 8px; justify-content: center; width: 100%; }
         .badge { background: #222; padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid #444; text-align: center; cursor: pointer; transition: 0.2s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
         .badge:active { transform: scale(0.95); }
@@ -61,7 +63,11 @@
         .card-coinflip { background: linear-gradient(135deg, #f2c14e, #8b6508); ;}
         .card-chicken { background: linear-gradient(135deg, #ff9800, #e65100); ;} /* Fallback color for chicken card */
 
-        .category-header { background: var(--theme-dark); color: var(--accent); padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 900; margin: 12px 0 8px 0; text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: inline-block; letter-spacing: 0.5px;}
+.category-header { display: flex; align-items: center; gap: 7px; margin: 14px 0 8px 0; font-size: 11px; font-weight: 900; color: #15181e; text-transform: uppercase; letter-spacing: 0.7px; }
+        .category-header::before { content: ""; width: 3px; height: 13px; border-radius: 2px; background: var(--theme-dark); }
+        .category-header::after { content: ""; flex: 1; height: 1px; background: linear-gradient(to right, #9aa1ad, transparent); }
+        .category-header .cat-count { background: linear-gradient(to right, rgba(18,20,24,0.10), rgba(18,20,24,0)); color: #15181e; border: 1px solid rgba(18,20,24,0.22); padding: 2px 8px; border-radius: 9px; font-size: 9px; font-weight: 800; letter-spacing: 0.3px; white-space: nowrap; }     
+       
         .match-row { padding: 12px 12px; background: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--theme-dark); margin-bottom: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); transition: 0.2s; }
         .match-row:active { transform: scale(0.98); background: #f0f0f0; }
         .match-teams { font-weight: 900; font-size: clamp(13px, 3.6vw, 16px); color: #111; letter-spacing: -0.2px;}
@@ -120,7 +126,7 @@
 
     <div id="main-nav" class="premium-header">
         <div class="header-top">
-            <div class="logo-text">🪙 TO💲💲 EXCHANGE</div>
+           <div class="logo-text"><span class="logo-coin">🪙</span> TO<span class="logo-dollar">💲💲</span> EXCHANGE</div>
             <div style="cursor: pointer; font-size: 20px; font-weight: bold;" onclick="toggleMenu('user-dropdown', event)">⋮</div>
         </div>
         <div class="header-info">
@@ -624,17 +630,17 @@ let _syncServerMs = Date.now();
         function renderMatches() {
             const list = document.getElementById('matches-list');
             if(!list || !_liveLoaded) return;
-            if (!ensureTime()) { // server time aate hi list dikhegi (page load par ~0.2 sec) — beech me kuch nahi dikhate
-                if (performance.now() > 8000) { list.innerHTML = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>LOW INTERNET CONNECTION</p>"; _lastMatchesHtml = null; }
-                return;
-            }
+            ensureTime(); // sync background me chalega, cards turant dikhenge; server time aate hi list khud sahi ho jayegi
 
             let finalHtml = "";
 
-            if (_liveMatches.length === 0) {
+            const _nowForFilter = getTrueTime();
+            const _visibleMatches = _liveMatches.filter(m => !(m.tossTimeMs && _nowForFilter >= m.tossTimeMs));
+
+            if (_visibleMatches.length === 0) {
                 finalHtml = "<p style='text-align:center; color:#777; font-weight:bold; margin-top:20px; font-size:12px;'>No Toss Matches Active.</p>";
             } else {
-                const matches = _liveMatches.slice().sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
+                const matches = _visibleMatches.slice().sort((a, b) => (a.tossTimeMs || 0) - (b.tossTimeMs || 0));
 
                 let groupedMatches = {};
                 let categoryOrder = []; 
@@ -649,7 +655,7 @@ let _syncServerMs = Date.now();
 
                 categoryOrder.forEach(cat => {
                     const group = groupedMatches[cat];
-                    finalHtml += `<div class="category-header">${cat} (${group.length} Match${group.length > 1 ? 'es' : ''})</div>`;
+                    finalHtml += `<div class="category-header">${cat}<span class="cat-count">${group.length} Match${group.length > 1 ? 'es' : ''}</span></div>`;
 
                     group.forEach(m => {
                         let displayTime = m.tossTimeStr || m.tossTime; 
@@ -684,13 +690,20 @@ let _syncServerMs = Date.now();
             if (_unsubMatches) _unsubMatches();
             _unsubMatches = db.collection("matches").where("status", "==", "open").onSnapshot(snap => {
             RC('matches-listener', snap.docChanges().length, snap);
+                if (snap.empty && snap.metadata.fromCache && _liveLoaded) return; // net slow ho to cache ki list na hatao
                 _liveMatches = [];
                 snap.forEach(doc => _liveMatches.push({ id: doc.id, ...doc.data() }));
                 _liveLoaded = true;
+                try { localStorage.setItem('cachedMatches', JSON.stringify(_liveMatches.map(m => ({ id: m.id, teamA: m.teamA, teamB: m.teamB, tossTimeMs: m.tossTimeMs || 0, lockTimeMs: m.lockTimeMs || 0, tossTimeStr: m.tossTimeStr || '', tossTime: m.tossTime || '' })))); } catch (e) {}
                 renderMatches();
             });
         }
 
+        try {
+            const _c = JSON.parse(localStorage.getItem('cachedMatches') || 'null');
+            if (Array.isArray(_c)) { _liveMatches = _c; _liveLoaded = true; }
+        } catch (e) {}
+        renderMatches(); // cache se turant cards
         syncServerTime(1).then(renderMatches);
         setInterval(renderMatches, 5000);
         

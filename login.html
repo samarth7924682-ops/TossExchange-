@@ -87,6 +87,20 @@
         .btn { padding: 12px; margin-bottom: 8px; }
         .dl-btn { margin-top: 12px; }
         .footer-text { color: #8b93a3; margin-top: 12px; }
+                        /* ---------- LOGIN CARD: page ke dark theme se match ---------- */
+        .login-card { background: linear-gradient(160deg, rgba(48,40,26,0.78), rgba(20,22,28,0.92)); border: 1px solid rgba(255,183,3,0.30); box-shadow: 0 12px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+        .card-title { color: #fff; }
+        .card-sub { color: #aab1bf; }
+        .field input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: #fff; }
+        .field input::placeholder { color: #8b93a3; }
+        .field input:focus { background: rgba(255,255,255,0.10); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255,183,3,0.18); }
+        .field input:-webkit-autofill { -webkit-text-fill-color: #fff; -webkit-box-shadow: 0 0 0 100px #25262c inset; caret-color: #fff; }
+        .btn-demo { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,183,3,0.55); }
+        .btn-demo:active { background: rgba(255,255,255,0.12); }
+                       /* ---------- Bada text + bade halke dots ---------- */
+        .field input { height: 52px; font-size: 18px; font-weight: 600; }
+        .field input::placeholder { font-size: 16px; letter-spacing: 0; }
+        #password[type="password"] { font-size: 30px; letter-spacing: 4px; font-weight: 400; color: rgba(255,255,255,0.8); }
     </style>
 </head>
 <body>
@@ -116,7 +130,7 @@
             <div class="field">
                 <span class="ic">🔒</span>
                 <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-                <button type="button" class="eye" onclick="togglePw('password', this)" aria-label="Show password">👁</button>
+                                <button type="button" class="eye" onclick="togglePw('password', this)" aria-label="Show password"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#aab1bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg></button>
             </div>
 
             <button class="btn btn-login" onclick="loginUser()">Login ➜</button>
@@ -168,7 +182,8 @@
             var i = document.getElementById(id);
             var show = i.type === 'password';
             i.type = show ? 'text' : 'password';
-            btn.textContent = show ? '🙈' : '👁';
+                        var eye = '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>';
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#aab1bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + eye + (show ? '' : '<path d="M3 3l18 18"/>') + '</svg>';
         }
 
         // Download App (sirf Android browser me, app ke andar nahi)

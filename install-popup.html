@@ -2,19 +2,19 @@
 <style>
 #app-pop { position: fixed; inset: 0; z-index: 100000; display: none; align-items: flex-end; justify-content: center; padding: 0 12px 14px; background: rgba(8,9,12,0.75); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 #app-pop.show { display: flex; animation: apFade .25s ease; }
-.ap-card { position: relative; width: 100%; max-width: 420px; padding: 26px 20px 12px; text-align: center; color: #fff; overflow: hidden; border-radius: 22px; border: 1px solid rgba(255,183,3,0.35); background: linear-gradient(160deg, #1f2430 0%, #121418 65%); box-shadow: 0 20px 50px rgba(0,0,0,0.6); animation: apUp .4s cubic-bezier(.2,.9,.3,1.1); }
+.ap-card { position: relative; width: 100%; max-width: 420px; padding: 26px 20px 16px; text-align: center; color: #fff; overflow: hidden; border-radius: 22px; border: 1px solid rgba(255,183,3,0.35); background: linear-gradient(160deg, #1f2430 0%, #121418 65%); box-shadow: 0 20px 50px rgba(0,0,0,0.6); animation: apUp .4s cubic-bezier(.2,.9,.3,1.1); }
 .ap-card::before { content: ""; position: absolute; top: -90px; left: 50%; width: 280px; height: 280px; transform: translateX(-50%); background: radial-gradient(circle, rgba(255,183,3,0.22), transparent 70%); pointer-events: none; }
 .ap-coin { position: relative; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 900; color: #2b1d00; border: 3px solid #ffd55a; background: radial-gradient(circle at 35% 30%, #ffe48a, #f2b705 60%, #b87400); box-shadow: 0 0 0 5px rgba(255,183,3,0.15), 0 8px 20px rgba(0,0,0,0.5); animation: apSpin 3s ease-in-out infinite; }
 .ap-title { position: relative; font-size: 20px; font-weight: 900; letter-spacing: .3px; }
 .ap-title span { color: #ffb703; }
-.ap-sub { position: relative; margin-top: 6px; font-size: 13px; color: #aab1c0; line-height: 1.5; }
-.ap-chips { position: relative; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
-.ap-chips b { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 20px; color: #ffd55a; background: rgba(255,183,3,0.1); border: 1px solid rgba(255,183,3,0.3); }
+.ap-sub { position: relative; margin-top: 8px; font-size: 14px; font-weight: 700; color: #ffd55a; letter-spacing: .2px; }
 .ap-btn { position: relative; display: block; width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 14px; font-size: 16px; font-weight: 900; letter-spacing: .4px; color: #2b1d00; cursor: pointer; background: linear-gradient(180deg, #ffd45a, #f2a900); box-shadow: 0 6px 16px rgba(255,183,3,0.35); }
 .ap-btn:active { transform: scale(0.97); }
-.ap-later { position: relative; background: none; border: 0; margin-top: 8px; padding: 10px; font-size: 13px; color: #8b93a3; cursor: pointer; }
-.ap-steps { display: none; position: relative; margin-top: 14px; padding: 10px 12px; text-align: left; font-size: 12.5px; line-height: 1.7; color: #c9cfdb; border-radius: 12px; background: rgba(255,255,255,0.05); }
-.ap-steps.show { display: block; }
+.ap-later { position: relative; display: block; width: 100%; margin-top: 10px; padding: 13px; border-radius: 14px; font-size: 14px; font-weight: 800; color: #c9cfdb; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); }
+.ap-later:active { transform: scale(0.97); }
+/* Download hone ke baad UPAR wali patli patti — 3 sec rukti hai, phir hat jaati hai */
+#ap-strip { position: fixed; top: 0; left: 0; right: 0; z-index: 100001; padding: calc(env(safe-area-inset-top, 0px) + 7px) 12px 7px; text-align: center; font-size: 12.5px; font-weight: 800; letter-spacing: .2px; color: #2b1d00; background: linear-gradient(180deg, #ffd45a, #f2a900); box-shadow: 0 3px 10px rgba(0,0,0,0.35); transform: translateY(-120%); transition: transform .3s ease; pointer-events: none; }
+#ap-strip.show { transform: translateY(0); }
 @keyframes apFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes apUp { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes apSpin { 0%, 55% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
@@ -23,39 +23,79 @@
     <div class="ap-card">
         <div class="ap-coin">$</div>
         <div class="ap-title">Install <span>Toss Exchange</span> App</div>
-        <div class="ap-sub">Fast loading, full screen aur ek tap me khulne wala app. Sirf ~3 MB.</div>
-        <div class="ap-chips"><b>⚡ Super Fast</b><b>🔒 Secure</b><b>📲 Full Screen</b></div>
-        <button class="ap-btn" id="ap-install">⬇ INSTALL APP</button>
-        <div class="ap-steps" id="ap-steps">
-            <b>Download shuru ho gaya ✅</b><br>
-            1. Download khatam hone par file kholo (notification ya Downloads).<br>
-            2. <b>Install</b> dabao. "Unknown source" poochhe to <b>Allow</b> kar do.<br>
-            3. App kholo aur login karo.
-        </div>
-        <button class="ap-later" id="ap-later">Abhi nahi</button>
+        <div class="ap-sub">Fast Loading App &middot; Size 3MB</div>
+        <button class="ap-btn" id="ap-install">&#11015; INSTALL APP</button>
+        <button class="ap-later" id="ap-later">Not now</button>
     </div>
 </div>
+<div id="ap-strip">&#9989; App downloaded &mdash; approve install from File Manager</div>
 <script>
 (function () {
     var APK_URL = 'https://github.com/samarth7924682-ops/TossExchange-/releases/latest/download/TossExchange.apk';
+    var APK_MB = 3;                 // app ka size (ETA nikalne ke liye)
+    var STRIP_MS = 3000;            // patti kitni der dikhe
     try {
         var ua = navigator.userAgent || '';
         var cap = window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() !== 'web';
         var inApp = cap || /; wv\)/.test(ua) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
         if (!/Android/i.test(ua) || inApp) return;          // sirf Android browser me, app ke andar nahi
         if (!localStorage.getItem('userSession')) return;   // sirf login ke baad
+
         var pop = document.getElementById('app-pop');
-        var btn = document.getElementById('ap-install');
+        var strip = document.getElementById('ap-strip');
         function close() { pop.classList.remove('show'); }
+
+        // Download poora hone par upar patli patti: 3 sec rukti hai, phir hat jaati hai
+        var stripShown = false;
+        function showStrip() {
+            if (stripShown) return;
+            stripShown = true;
+            strip.classList.add('show');
+            setTimeout(function () { strip.classList.remove('show'); stripShown = false; }, STRIP_MS);
+        }
+
+        function clickLink(href) {
+            var a = document.createElement('a');
+            a.href = href; a.download = 'TossExchange.apk'; a.rel = 'noopener';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+
+        // Browser download khatam hone ka signal page ko nahi deta, isliye internet speed se andaza lagate hain
+        function etaMs() {
+            var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            var mbps = c && c.downlink ? c.downlink : 0;           // Mbps
+            var sec = mbps ? ((APK_MB * 8) / mbps) + 2 : 6;
+            return Math.min(Math.max(sec, 4), 15) * 1000;
+        }
+
+        function startDownload() {
+            var sameOrigin = false;
+            try { sameOrigin = new URL(APK_URL, location.href).origin === location.origin; } catch (e) {}
+
+            if (sameOrigin && window.fetch) {
+                // APK isi site par rakhi ho to download poora hone ka pakka pata chalta hai
+                fetch(APK_URL, { cache: 'no-store' })
+                    .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.blob(); })
+                    .then(function (b) {
+                        var u = URL.createObjectURL(new Blob([b], { type: 'application/vnd.android.package-archive' }));
+                        clickLink(u);
+                        setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+                        setTimeout(showStrip, 800);
+                    })
+                    .catch(function () { clickLink(APK_URL); setTimeout(showStrip, etaMs()); });
+            } else {
+                clickLink(APK_URL);                      // download turant shuru
+                setTimeout(showStrip, etaMs());          // poora hone ke andaze par patti
+            }
+        }
+
+        document.getElementById('ap-install').onclick = function () {
+            close();                                     // popup band — "download again" jaisa koi page nahi
+            startDownload();
+        };
         document.getElementById('ap-later').onclick = close;
         pop.addEventListener('click', function (e) { if (e.target === pop) close(); });
-        btn.onclick = function () {
-            var a = document.createElement('a');
-            a.href = APK_URL; a.download = 'TossExchange.apk'; a.rel = 'noopener';
-            document.body.appendChild(a); a.click(); a.remove();
-            document.getElementById('ap-steps').classList.add('show');
-            btn.textContent = '⬇ DOWNLOAD AGAIN';
-        };
+
         setTimeout(function () { pop.classList.add('show'); }, 700);   // har refresh par
     } catch (e) {}
 })();

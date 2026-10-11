@@ -17,7 +17,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build Web App to APK using PWABuilder CLI
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Build with PWABuilder Android Generator
         run: |
-          npm install -g @pwbuilder/cli
-          pwabuilder-cli --url https://samarth7924682-ops.github.io/TossExchange-/ --platform android
+          npx @pwbuilder/cli generate --manifest ./manifest.json --platform android --target ./android-out
+          

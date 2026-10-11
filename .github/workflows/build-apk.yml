@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -40,13 +45,97 @@ jobs:
           JSON
           npx cap add android
 
-      - name: Set app icon from logo.png
+      - name: Make app icon (gold coin logo)
+        continue-on-error: true
         run: |
           cd app
-          mkdir assets
-          convert ../logo.png -resize 1024x1024 -background none -gravity center -extent 1024x1024 assets/icon-only.png
-          convert ../logo.png -resize 680x680 -background none -gravity center -extent 1024x1024 assets/icon-foreground.png
-          convert -size 1024x1024 xc:'#121418' assets/icon-background.png
+          pip install pillow
+          cat > make_icon.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, ImageChops
+          import os
+
+          S = 2048  # supersample size, final icons are 1024
+          FONTS = [
+              '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+              '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+              '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+          ]
+
+          def background():
+              g = Image.radial_gradient('L').resize((S, S), Image.BICUBIC)
+              return ImageOps.colorize(g, black='#262b38', white='#090a0d').convert('RGBA')
+
+          def coin(R, shadow=True):
+              layer = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              cx = cy = S // 2
+              if shadow:
+                  glow = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+                  d = ImageDraw.Draw(glow)
+                  d.ellipse((cx - R, cy - R + R * 0.10, cx + R, cy + R + R * 0.10), fill=(255, 183, 3, 90))
+                  layer = Image.alpha_composite(layer, glow.filter(ImageFilter.GaussianBlur(R * 0.22)))
+                  sh = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+                  d = ImageDraw.Draw(sh)
+                  d.ellipse((cx - R, cy - R + R * 0.06, cx + R, cy + R + R * 0.06), fill=(0, 0, 0, 150))
+                  layer = Image.alpha_composite(layer, sh.filter(ImageFilter.GaussianBlur(R * 0.06)))
+              # outer rim
+              rim = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              ImageDraw.Draw(rim).ellipse((cx - R, cy - R, cx + R, cy + R), fill='#b87400')
+              layer = Image.alpha_composite(layer, rim)
+              # rim highlight (top-left lighter edge)
+              r2 = int(R * 0.97)
+              hl = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              ImageDraw.Draw(hl).ellipse((cx - r2, cy - r2, cx + r2, cy + r2), fill='#ffd55a')
+              layer = Image.alpha_composite(layer, hl)
+              # face with vertical gold gradient
+              rf = int(R * 0.90)
+              grad = Image.linear_gradient('L').resize((S, S), Image.BICUBIC)
+              face_col = ImageOps.colorize(grad, black='#ffe48a', white='#f0a400').convert('RGBA')
+              mask = Image.new('L', (S, S), 0)
+              ImageDraw.Draw(mask).ellipse((cx - rf, cy - rf, cx + rf, cy + rf), fill=255)
+              face = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              face.paste(face_col, (0, 0), mask)
+              layer = Image.alpha_composite(layer, face)
+              # inner engraved ring
+              ring = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              ri = int(R * 0.77)
+              w = max(4, int(R * 0.035))
+              ImageDraw.Draw(ring).ellipse((cx - ri, cy - ri, cx + ri, cy + ri), outline='#c78a00', width=w)
+              layer = Image.alpha_composite(layer, ring)
+              # gloss
+              gl = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              ImageDraw.Draw(gl).ellipse((cx - rf * 0.95, cy - rf * 1.25, cx + rf * 0.55, cy - rf * 0.05), fill=(255, 255, 255, 70))
+              gl = gl.filter(ImageFilter.GaussianBlur(R * 0.02))
+              gmask = ImageChops.multiply(gl.split()[3], mask)
+              gl.putalpha(gmask)
+              layer = Image.alpha_composite(layer, gl)
+              # dollar sign
+              txt = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+              d = ImageDraw.Draw(txt)
+              font = None
+              for p in FONTS:
+                  if os.path.exists(p):
+                      font = ImageFont.truetype(p, int(R * 1.18))
+                      break
+              if font:
+                  d.text((cx, cy + R * 0.02), '$', font=font, fill='#2b1d00', anchor='mm')
+              else:  # fallback: bold T
+                  tw, th, bw = R * 0.62, R * 0.12, R * 0.13
+                  d.rectangle((cx - tw / 2, cy - R * 0.40, cx + tw / 2, cy - R * 0.40 + th), fill='#2b1d00')
+                  d.rectangle((cx - bw / 2, cy - R * 0.40, cx + bw / 2, cy + R * 0.42), fill='#2b1d00')
+              layer = Image.alpha_composite(layer, txt)
+              return layer
+
+          def save(img, name):
+              img.resize((1024, 1024), Image.LANCZOS).save(name)
+
+          os.makedirs('assets', exist_ok=True)
+          bg = background()
+          save(Image.alpha_composite(bg, coin(int(S * 0.34))), 'assets/icon-only.png')
+          save(coin(int(S * 0.28)), 'assets/icon-foreground.png')
+          save(bg, 'assets/icon-background.png')
+          print('icons ready')
+          PY
+          python3 make_icon.py
           npm i -D @capacitor/assets
           npx capacitor-assets generate --android
 

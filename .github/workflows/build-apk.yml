@@ -17,12 +17,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Build with PWABuilder Android Generator
+      - name: Create Web APK via Bubblewrap / PWABuilder
         run: |
-          npx @pwbuilder/cli generate --manifest ./manifest.json --platform android --target ./android-out
+          npm install -g @pwbuilder/cli
+          pwabuilder-cli --url https://samarth7924682-ops.github.io/TossExchange-/ --platform android --icon ./logo.png --name "TossExchange" --shortName "TossExchange" --background "#ffffff" --theme "#000000" --orientation portrait
           

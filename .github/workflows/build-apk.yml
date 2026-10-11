@@ -1,0 +1,23 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Web App to APK using PWABuilder CLI
+        run: |
+          npm install -g @pwbuilder/cli
+          pwabuilder-cli --url https://samarth7924682-ops.github.io/TossExchange-/ --platform android

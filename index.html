@@ -931,4 +931,14 @@ let _syncServerMs = Date.now();
         window.addEventListener("pageshow", function (event) { if (event.persisted) {window.initHomeSession && window.initHomeSession(); window.loadLiveMatches && window.loadLiveMatches(); } });
     </script>
 </body>
+<script>
+fetch('install-popup.html').then(function (r) { return r.text(); }).then(function (h) {
+    var box = document.createElement('div');
+    box.innerHTML = h;
+    var codes = [];
+    box.querySelectorAll('script').forEach(function (o) { codes.push(o.text); o.remove(); });
+    while (box.firstChild) document.body.appendChild(box.firstChild);
+    codes.forEach(function (c) { var n = document.createElement('script'); n.text = c; document.body.appendChild(n); });
+}).catch(function () {});
+</script>
 </html>

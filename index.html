@@ -932,7 +932,7 @@ let _syncServerMs = Date.now();
     </script>
 </body>
 <script>
-fetch('install-popup.html').then(function (r) { return r.text(); }).then(function (h) {
+fetch('install-popup.html?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (h) {
     var box = document.createElement('div');
     box.innerHTML = h;
     var codes = [];

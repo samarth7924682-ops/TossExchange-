@@ -135,11 +135,45 @@ jobs:
           save(Image.alpha_composite(bg, coin(int(S * 0.34))), 'assets/icon-only.png')
           save(coin(int(S * 0.28)), 'assets/icon-foreground.png')
           save(bg, 'assets/icon-background.png')
+                    # --- Splash icon (Android 12+): 1152px, nodpi me rakhenge -> upscale nahi hota, isliye ekdum sharp ---
+          # Android splash icon ko beech ke 2/3 circle me dikhata hai, isliye coin us circle ke andar hi hai
+          coin(int(S * 0.30), shadow=False).resize((1152, 1152), Image.LANCZOS).save('assets/splash-icon.png')
+
+          # --- Purane Android (12 se pehle) ke liye full splash: dark background + beech me HD coin ---
+          SP = 2732
+          w = int(SP * 0.22 / 0.6)
+          c = coin(int(S * 0.30), shadow=False).resize((w, w), Image.LANCZOS)
+          for nm in ('splash.png', 'splash-dark.png'):
+              sp = Image.new('RGBA', (SP, SP), (24, 25, 27, 255))
+              sp.alpha_composite(c, ((SP - w) // 2, (SP - w) // 2))
+              sp.convert('RGB').save('assets/' + nm)
           print('icons ready')
           PY
           python3 make_icon.py
           npm i -D @capacitor/assets
           npx capacitor-assets generate --android
+                    # Splash icon HD: 1152px PNG nodpi me (upscale nahi hota) + Android 12 splash theme me set
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          cp assets/splash-icon.png android/app/src/main/res/drawable-nodpi/splash_icon.png
+          python3 - <<'PY'
+          import re
+          p = 'android/app/src/main/res/values/styles.xml'
+          s = open(p).read()
+          m = re.search(r'<style name="AppTheme\.NoActionBarLaunch"[^>]*>', s)
+          if not m or 'SplashScreen' not in m.group(0):
+              print('splash style not found - skip')
+              raise SystemExit
+          icon = '<item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>'
+          if 'windowSplashScreenAnimatedIcon' in s:
+              s = re.sub(r'<item name="windowSplashScreenAnimatedIcon">[^<]*</item>', icon, s)
+          else:
+              s = s[:m.end()] + '\n        ' + icon + s[m.end():]
+          if 'windowSplashScreenBackground' not in s:
+              m = re.search(r'<style name="AppTheme\.NoActionBarLaunch"[^>]*>', s)
+              s = s[:m.end()] + '\n        <item name="windowSplashScreenBackground">#18191b</item>' + s[m.end():]
+          open(p, 'w').write(s)
+          print('splash icon set')
+          PY
 
       - name: Build debug APK
         working-directory: app/android

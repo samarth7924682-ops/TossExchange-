@@ -39,8 +39,16 @@ jobs:
           }
           JSON
           npx cap add android
-
-      - name: Build debug APK
+                - name: Set app icon from logo.png
+        run: |
+          cd app
+          mkdir assets
+          convert ../logo.png -resize 1024x1024 -background none -gravity center -extent 1024x1024 assets/icon-only.png
+          convert ../logo.png -resize 680x680 -background none -gravity center -extent 1024x1024 assets/icon-foreground.png
+          convert -size 1024x1024 xc:'#121418' assets/icon-background.png
+          npm i -D @capacitor/assets
+          npx capacitor-assets generate --android
+  - name: Build debug APK
         working-directory: app/android
         run: |
           chmod +x gradlew

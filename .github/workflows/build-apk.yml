@@ -3,22 +3,51 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      - name: Create Web APK via Bubblewrap / PWABuilder
+      - name: Create Android app (WebView of live site)
         run: |
-          npm install -g @pwbuilder/cli
-          pwabuilder-cli --url https://samarth7924682-ops.github.io/TossExchange-/ --platform android --icon ./logo.png --name "TossExchange" --shortName "TossExchange" --background "#ffffff" --theme "#000000" --orientation portrait
-          
+          mkdir app && cd app
+          npm init -y
+          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          mkdir www
+          echo '<html><body>Loading...</body></html>' > www/index.html
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.tossexchange.app",
+            "appName": "Toss Exchange",
+            "webDir": "www",
+            "server": { "url": "https://texch98.ink/", "cleartext": false }
+          }
+          JSON
+          npx cap add android
+
+      - name: Build debug APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TossExchange-apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk

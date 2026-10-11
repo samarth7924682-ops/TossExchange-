@@ -126,7 +126,21 @@
             box-shadow: none; 
         }
         .btn-demo:hover { background: #f8fafc; border-color: #cbd5e1; }
-
+        /* Download App Button (dark premium — index ke header se match) */
+        .btn-download {
+            background: linear-gradient(180deg, #1c1c22, #0d0d10);
+            color: #ffb703;
+            border: 1px solid #ffb703;
+            text-decoration: none;
+            gap: 10px;
+            padding: 9px 12px;
+            margin-bottom: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+        .btn-download .dl-icon { font-size: 22px; line-height: 1; }
+        .btn-download .dl-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+        .btn-download .dl-title { font-size: 14px; font-weight: 900; letter-spacing: .3px; }
+        .btn-download .dl-size { font-size: 10px; font-weight: 600; color: #cbd5e1; text-transform: none; }
         
         .footer-text { font-size: 10px; color: #64748b; text-align: center; margin-top: 10px; line-height: 1.3; font-weight: 600;}
 
@@ -153,7 +167,19 @@
         
         <button class="btn" onclick="loginUser()">Login ➜</button>
         <button class="btn btn-demo" onclick="loginDemo()">Demo ID ➜</button>
-
+        <a class="btn btn-download" id="download-app" href="TossExchange.apk" download>
+            <span class="dl-icon">📲</span>
+            <span class="dl-text">
+                <span class="dl-title">Download App</span>
+                <span class="dl-size">App size 3 MB</span>
+            </span>
+        </a>
+        <script>
+            /* App ke andar khula ho (installed APK) to button hide */
+            if (window.matchMedia('(display-mode: standalone)').matches || (document.referrer || '').indexOf('android-app://') === 0) {
+                document.getElementById('download-app').style.display = 'none';
+            }
+        </script>
         <div class="footer-text">
     Protected by reCAPTCHA & Google Privacy Policy.
 </div>

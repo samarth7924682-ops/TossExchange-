@@ -70,8 +70,8 @@
         </div>
 
         <div class="input-group">
-            <label>🔒 Auto-Lock Betting — <span id="lockMinsLabel" style="color:var(--primary);">30</span> Minute(s) Before Toss</label>
-            <input type="range" id="lockMins" min="0" max="45" step="1" value="30" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
+            <label>🔒 Auto-Lock Betting — <span id="lockMinsLabel" style="color:var(--primary);">0</span> Minute(s) Before Toss</label>
+            <input type="range" id="lockMins" min="0" max="45" step="1" value="0" oninput="document.getElementById('lockMinsLabel').innerText = this.value">
 
         <div class="input-group" style="border-top: 2px dashed #ddd; padding-top: 10px;">
             <label>🏆 Predict Pro Winner (optional — sirf Predict Pro site ke liye)</label>
@@ -110,7 +110,7 @@
         <div style="display:flex; gap:10px;">
             <div class="input-group" style="flex:1;"><label>Odds A (%)</label><input type="number" id="bulkOddsA" value="98"></div>
             <div class="input-group" style="flex:1;"><label>Odds B (%)</label><input type="number" id="bulkOddsB" value="98"></div>
-            <div class="input-group" style="flex:1;"><label>Lock (min pehle)</label><input type="number" id="bulkLock" value="30" min="0" max="45"></div>
+            <div class="input-group" style="flex:1;"><label>Lock (min pehle)</label><input type="number" id="bulkLock" value="0" min="0" max="45"></div>
         </div>
         <button class="btn btn-warning" style="width:100%;" onclick="previewBulk()">👁 Preview</button>
         <div id="bulkPreview" style="margin-top:10px;"></div>
@@ -544,7 +544,7 @@
 
             const baseOffset = parseInt(document.getElementById('bulkDate').value);
             const lv = parseInt(document.getElementById('bulkLock').value);
-            const lockMins = isNaN(lv) ? 30 : Math.min(Math.max(lv, 0), 45); // 0 min bhi allowed
+            const lockMins = isNaN(lv) ? 0 : Math.min(Math.max(lv, 0), 45); // 0 min bhi allowed
             const norm = s => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
             const fmt = ms => new Date(ms).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             const seen = new Set();

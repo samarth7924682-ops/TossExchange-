@@ -41,8 +41,6 @@
         .market-header-row { display: flex; background: #f8f9fa; border-bottom: 2px solid #ddd; padding: 8px; font-size: 12px; font-weight: 900;}
         .match-when { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 800; color: #222; }
         .when-pill { background: #111; color: #ffc107; padding: 3px 10px; border-radius: 12px; font-size: 11px; letter-spacing: .5px; }
-                .extra-pill { background: #c62828; color: #fff; animation: extraBlink 1.4s ease-in-out infinite; }
-        @keyframes extraBlink { 50% { opacity: .55; } }
         .market-title { flex: 1; color: #111; }
         .market-lbl-back { width: 60px; text-align: center; color: #1565c0; }
         .market-lbl-lay { width: 60px; text-align: center; color: #c62828; }
@@ -304,9 +302,7 @@
             const el = document.getElementById('match-when');
             if (!el || !currentMatch || !currentMatch.tossTimeMs) return;
             const day = isTimeTrusted() ? getRelativeDateLabel(currentMatch.tossTimeMs) : '';
-                        const open = !currentMatch.lockTimeMs || getTrueTime() >= 0 && getTrueTime() < currentMatch.lockTimeMs;
-            const extra = (isEarlyWindow() && open) ? '<span class="when-pill extra-pill">EXTRA TIME BET</span>' : '';
-            const html = (day ? '<span class="when-pill">' + day + '</span>' : '') + '<span>' + _fmtTime(currentMatch.tossTimeMs) + '</span>' + extra;
+            const html = (day ? '<span class="when-pill">' + day + '</span>' : '') + '<span>' + _fmtTime(currentMatch.tossTimeMs) + '</span>';
             if (html !== _lastWhen) { el.innerHTML = html; _lastWhen = html; }
         }
 
@@ -405,26 +401,7 @@
         let selectedTeamKey = null;
         let currentBalance = 0;
         let currentMatchPnL = { teamA: 0, teamB: 0 }; 
-        // ===== Toss se last 5 min: dono teams ka odds 90 (server time se) =====
-        const EARLY_ODDS = 90, EARLY_WINDOW_MS = 5 * 60 * 1000;
-        function isEarlyWindow() {
-            return !!(currentMatch && currentMatch.tossTimeMs && _timeSynced && getTrueTime() >= currentMatch.tossTimeMs - EARLY_WINDOW_MS);
-        }
-        function effOdds(key) {
-            if (isEarlyWindow()) return EARLY_ODDS;
-            return key === 'teamA' ? currentMatch.oddsA : currentMatch.oddsB;
-        }
-        function renderOdds() {
-            if (!currentMatch) return;
-            const a = document.getElementById('odds-teamA'), b = document.getElementById('odds-teamB');
-            const oa = effOdds('teamA'), ob = effOdds('teamB');
-            if (a.innerText != oa) a.innerText = oa;
-            if (b.innerText != ob) b.innerText = ob;
-            if (selectedTeamKey) {
-                const s = document.getElementById('slip-odds'), so = effOdds(selectedTeamKey);
-                if (s.value != so) { s.value = so; updateProjectedPnL(); }
-            }
-        }
+
         window.toggleMenu = function(menuId, e) { 
             e.stopPropagation(); 
             const menus = ['user-dropdown', 'exp-dropdown'];
@@ -495,7 +472,8 @@
 
     document.getElementById('name-teamA').innerText = currentMatch.teamA;
     document.getElementById('name-teamB').innerText = currentMatch.teamB;
-        renderOdds();
+    document.getElementById('odds-teamA').innerText = currentMatch.oddsA;
+    document.getElementById('odds-teamB').innerText = currentMatch.oddsB;
 
     applyLockState(); // turant ek baar check kar lo
 });
@@ -506,8 +484,7 @@
 // to onSnapshot upar wala turant naya lockTimeMs de dega aur ye interval usी se turant match kar lega.
 function applyLockState() {
     if (!currentMatch) return;
-        renderWhen();
-    renderOdds();
+    renderWhen();
     if (!isTimeTrusted()) return; // server time aane tak buttons locked hi rahenge
     const nowMs = getTrueTime();
 
@@ -732,7 +709,39 @@ setInterval(applyLockState, 1000);
         function clearStake() { document.getElementById('slip-stake').value = ""; updateProjectedPnL(); }
         function minStake() { document.getElementById('slip-stake').value = 10; updateProjectedPnL(); }
         function maxStake() { document.getElementById('slip-stake').value = Math.floor(currentBalance); updateProjectedPnL(); }
+         // 🔔 Bet Telegram Alert (fail ho jaye toh bet par koi asar nahi)
+        async function sendBetNotification(subAdminId, username, teamName, amt, odds) {
+            try {
+                if (!subAdminId) return;
+                const aDoc = await db.collection("admins").doc(subAdminId).get();
+                RC('bet-notify-admin', 1);
+                if (!aDoc.exists) return;
+                const a = aDoc.data();
+                if (!a.botToken || !a.chatId) return;
 
+                const mode = a.betNotifyMode;
+                if (mode !== 'specific' && mode !== 'all') return;
+                if (mode === 'specific') {
+                    const list = (a.betNotifyUsers || []).map(x => String(x).toLowerCase());
+                    if (!list.includes(String(username).toLowerCase())) return;
+                }
+
+                const subName = a.username || a.name || subAdminId;
+                const text = "🎯 NEW BET\n" +
+                    "🛡️ SubAdmin: " + subName + "\n" +
+                    "👤 User: " + username + "\n" +
+                    "🏏 Match: " + currentMatch.teamA + " vs " + currentMatch.teamB + "\n" +
+                    "✅ Team: " + teamName + "\n" +
+                    "💰 Stake: " + amt + "\n" +
+                    "📊 Odds: " + odds;
+
+                await fetch("https://api.telegram.org/bot" + a.botToken + "/sendMessage", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: a.chatId, text: text })
+                });
+            } catch (e) { console.log("Bet notify error:", e); }
+        }
         // 🌟 RACE-CONDITION FREE EXACT MATHEMATICAL BET PLACEMENT 🌟
         async function placeBet() {
            let amt = parseFloat(document.getElementById('slip-stake').value);
@@ -757,14 +766,7 @@ setInterval(applyLockState, 1000);
                 setPlacing(false);
                 return;
             }
-            const freshOdds = effOdds(selectedTeamKey); // fresh server time se odds dobara
-            if (parseFloat(freshOdds) !== odds) {
-                document.getElementById('slip-odds').value = freshOdds;
-                updateProjectedPnL();
-                alert("Odds change ho gaye (" + freshOdds + "). Dobara check karke bet lagao.");
-                setPlacing(false);
-                return;
-            }
+
             try {
                 // --- DEMO BYPASS: LOCAL PLACEMENT ---
                 if (user.isDemo) {
@@ -870,9 +872,12 @@ if (marginRequired !== 0) {
                     status: 'pending', timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                await batch.commit(); 
+                                await batch.commit(); 
                 closeBetSlip(); 
                 showBetSuccess(teamName, amt, odds);
+
+                // 🔔 Subadmin ko Telegram alert
+                sendBetNotification(userDoc.data().linkedSubAdminId, user.username, teamName, amt, odds);
             } catch(e) { 
                 console.error(e);
                 alert("Failed to place bet! Please check connection."); 

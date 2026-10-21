@@ -113,7 +113,26 @@
             <button class="btn-action btn-clear" onclick="clearBotSettings()">🗑️ Clear</button>
         </div>
     </div>
-
+    <div class="card">
+        <h3>🔔 Bet Notification</h3>
+        <div class="input-group">
+            <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:12px;">
+                <input type="radio" name="bet-notify-mode" value="specific" checked onchange="toggleBetNotifyMode()" style="width:auto;">
+                Option 1: Sirf selected User ID ki bet
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:12px; margin-top:6px;">
+                <input type="radio" name="bet-notify-mode" value="all" onchange="toggleBetNotifyMode()" style="width:auto;">
+                Option 2: Sabhi users ki bet
+            </label>
+        </div>
+        <div class="input-group" id="bet-notify-users-box">
+            <label>User IDs (comma se alag karo):</label>
+            <input type="text" id="bet-notify-users" placeholder="e.g. rahul01, amit22, sonu7">
+        </div>
+        <div class="action-row">
+            <button class="btn-action" id="save-betnotify-btn" onclick="saveBetNotify()">💾 Save</button>
+        </div>
+    </div>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="app.js"></script>
@@ -140,7 +159,14 @@
                     document.getElementById('bonus-percent').value = data.depositBonusPercent || 0;
                     // Load Telegram Bot (Using your exact database fields)
                     if(data.botToken) document.getElementById('sub-token').value = data.botToken;
-                    if(data.chatId) document.getElementById('sub-chatid').value = data.chatId;
+                                        if(data.chatId) document.getElementById('sub-chatid').value = data.chatId;
+                    // Load Bet Notification settings
+                    if(data.betNotifyMode) {
+                        const r = document.querySelector('input[name="bet-notify-mode"][value="' + data.betNotifyMode + '"]');
+                        if(r) r.checked = true;
+                    }
+                    if(Array.isArray(data.betNotifyUsers)) document.getElementById('bet-notify-users').value = data.betNotifyUsers.join(', ');
+                    toggleBetNotifyMode();
                 }
             } catch(e) {
                 console.log("Error loading settings:", e);
@@ -400,7 +426,32 @@
             }
             btn.innerText = "💾 Save"; btn.disabled = false;
         }
+        // --- 3b. Bet Notification Settings ---
+        function toggleBetNotifyMode() {
+            const mode = document.querySelector('input[name="bet-notify-mode"]:checked').value;
+            document.getElementById('bet-notify-users-box').style.display = (mode === 'specific') ? 'block' : 'none';
+        }
 
+        async function saveBetNotify() {
+            const mode = document.querySelector('input[name="bet-notify-mode"]:checked').value;
+            const users = document.getElementById('bet-notify-users').value
+                .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            const btn = document.getElementById('save-betnotify-btn');
+
+            if(mode === 'specific' && users.length === 0) { alert("Kam se kam ek User ID likho!"); return; }
+
+            btn.innerText = "Saving... ⏳"; btn.disabled = true;
+            try {
+                await adminRef.update({
+                    betNotifyMode: mode,
+                    betNotifyUsers: mode === 'specific' ? users : []
+                });
+                alert("✅ Bet Notification Saved!");
+            } catch(e) {
+                alert("Error saving. Please try again.");
+            }
+            btn.innerText = "💾 Save"; btn.disabled = false;
+        }
         // --- 4. Clear Telegram Settings ---
         async function clearBotSettings() {
             if(!confirm("Kya aap sach me Telegram notifications band karna chahte hain?")) return;

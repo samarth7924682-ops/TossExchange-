@@ -47,7 +47,11 @@
         .u-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
         .btn-thin { background: #fdf6df; border: 1px solid #c9a227; color: #4a3a0f; font-weight: 800; font-size: 9.5px; padding: 3px 6px; border-radius: 5px; cursor: pointer; text-transform: uppercase; transition: 0.2s;}
         .btn-thin:active { background: #f3e6b8; transform: scale(0.95); }
-
+        #user-list { display: flex; flex-direction: column; }
+        .btn-refresh { width: 24px; height: 24px; min-width: 24px; padding: 0; border-radius: 50%; border: 1px solid #c9a227; background: #fdf6df; color: #4a3a0f; font-size: 14px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-refresh:active { background: #f3e6b8; transform: scale(0.92); }
+        .btn-refresh.spin { animation: rfspin 0.7s linear infinite; }
+        @keyframes rfspin { to { transform: rotate(360deg); } }
         /* 🌟 MODERN CLEAN EXP POPUP MODAL 🌟 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(74,58,15,0.75); z-index: 9999; justify-content: center; align-items: center; }
         .modal-box { background: white; width: 90%; max-width: 350px; border-radius: 10px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: popIn 0.3s ease; border-top: 4px solid var(--accent); }
@@ -122,7 +126,7 @@
         </div>
     </div>
 
-    <input type="text" id="search-bar" placeholder="🔍 Search User by Name..." onkeyup="filterUsers()" style="margin-bottom:10px; border: 1px solid #888;">
+        <input type="text" id="search-bar" placeholder="🔍 Search User by Name..." oninput="filterUsers()" style="margin-bottom:10px; border: 1px solid #888;">
 
     <div id="user-list">
         <p style="text-align: center; color: #888;">Loading users...</p>
@@ -275,15 +279,18 @@
                 const referBadge = u.referCode ? `<div class="u-refer">🔗 Ref: ${u.referCode}</div>` : '';
 
                 return `
-                    <div class="user-card" data-username="${u.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
+                                        <div class="user-card" data-uid="${userId}" data-username="${u.username.toLowerCase()}" style="opacity: ${isLocked ? '0.6' : '1'};">
                         <div class="u-info">
                             <div>
                                 <span class="u-name">${nameIcon} ${u.username}</span>
                                 ${referBadge}
                             </div>
-                            <div class="u-bal-exp">
-                                <strong>🪙 ${Math.floor(u.balance || 0)}</strong><br>
-                                Exp: <span class="exp-clickable" onclick="openExpModal('${userId}', '${u.username}')">${Math.floor(totalExposure)}</span>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <button class="btn-refresh" title="Refresh" onclick="refreshUserBtn('${userId}', this)">⟳</button>
+                                <div class="u-bal-exp">
+                                    <strong>🪙 ${Math.floor(u.balance || 0)}</strong><br>
+                                    Exp: <span class="exp-clickable" onclick="openExpModal('${userId}', '${u.username}')">${Math.floor(totalExposure)}</span>
+                                </div>
                             </div>
                         </div>
                         <div class="u-actions">
@@ -298,7 +305,8 @@
                 `;
             });
 
-            list.innerHTML = rowsHtml.join('');
+                        list.innerHTML = rowsHtml.join('');
+            filterUsers(true); // search chal rahi ho toh filter wapas lagao (dobara auto-refresh nahi)
         }
 
         function attachBetListeners(userIds) {
@@ -542,7 +550,7 @@ function toggleReferSummary(forceOpen) {
         }
 
         // Manual Deposit/Withdrawal
-        async function manualTx(userId, type, username) {
+                async function manualTx(userId, type, username) {
             const amt = prompt(`Enter ${type} amount for ${username}:`);
             if(!amt || isNaN(amt) || amt <= 0) return;
             const val = parseFloat(amt);
@@ -553,43 +561,60 @@ function toggleReferSummary(forceOpen) {
             }
 
             try {
-                const batch = db.batch();
-                
                 const userRef = db.collection("users").doc(userId);
-                batch.update(userRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : -val) });
-
                 const adminRef = db.collection("admins").doc(subAdmin.id);
-                batch.update(adminRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? -val : val) });
-
                 const txRef = db.collection("transactions").doc();
-                batch.set(txRef, {
-                    userId: userId,
-                    username: username,
-                    linkedSubAdminId: subAdmin.id,
-                    type: type, 
-                    amount: val, 
-                    status: 'approved', 
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    remark: 'Manual by Admin'
+
+                await db.runTransaction(async (tx) => {
+                    // 🛡️ Fresh balance server se (transaction ke andar, race-proof)
+                    const uSnap = await tx.get(userRef);
+                    if (!uSnap.exists) throw new Error("USER_NOT_FOUND");
+                    const curBal = parseFloat(uSnap.data().balance || 0);
+
+                    if (type === 'withdraw' && curBal < val) {
+                        const err = new Error("LOW_BALANCE");
+                        err.curBal = curBal;
+                        throw err;
+                    }
+
+                    tx.update(userRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : -val) });
+                    tx.update(adminRef, { balance: firebase.firestore.FieldValue.increment(type === 'deposit' ? -val : val) });
+
+                    tx.set(txRef, {
+                        userId: userId,
+                        username: username,
+                        linkedSubAdminId: subAdmin.id,
+                        type: type, 
+                        amount: val, 
+                        status: 'approved', 
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        remark: 'Manual by Admin'
+                    });
+
+                    // 🌟 REFER CODE STATS — deposit aur withdrawal dono track hote hain
+                    const referredUser = allUsers.find(u => u.id === userId);
+                    if (referredUser && referredUser.referCode) {
+                        const referStatRef = db.collection("referStats").doc(subAdmin.id + '_' + referredUser.referCode.toLowerCase());
+                        tx.set(referStatRef, {
+                            code: referredUser.referCode,
+                            subAdminId: subAdmin.id,
+                            totalDeposit: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : 0),
+                            totalWithdrawal: firebase.firestore.FieldValue.increment(type === 'withdraw' ? val : 0)
+                        }, { merge: true });
+                    }
                 });
 
-                // 🌟 REFER CODE STATS — deposit aur withdrawal dono track hote hain
-                const referredUser = allUsers.find(u => u.id === userId);
-                if (referredUser && referredUser.referCode) {
-                    const referStatRef = db.collection("referStats").doc(subAdmin.id + '_' + referredUser.referCode.toLowerCase());
-                    batch.set(referStatRef, {
-                        code: referredUser.referCode,
-                        subAdminId: subAdmin.id,
-                        totalDeposit: firebase.firestore.FieldValue.increment(type === 'deposit' ? val : 0),
-                        totalWithdrawal: firebase.firestore.FieldValue.increment(type === 'withdraw' ? val : 0)
-                    }, { merge: true });
-                }
-
-               await batch.commit();
-                refreshOneUser(userId); // sirf is ek user ka fresh balance (1 read) cache me
+                refreshOneUser(userId); // is user ka fresh balance cache me
                 alert(`✅ Transaction Successful! ${val} coins updated.`);
-                // 🌟 Live listener khud hi balance update dikha dega — dobara load karne ki zaroorat nahi
-            } catch(e) { alert("Error: " + e.message); }
+            } catch(e) {
+                if (e && e.message === "LOW_BALANCE") {
+                    alert(`❌ Low Balance!\nCurrent Balance: ${Number(e.curBal.toFixed(2))}\nWithdraw Amount: ${val}`);
+                    refreshOneUser(userId); // screen par bhi asli balance dikhe
+                    return;
+                }
+                if (e && e.message === "USER_NOT_FOUND") { alert("❌ User nahi mila."); return; }
+                alert("Error: " + e.message);
+            }
         }
 
         // Reset Password
@@ -679,14 +704,64 @@ function toggleReferSummary(forceOpen) {
                 // 🌟 Live listener naya user khud hi list me dikha dega — dobara load karne ki zaroorat nahi
             } catch(e) { alert("Error creating user."); }
         }
-        // Search
-        function filterUsers() {
-            const term = document.getElementById('search-bar').value.toLowerCase();
-            const cards = document.querySelectorAll('.user-card');
+                // Search (exact naam pehle, phir starts-with, phir jisme letters aayein)
+        let _searchTimer = null;
+        const _lastAutoRef = {};
+
+        function filterUsers(skipAutoRefresh) {
+            clearTimeout(_searchTimer);
+            const term = document.getElementById('search-bar').value.trim().toLowerCase();
+            const cards = document.querySelectorAll('#user-list .user-card');
+            const ranked = [];
+
             cards.forEach(card => {
-                const uname = card.getAttribute('data-username');
-                card.style.display = uname.includes(term) ? 'block' : 'none';
+                const uname = card.getAttribute('data-username') || '';
+                if (!term) { card.style.display = 'block'; card.style.order = ''; return; }
+                                let rank = -1;
+                if (uname === term) rank = 0;
+                else if (uname.startsWith(term)) rank = 1; // sirf jiska naam in letters se shuru ho
+                if (rank < 0) { card.style.display = 'none'; return; }
+                card.style.display = 'block';
+                ranked.push({ card: card, rank: rank, uname: uname, id: card.getAttribute('data-uid') });
             });
+
+            if (!term) return;
+            ranked.sort((a, b) => a.rank - b.rank || a.uname.localeCompare(b.uname));
+            ranked.forEach((r, i) => { r.card.style.order = i; });
+
+            if (skipAutoRefresh === true) return; // list dobara draw hui hai — dobara refresh nahi
+            const top3 = ranked.slice(0, 3).map(r => r.id);
+            _searchTimer = setTimeout(() => autoRefreshUsers(top3), 600); // typing ruke tab hi refresh
+        }
+
+        // Search ke top 3 results ka balance server se fresh (3 reads, 5 sec me ek hi user dobara nahi)
+        async function autoRefreshUsers(ids) {
+            const now = Date.now();
+            const todo = ids.filter(id => id && (!_lastAutoRef[id] || now - _lastAutoRef[id] > 5000));
+            if (!todo.length) return;
+            todo.forEach(id => { _lastAutoRef[id] = now; });
+            try {
+                const docs = await Promise.all(todo.map(id => db.collection("users").doc(id).get()));
+                RC('user-search-refresh', docs.length);
+                docs.forEach(d => {
+                    if (!d.exists) return;
+                    const i = allUsers.findIndex(u => u.id === d.id);
+                    if (i >= 0) allUsers[i] = slimUser(d.id, d.data());
+                });
+                saveUsersCache();
+                renderUserList();
+            } catch (e) { console.log("Auto refresh error:", e); }
+        }
+
+        // Round ⟳ button: sirf is user ka balance wagera refresh
+        async function refreshUserBtn(userId, btn) {
+            if (btn) { btn.classList.add('spin'); btn.disabled = true; }
+            try {
+                await refreshOneUser(userId);
+                _lastAutoRef[userId] = Date.now();
+            } finally {
+                if (btn && btn.isConnected) { btn.classList.remove('spin'); btn.disabled = false; }
+            }
         }
 
         loadMyUsers();
@@ -701,6 +776,7 @@ function toggleReferSummary(forceOpen) {
         window.manualTx = manualTx;
         window.resetPass = resetPass;
         window.filterUsers = filterUsers;
+        window.refreshUserBtn = refreshUserBtn;
         window.toggleReferSummary = toggleReferSummary;
      })();  
     </script>

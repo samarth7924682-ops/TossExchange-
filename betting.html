@@ -741,7 +741,7 @@ setInterval(applyLockState, 1000);
         const BET_NOTIFY_QUEUE_KEY = 'pendingBetNotifs';
 
         // 🧪 TEST MODE: true rahega toh notification na jaane par screen par wajah dikhegi. Sab theek hone ke baad false kar dena.
-        const BET_NOTIFY_DEBUG = true;
+        const BET_NOTIFY_DEBUG = false;
         function _bnDebug(msg) { console.log("Bet notify:", msg); if (BET_NOTIFY_DEBUG) alert("🔔 " + msg); }
 
         // STEP 1 (bet se pehle): subadmin ki settings padho + message banao.

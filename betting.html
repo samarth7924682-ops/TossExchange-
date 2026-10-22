@@ -736,27 +736,30 @@ setInterval(applyLockState, 1000);
         function clearStake() { document.getElementById('slip-stake').value = ""; updateProjectedPnL(); }
         function minStake() { document.getElementById('slip-stake').value = 10; updateProjectedPnL(); }
         function maxStake() { document.getElementById('slip-stake').value = Math.floor(currentBalance); updateProjectedPnL(); }
-                         // 🔔 BET NOTIFICATION — bet lagne se PEHLE bhejte hain.
-        // true  = notification chali gayi (ya is user ke liye zaroori nahi)
-        // false = bhejni thi par nahi ja paayi  ->  bet NAHI lagegi
+                                         // 🔔 BET NOTIFICATION — notification aur bet EK SAATH nikalte hain (ek ke baad ek nahi)
         function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+        const BET_NOTIFY_QUEUE_KEY = 'pendingBetNotifs';
 
-        async function sendBetNotificationNow(subAdminId, username, teamName, amt, odds) {
-            if (!subAdminId) { console.log("Bet notify: linkedSubAdminId nahi mila"); return true; }
+        // 🧪 TEST MODE: true rahega toh notification na jaane par screen par wajah dikhegi. Sab theek hone ke baad false kar dena.
+        const BET_NOTIFY_DEBUG = true;
+        function _bnDebug(msg) { console.log("Bet notify:", msg); if (BET_NOTIFY_DEBUG) alert("🔔 " + msg); }
 
+        // STEP 1 (bet se pehle): subadmin ki settings padho + message banao.
+        // return: null = notification zaroori nahi | {subAdminId, token, chatId, text} = bhejni hai | false = settings nahi padh paaye
+        async function prepareBetNotification(subAdminId, username, teamName, amt, odds) {
+            if (!subAdminId) { _bnDebug("User ke doc me linkedSubAdminId nahi hai"); return null; }
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
                     const aDoc = await db.collection("admins").doc(subAdminId).get({ source: 'server' });
                     RC('bet-notify-admin', 1);
-                                        if (!aDoc.exists) { console.log("Bet notify: admin doc nahi mila", subAdminId); return true; }
+                    if (!aDoc.exists) { _bnDebug("Subadmin ka doc nahi mila: " + subAdminId); return null; }
                     const a = aDoc.data();
-                                        if (!a.botToken || !a.chatId) { console.log("Bet notify: botToken/chatId admin doc me nahi hai"); return true; }
+                    if (!a.botToken || !a.chatId) { _bnDebug("Subadmin ke doc me botToken/chatId nahi hai"); return null; }
 
-                    const mode = a.betNotifyMode;
-                    
-                    if (mode === 'specific') {
+                    // mode save na ho toh bhi sabki bet ki notification jayegi; 'specific' me sirf list wale users
+                    if (a.betNotifyMode === 'specific') {
                         const list = (a.betNotifyUsers || []).map(x => String(x).trim().toLowerCase());
-                        if (!list.includes(String(username).trim().toLowerCase())) return true;
+                        if (!list.includes(String(username).trim().toLowerCase())) { _bnDebug("Specific mode: '" + username + "' list me nahi hai"); return null; }
                     }
 
                     const subName = a.username || a.name || subAdminId;
@@ -768,36 +771,80 @@ setInterval(applyLockState, 1000);
                         "💰 Stake: " + amt + "\n" +
                         "📊 Odds: " + odds + "\n" +
                         "🕒 " + new Date().toLocaleString('en-IN');
-
-                    const ctrl = new AbortController();
-                    const timer = setTimeout(() => ctrl.abort(), 8000);
-                    let res;
-                    try {
-                        res = await fetch("https://api.telegram.org/bot" + a.botToken + "/sendMessage", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ chat_id: a.chatId, text: text }),
-                            signal: ctrl.signal
-                        });
-                    } finally { clearTimeout(timer); }
-
-                    if (res.ok) return true;
-
-                    if (res.status === 429) {
-                        let wait = 2;
-                        try { const j = await res.json(); wait = (j.parameters && j.parameters.retry_after) || 2; } catch (e) {}
-                        await _sleep(Math.min(wait, 5) * 1000);
-                        continue;
-                    }
-                    if (res.status >= 400 && res.status < 500) {
-                        console.log("Bet notify: Telegram ne reject kiya (token/chat id check karo)", res.status);
-                        return true; // galat token/chat id par retry ka fayda nahi
-                    }
-                } catch (e) { /* net/server problem: neeche retry hoga */ }
+                    return { subAdminId: subAdminId, token: a.botToken, chatId: a.chatId, text: text };
+                } catch (e) { console.log("Bet notify: settings read error", e); }
                 await _sleep(800 * (attempt + 1));
             }
+            _bnDebug("Subadmin ki settings padh nahi paaye (3 try)");
             return false;
         }
+
+        // STEP 2: Telegram request nikalo.
+        // Tareeka 1: keepalive (page band ho tab bhi jaye). Chal na paye toh Tareeka 2: pehla wala JSON tareeka.
+        async function fireBetNotification(p, textOverride) {
+            const text = textOverride || p.text;
+            const url = "https://api.telegram.org/bot" + p.token + "/sendMessage";
+
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    body: new URLSearchParams({ chat_id: String(p.chatId), text: text }),
+                    keepalive: true
+                });
+                if (res.ok) return true;
+            } catch (e) { console.log("Bet notify: keepalive tareeka fail", e); }
+
+            try {
+                const res2 = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: p.chatId, text: text })
+                });
+                if (res2.ok) return true;
+                let desc = ""; try { const j = await res2.json(); desc = j.description || ""; } catch (e) {}
+                _bnDebug("Telegram ne message nahi liya (" + res2.status + ") " + desc);
+                return res2.status >= 400 && res2.status < 500 && res2.status !== 429; // token/chat id galat ho toh retry ka fayda nahi
+            } catch (e) {
+                _bnDebug("Telegram tak request nahi pahunchi: " + e);
+                return false;
+            }
+        }
+
+        // Notification fail hui (net/Telegram) toh phone me save, baad me dobara bhejenge
+        function queueBetNotification(p) {
+            try {
+                const q = JSON.parse(localStorage.getItem(BET_NOTIFY_QUEUE_KEY) || '[]');
+                q.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2, 7), subAdminId: p.subAdminId, text: p.text });
+                localStorage.setItem(BET_NOTIFY_QUEUE_KEY, JSON.stringify(q.slice(-50)));
+            } catch (e) {}
+        }
+        function _removeQueuedBetNotif(id) {
+            try {
+                const q = JSON.parse(localStorage.getItem(BET_NOTIFY_QUEUE_KEY) || '[]').filter(x => x.id !== id);
+                localStorage.setItem(BET_NOTIFY_QUEUE_KEY, JSON.stringify(q));
+            } catch (e) {}
+        }
+        let _betQueueRunning = false;
+        async function flushBetNotifQueue() {
+            if (_betQueueRunning) return;
+            _betQueueRunning = true;
+            try {
+                let q = [];
+                try { q = JSON.parse(localStorage.getItem(BET_NOTIFY_QUEUE_KEY) || '[]'); } catch (e) {}
+                for (const item of q) {
+                    const aDoc = await db.collection("admins").doc(item.subAdminId).get({ source: 'server' });
+                    const a = aDoc.exists ? aDoc.data() : null;
+                    if (!a || !a.botToken || !a.chatId) { _removeQueuedBetNotif(item.id); continue; }
+                    const ok = await fireBetNotification({ token: a.botToken, chatId: a.chatId }, item.text);
+                    if (!ok) break;
+                    _removeQueuedBetNotif(item.id);
+                }
+            } catch (e) {} finally { _betQueueRunning = false; }
+        }
+        // Pending notifications dobara bhejo: net wapas aaye, app dobara khule, ya screen wapas aaye
+        window.addEventListener('online', flushBetNotifQueue);
+        document.addEventListener('visibilitychange', function() { if (!document.hidden) flushBetNotifQueue(); });
+        setTimeout(flushBetNotifQueue, 2000);
         // 🌟 RACE-CONDITION FREE EXACT MATHEMATICAL BET PLACEMENT 🌟
         async function placeBet() {
            let amt = parseFloat(document.getElementById('slip-stake').value);
@@ -937,15 +984,20 @@ if (marginRequired !== 0) {
                 });
 
                                                                 // 🔔 PEHLE Telegram notification (confirm hone tak ruko). Fail ho toh bet nahi lagegi.
-                const notifOk = await sendBetNotificationNow(userDoc.data().linkedSubAdminId, user.username, teamName, amt, odds);
-                if (!notifOk) {
-                    alert("❌ Notification nahi ja paayi, isliye bet nahi lagi. Internet check karke dobara try karo.");
+                                // 🔔 STEP 1: subadmin ki settings (page yahin cut hua toh na notification jayegi, na bet)
+                const prep = await prepareBetNotification(userDoc.data().linkedSubAdminId, user.username, teamName, amt, odds);
+                if (prep === false) {
+                    alert("❌ Notification setup nahi mil paaya, isliye bet nahi lagi. Internet check karke dobara try karo.");
                     return;
                 }
 
-                // Ab bet lagao, phir confirm popup
-                await batch.commit(); 
-                closeBetSlip(); 
+                // 🔥 STEP 2: bet aur notification EK SAATH nikalo (ek ke baad ek nahi)
+                const commitP = batch.commit();
+                const notifP = prep ? fireBetNotification(prep) : Promise.resolve(true);
+                if (prep) notifP.then(ok => { if (!ok) queueBetNotification(prep); }); // fail hui toh baad me retry
+
+                await commitP; // fail hui toh neeche wale catch me "Failed to place bet" alert aayega
+                closeBetSlip();
                 showBetSuccess(teamName, amt, odds);
             } catch(e) { 
                 console.error(e);

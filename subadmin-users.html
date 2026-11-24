@@ -283,7 +283,8 @@
                         <div class="u-info">
                             <div>
                                 <span class="u-name">${nameIcon} ${u.username}</span>
-                                ${referBadge}
+                                                                ${referBadge}
+                                <div style="font-size:10px; color:#555; font-weight:800; margin-top:1px;">🔑 ${u.password || '—'}</div>
                             </div>
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <button class="btn-refresh" title="Refresh" onclick="refreshUserBtn('${userId}', this)">⟳</button>
@@ -345,8 +346,7 @@
         const USERS_KEY = 'subUsersCache_' + subAdmin.id;
 
         function slimUser(id, d) {
-            // password jaisi sensitive cheezein cache me save nahi karte
-            return { id, username: d.username, usernameLower: d.usernameLower, balance: d.balance || 0, locked: !!d.locked, referCode: d.referCode || null };
+                       return { id, username: d.username, usernameLower: d.usernameLower, balance: d.balance || 0, locked: !!d.locked, referCode: d.referCode || null, password: d.password || '' };
         }
         function saveUsersCache() {
             try { localStorage.setItem(USERS_KEY, JSON.stringify(allUsers)); } catch (e) {}
@@ -379,7 +379,7 @@
         async function loadMyUsers() {
             let cached = null;
             try { cached = JSON.parse(localStorage.getItem(USERS_KEY) || 'null'); } catch (e) {}
-            if (Array.isArray(cached)) {
+                        if (Array.isArray(cached) && cached.length > 0 && cached.every(u => u && ('password' in u))) {
                 allUsers = cached; // 0 reads
             } else {
                 try { await fetchAllUsersOnce(); saveUsersCache(); } // sirf pehli baar
@@ -626,6 +626,8 @@ function toggleReferSummary(forceOpen) {
                     password: newPass,
                     passwordChanged: false 
                 });
+                                const pu = allUsers.find(u => u.id === userId);
+                if (pu) { pu.password = newPass; saveUsersCache(); renderUserList(); }
                 alert(`✅ Password for ${username} updated successfully!`);
             } catch(e) { alert("Error updating password."); }
         }
@@ -692,7 +694,7 @@ function toggleReferSummary(forceOpen) {
                 }
 
                 await batch.commit();
-                allUsers.push({ id: newUserRef.id, username, usernameLower, balance, locked: false, referCode: referCode || null });
+                                allUsers.push({ id: newUserRef.id, username, usernameLower, balance, locked: false, referCode: referCode || null, password: password });
                 applyUsersChange();
                 alert("✅ User Created Successfully!");
                 document.getElementById('new-user').value = '';

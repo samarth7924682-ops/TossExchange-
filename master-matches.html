@@ -229,7 +229,8 @@
         let currentSettleMatchId = null;
         let currentSettleMatchData = null;
         let masterTgSettings = null;
-        let editingMatchId = null; // null = naya match, warna is id wala match update hoga
+               let editingMatchId = null; // null = naya match, warna is id wala match update hoga
+        const TOSS_EARLY_MIN = 20; // site ke time se kitne min pehle toss/lock time set hoga
 
         // Fetch TG Settings for alerts
         db.collection("system_settings").doc("global").onSnapshot(doc => {
@@ -361,7 +362,7 @@
             let matchDate = new Date(getTrueTime());
             matchDate.setDate(matchDate.getDate() + dateOffset);
             const [hours, minutes] = timeStr.split(':');
-            matchDate.setHours(hours, minutes, 0, 0);
+                        matchDate.setHours(Number(hours), Number(minutes) - TOSS_EARLY_MIN, 0, 0); // site time se 20 min pehle
 
             const tossTimestamp = matchDate.getTime();
             const lockTimestamp = tossTimestamp - (lockMins * 60 * 1000); 
@@ -563,7 +564,7 @@
 
                 const d = new Date(now);
                 d.setDate(d.getDate() + baseOffset + dayAdd);
-                d.setHours(p.h, p.min, 0, 0);
+                                d.setHours(p.h, p.min - TOSS_EARLY_MIN, 0, 0); // site time se 20 min pehle
 
                 const item = { raw: line, teamA: p.teamA, teamB: p.teamB, date: d, tossMs: d.getTime(), lockMs: d.getTime() - lockMins * 60000, status: 'ok', note: '', checked: true };
 
@@ -740,7 +741,7 @@
             document.getElementById('matchSource').value = source || 'Crex';
             document.getElementById('predictWinner').value = predictWinner || '';
 
-            const d = new Date(tossTimeMs);
+                        const d = new Date(tossTimeMs + TOSS_EARLY_MIN * 60000); // form me site wala time dikhao (toss + 20 min)
             const today = new Date(getTrueTime());
             let diffDays = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 86400000);
             if (diffDays < 0) diffDays = 0;

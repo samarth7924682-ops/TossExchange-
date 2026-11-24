@@ -289,7 +289,7 @@
                     window._userSig = uSig;
                     let stored = null;
                     try { stored = JSON.parse(localStorage.getItem(SIGKEY) || 'null'); } catch (e) {}
-                    const fresh = stored && stored.sig === uSig && (Date.now() - stored.t) < FAST_MAX_MS && localStorage.getItem(cacheKey('bets', uid)) !== null;
+                                 const fresh = !targetUserId && stored && stored.sig === uSig && (Date.now() - stored.t) < FAST_MAX_MS && localStorage.getItem(cacheKey('bets', uid)) !== null;
                     if (fresh) {
                         loadAllFromCache(uid);                      // kuch nahi badla — 0 reads
                     } else {

@@ -540,7 +540,8 @@
         }
 
         function previewBulk() {
-            const lines = document.getElementById('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
+                        const lines = document.getElementById('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean)
+                .filter(l => /[A-Za-z].*\d{1,2}[:.]\d{2}\s*(?:AM|PM)/i.test(l)); // sirf match wali lines, header/footer skip
             let matchDate = new Date(getTrueTime());
 
             const baseOffset = parseInt(document.getElementById('bulkDate').value);

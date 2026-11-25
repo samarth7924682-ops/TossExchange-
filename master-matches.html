@@ -362,8 +362,7 @@
             let matchDate = new Date(getTrueTime());
             matchDate.setDate(matchDate.getDate() + dateOffset);
             const [hours, minutes] = timeStr.split(':');
-                        matchDate.setHours(Number(hours), Number(minutes) - TOSS_EARLY_MIN, 0, 0); // site time se 20 min pehle
-
+                                                            matchDate.setHours(hours, minutes, 0, 0);
             const tossTimestamp = matchDate.getTime();
             const lockTimestamp = tossTimestamp - (lockMins * 60 * 1000); 
 
@@ -742,7 +741,7 @@
             document.getElementById('matchSource').value = source || 'Crex';
             document.getElementById('predictWinner').value = predictWinner || '';
 
-                        const d = new Date(tossTimeMs + TOSS_EARLY_MIN * 60000); // form me site wala time dikhao (toss + 20 min)
+                                                                        const d = new Date(tossTimeMs);
             const today = new Date(getTrueTime());
             let diffDays = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 86400000);
             if (diffDays < 0) diffDays = 0;

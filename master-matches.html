@@ -456,14 +456,14 @@
 
         // Team A: shuru ka "Match 12" hatao
         function cleanTeamA(a) {
-            return a.replace(/^\s*Match\s*\d+\s*[:.\-]?\s*/i, '').trim();
+                        return a.replace(/^\s*Match\s*(?:No\.?|Number|#)?\s*[:.\-]?\s*\d+\s*[:.\-]?\s*/i, '').trim();
         }
 
         // Team B: pehle comma tak ka hissa hi team ka naam hai, uske baad ka tournament/venue info hatao
         function cleanTeamB(b) {
             let t = b.split(',')[0];
             t = t.replace(/\s+Day\s*\d+.*$/i, '');
-            t = t.replace(/\s+\d+(?:st|nd|rd|th)\s+Match\b.*$/i, '');
+                        t = t.replace(/\s+Match\s*(?:No\.?|Number|#)?\s*[:.\-]?\s*\d+\b.*$/i, '');
             t = t.replace(/\s+Match\s*\d+\b.*$/i, '');
             t = t.replace(/\s+Pool\s+[A-Z]\b.*$/i, '');
             t = t.replace(/\s*\(N\)\s*$/i, '');
